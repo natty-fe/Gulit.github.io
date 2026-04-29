@@ -209,6 +209,7 @@ export const Inventory = {
       const inserted = DB.insert("inventory", {
         shopId, productId, qty: Number(qty), price: Number(price),
         oldPrice: Number((Number(price) * 1.6).toFixed(2)),
+        status: "pending",
       });
       fireNewListing();
       audit(u.id, "INVENTORY_CREATED", "inventory", inserted.id, { qty, price });
@@ -217,6 +218,7 @@ export const Inventory = {
   },
   async listingsForBrowse({ subCity, q = "", category = "All" } = {}) {
     // Aggregate inventory across approved shops in a sub-city for customer browsing.
+    // Pending or rejected inventory rows are hidden from customers.
     await sleep();
     const shops = DB.filter("shops", (s) => s.status === "approved" && (!subCity || s.subCity === subCity));
     const products = DB.all("products");
@@ -225,6 +227,7 @@ export const Inventory = {
     const ql = q.trim().toLowerCase();
     const out = [];
     for (const inv of inventory) {
+      if (inv.status && inv.status !== "approved") continue;
       const shop = shops.find((s) => s.id === inv.shopId);
       if (!shop) continue;
       const product = products.find((p) => p.id === inv.productId);
@@ -235,6 +238,60 @@ export const Inventory = {
       out.push({ ...inv, shop, product, range });
     }
     return out;
+  },
+
+  // Branch decides on a pending listing: approve makes it live to customers,
+  // reject removes it from the shop. Notifies the owner either way.
+  async decideListing(id, decision, note = "") {
+    const u = Auth.require(["branch", "main"]);
+    if (!["approved", "rejected"].includes(decision)) throw new Error("Invalid decision.");
+    const inv = DB.byId("inventory", id);
+    if (!inv) throw new Error("Listing not found.");
+    if (inv.status !== "pending") throw new Error("Listing is not pending.");
+    const shop = DB.byId("shops", inv.shopId);
+    if (!shop) throw new Error("Shop not found.");
+    if (u.role === "branch" && u.committeeId && shop.branchCommitteeId !== u.committeeId) {
+      throw new Error("Not in your jurisdiction.");
+    }
+    const product = DB.byId("products", inv.productId);
+
+    if (decision === "approved") {
+      DB.update("inventory", id, {
+        status: "approved",
+        decisionBy: u.id, decisionNote: String(note || ""),
+        decidedAt: new Date().toISOString(),
+      });
+      audit(u.id, "INVENTORY_APPROVED", "inventory", id, {});
+      notify({
+        recipientType: "user", recipientId: shop.ownerId, type: "INVENTORY_APPROVED",
+        title: "Listing approved", body: String(note || ""),
+        data: { inventoryId: id, productName: product?.name || "", shopName: shop.name },
+      });
+    } else {
+      DB.remove("inventory", id);
+      audit(u.id, "INVENTORY_REJECTED", "inventory", id, { note });
+      notify({
+        recipientType: "user", recipientId: shop.ownerId, type: "INVENTORY_REJECTED",
+        title: "Listing rejected", body: String(note || ""),
+        data: { inventoryId: id, productName: product?.name || "", shopName: shop.name },
+      });
+    }
+    return DB.byId("inventory", id);
+  },
+
+  async listPending({ branchCommitteeId } = {}) {
+    await sleep();
+    const rows = DB.filter("inventory", (i) => i.status === "pending");
+    const products = DB.all("products");
+    const shops = DB.all("shops");
+    return rows
+      .map((i) => ({
+        ...i,
+        product: products.find((p) => p.id === i.productId) || null,
+        shop: shops.find((s) => s.id === i.shopId) || null,
+      }))
+      .filter((row) => row.shop && (!branchCommitteeId || row.shop.branchCommitteeId === branchCommitteeId))
+      .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
   },
 };
 

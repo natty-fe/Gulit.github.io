@@ -45,6 +45,11 @@ export async function renderBranchCommittee() {
           </div>
 
           <div class="card mt12" style="box-shadow:none;border:1px solid var(--border);">
+            <div class="hd"><h2>${t("br.listings_title")}</h2><div class="muted">${t("br.listings_subtitle")}</div></div>
+            <div class="bd" id="brListings">${t("loading")}</div>
+          </div>
+
+          <div class="card mt12" style="box-shadow:none;border:1px solid var(--border);">
             <div class="hd"><h2>${t("br.locations_title")}</h2><div class="muted">${t("br.locations_subtitle")}</div></div>
             <div class="bd" id="brLocations">${t("loading")}</div>
           </div>
@@ -64,8 +69,52 @@ export async function renderBranchCommittee() {
   await drawProposalsForBranch();
   await drawComplaintsForBranch();
   await drawShopsForBranch();
+  await drawListingsForBranch();
   await drawLocationsForBranch();
   await drawBranchNotifs();
+}
+
+async function drawListingsForBranch() {
+  const el = document.getElementById("brListings");
+  if (!el) return;
+  const { committeeId } = await branchScope();
+  const rows = await Inventory.listPending({ branchCommitteeId: committeeId || undefined });
+  if (!rows.length) { el.innerHTML = `<div class="empty">${t("br.no_listings")}</div>`; return; }
+  const ranges = await PriceRanges.list();
+  el.innerHTML = rows.map(r => {
+    const range = ranges.find(x => x.productId === r.productId);
+    return `
+      <div class="case">
+        <div class="row" style="align-items:flex-start;">
+          <div class="pimg" style="width:40px;height:40px;flex-shrink:0;">${iconSvg(r.product?.icon || "grain")}</div>
+          <div style="flex:1;">
+            <div class="title">${productName(r.product)} <span class="tag-chip">${shopName(r.shop)}</span></div>
+            <div class="meta">${unitLabel(r.product?.unit)} · ${t("own.qty")}: <b>${r.qty}</b> · <b>${etb(r.price)}</b></div>
+            ${range ? `<div class="muted mt8" style="font-size:12px;">${t("own.range_label", { min: etb(range.minPrice), max: etb(range.maxPrice) })}</div>` : ""}
+          </div>
+        </div>
+        <div class="actions">
+          <button class="addbtn" data-listing="${r.id}" data-decision="approved">${t("br.approve")}</button>
+          <button class="ghost" data-listing="${r.id}" data-decision="rejected">${t("br.reject")}</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+  el.querySelectorAll("[data-listing]").forEach(b => b.addEventListener("click", () =>
+    decideListing(b.dataset.listing, b.dataset.decision)));
+}
+
+async function decideListing(id, decision) {
+  let note = "";
+  if (decision === "rejected") {
+    note = prompt(t("br.decision_note")) || "";
+    if (!note) return;
+  }
+  try {
+    await Inventory.decideListing(id, decision, note);
+    toast(t("br.listing_decided", { decision: t(`status.${decision}`) }), "success");
+    drawListingsForBranch();
+  } catch (e) { toast(e.message, "danger"); }
 }
 
 async function drawPendingShops() {

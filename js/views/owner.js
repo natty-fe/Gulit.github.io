@@ -219,11 +219,13 @@ async function drawOwnerInventory(shopId) {
         const r = ranges.find(x => x.productId === p.id);
         const rangeText = r ? t("own.range_label", { min: etb(r.minPrice), max: etb(r.maxPrice) }) : t("own.no_range");
         const priceField = inv ? etb(inv.price) : "—";
+        const statusBadgeHtml = inv && inv.status && inv.status !== "approved"
+          ? ` ${statusBadge(inv.status)}` : "";
         return `
           <div class="pitem">
             <div class="pimg">${iconSvg(p.icon)}</div>
             <div>
-              <div class="ptitle">${productName(p)}</div>
+              <div class="ptitle">${productName(p)}${statusBadgeHtml}</div>
               <div class="psub">${t(`cat.${p.category}`, p.category)} · ${unitLabel(p.unit)}</div>
               <div class="muted mt8">${rangeText}</div>
             </div>
@@ -457,6 +459,8 @@ function notifTitle(n) {
     case "LOCATION_REJECTED":    return t(`notif.${n.type.toLowerCase()}`, {
       from: d.fromSubCity || "", to: d.toSubCity || "", by: d.by || "",
     });
+    case "INVENTORY_APPROVED":   return t("notif.inventory_approved", { product: d.productName || "", shop: d.shopName || "" });
+    case "INVENTORY_REJECTED":   return t("notif.inventory_rejected", { product: d.productName || "", shop: d.shopName || "" });
     default: return n.title || n.type;
   }
 }

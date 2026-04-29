@@ -92,7 +92,7 @@ export async function runSeed({ force = false } = {}) {
   seedDemoShopsAndInventory({ branchByCity });
 
   DB.setMeta("seeded", true);
-  DB.setMeta("seedVersion", 6);
+  DB.setMeta("seedVersion", 7);
 }
 
 // All demo staff share this password so the demo flow stays simple.
@@ -237,6 +237,7 @@ function seedDemoShopsAndInventory({ branchByCity }) {
         qty: 30 + Math.floor(Math.random() * 70),
         price,
         oldPrice: Number((price * 1.6).toFixed(2)),
+        status: "approved",
       });
     }
   }
@@ -348,5 +349,15 @@ export async function runMigrations() {
     }
     seedDemoShopsAndInventory({ branchByCity });
     DB.setMeta("seedVersion", 6);
+  }
+
+  // v6 → v7: inventory rows gained a status field. Backfill every existing
+  // row to status:"approved" so they stay live for customers. New listings
+  // created from now on will start as "pending" and need branch approval.
+  if (v < 7) {
+    for (const i of DB.all("inventory")) {
+      if (!i.status) DB.update("inventory", i.id, { status: "approved" });
+    }
+    DB.setMeta("seedVersion", 7);
   }
 }

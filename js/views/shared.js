@@ -532,6 +532,10 @@ const STR = {
     "br.locations_subtitle": "Owners and delivery agents asking to move sub-city. Approving applies the change immediately and forwards to main committee for confirmation.",
     "br.no_locations": "No pending location requests.",
     "br.location_decided": "Location request {decision}",
+    "br.listings_title": "Pending listings",
+    "br.listings_subtitle": "New inventory listings from owners. Approve to make them visible to customers, reject to remove.",
+    "br.no_listings": "No pending listings.",
+    "br.listing_decided": "Listing {decision}",
 
     // ---- committee (main) ----
     "mc.title": "City Main Committee",
@@ -592,6 +596,8 @@ const STR = {
     "notif.complaint_open": "New complaint filed against {shop} ({type})",
     "notif.product_added": "New product “{name}” added to catalog by {branch} (band {min}–{max})",
     "notif.inventory_new": "{shop} listed a new item: {product} at {price} ({qty} in stock)",
+    "notif.inventory_approved": "Your listing of {product} at {shop} was approved",
+    "notif.inventory_rejected": "Your listing of {product} at {shop} was rejected",
     "notif.location_request": "{name} ({role}) requested move {from} → {to}",
     "notif.location_branch_approved": "Branch approved {name}'s move {from} → {to}",
     "notif.location_approved": "Your move to {to} was approved",
@@ -1017,6 +1023,10 @@ const STR = {
     "br.locations_subtitle": "የክፍለ ከተማ ለውጥ የጠየቁ ባለቤቶችና አስረካቢዎች። ካፀደቁ ለውጡ ወዲያው ተግባራዊ ይሆናል፣ ለማረጋገጥም ለዋና ኮሚቴ ይተላለፋል።",
     "br.no_locations": "በመጠባበቅ ላይ ያለ የቦታ ለውጥ ጥያቄ የለም።",
     "br.location_decided": "የቦታ ለውጥ ጥያቄ {decision}",
+    "br.listings_title": "በመጠባበቅ ላይ ያሉ ዝርዝሮች",
+    "br.listings_subtitle": "ከባለቤቶች የመጡ አዲስ የክምችት ዝርዝሮች። ለደንበኞች እንዲታይ ያፅድቁ፣ ወይም ለማስወገድ ይከልክሉ።",
+    "br.no_listings": "በመጠባበቅ ላይ ዝርዝር የለም።",
+    "br.listing_decided": "ዝርዝር {decision}",
 
     // ---- committee (main) ----
     "mc.title": "የከተማ ዋና ኮሚቴ",
@@ -1077,6 +1087,8 @@ const STR = {
     "notif.complaint_open": "በ{shop} ላይ አዲስ ቅሬታ ቀርቧል ({type})",
     "notif.product_added": "“{name}” አዲስ ምርት በ{branch} ወደ ዝርዝሩ ታክሏል (ክልል {min}–{max})",
     "notif.inventory_new": "{shop} አዲስ ዕቃ ዘርዝሯል፡ {product} በ{price} ({qty} በክምችት)",
+    "notif.inventory_approved": "የእርስዎ {product} ዝርዝር በ{shop} ተፈቅዷል",
+    "notif.inventory_rejected": "የእርስዎ {product} ዝርዝር በ{shop} አልተፈቀደም",
     "notif.location_request": "{name} ({role}) {from} → {to} እንቅስቃሴ ጠይቋል",
     "notif.location_branch_approved": "ቅርንጫፍ የ{name}ን {from} → {to} እንቅስቃሴ አጽድቋል",
     "notif.location_approved": "ወደ {to} የእንቅስቃሴ ጥያቄዎ ተፈቅዷል",
