@@ -58,7 +58,7 @@ function drawAuthForm(mode) {
     wrap.innerHTML = `
       ${formField({ label: t("auth.fullname"), name: "name", required: true, placeholder: t("auth.fullname_ph") })}
       ${formField({ label: t("auth.email"), name: "email", placeholder: t("auth.email_ph") })}
-      <div class="muted" style="font-size:12px;margin-top:-6px;">${t("auth.email_accepted_hint", { list: ALLOWED_EMAIL_DOMAINS.join(", ") })}</div>
+      <div class="muted" style="font-size:12px;margin-top:6px;">${t("auth.email_accepted_hint", { list: ALLOWED_EMAIL_DOMAINS.join(", ") })}</div>
       <div id="emailStatus" class="field-status" style="font-size:12px;margin-top:4px;"></div>
       ${formField({ label: t("auth.phone"), name: "phone", placeholder: t("auth.phone_ph") })}
       ${formField({ label: t("auth.password"), name: "password", type: "password", required: true })}
@@ -75,7 +75,7 @@ function drawAuthForm(mode) {
       <div id="staffFields" hidden>
         <div class="muted mt8" style="font-size:12px;">${t("auth.staff_note")}</div>
         ${formField({ label: t("auth.workid"), name: "workId", placeholder: "" })}
-        <div id="workIdHint" class="muted" style="font-size:12px;margin-top:-6px;"></div>
+        <div id="workIdHint" class="muted" style="font-size:12px;margin-top:6px;"></div>
         <div id="workIdStatus" class="field-status" style="font-size:12px;margin-top:4px;"></div>
         ${formField({ label: t("auth.fayda"), name: "faydaFan", placeholder: t("auth.fayda_ph") })}
         <div id="faydaStatus" class="field-status" style="font-size:12px;margin-top:4px;"></div>
@@ -866,7 +866,7 @@ function openProfileEditor() {
   openModal(t("acc.edit_modal"), `
     ${formField({ label: t("auth.fullname"), name: "name", value: u.name || "", required: true })}
     ${formField({ label: t("auth.email"), name: "email", value: u.email || "" })}
-    <div class="muted" style="font-size:12px;margin-top:-6px;">${t("auth.email_accepted_hint", { list: ALLOWED_EMAIL_DOMAINS.join(", ") })}</div>
+    <div class="muted" style="font-size:12px;margin-top:6px;">${t("auth.email_accepted_hint", { list: ALLOWED_EMAIL_DOMAINS.join(", ") })}</div>
     <div id="profEmailStatus" class="field-status" style="font-size:12px;margin-top:4px;"></div>
     ${formField({ label: t("auth.phone"), name: "phone", value: u.phone || "" })}
     ${formField({ label: t("auth.subcity"), name: "subCity", type: "select", value: u.subCity || "Bole",
@@ -875,7 +875,7 @@ function openProfileEditor() {
       <hr/>
       <div class="muted" style="font-size:12px;">${t("acc.workid_readonly")}: <b>${u.workId || "—"}</b></div>
       ${formField({ label: t("auth.fayda"), name: "faydaFan", value: u.faydaFan || "", placeholder: t("auth.fayda_ph") })}
-      <div class="muted" style="font-size:11px;margin-top:-6px;">${t("acc.fayda_hint")}</div>
+      <div class="muted" style="font-size:11px;margin-top:6px;">${t("acc.fayda_hint")}</div>
       <div id="faydaStatus" class="field-status" style="font-size:12px;margin-top:4px;"></div>
     ` : ""}
     <hr/>
