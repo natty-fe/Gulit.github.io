@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Gulit - Bilingual Market Price Management System for Ethiopian local markets." />
+<title>GULIT — Market Price Management System</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 3c5.8 2.1 9 6.1 9 11.2 0 3.4-2.6 6.3-6.4 6.3-3.6 0-6-2.1-6.6-5.4 2.4 1.4 5.2 1.2 7.4-.7-3.4-.5-6-2.7-7.4-6.3C10 6.1 11.1 4.4 12 3Z' fill='%232e7d32'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+<div id="app">
+  <!-- Topbar -->
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand" data-link="home">
+        <div class="logo" aria-label="Gulit logo">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 3c5.8 2.1 9 6.1 9 11.2 0 3.4-2.6 6.3-6.4 6.3-3.6 0-6-2.1-6.6-5.4 2.4 1.4 5.2 1.2 7.4-.7-3.4-.5-6-2.7-7.4-6.3C10 6.1 11.1 4.4 12 3Z" fill="white"/>
+            <path d="M5 21c4.2-4.6 8.1-7 14-8" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div>
+          <h1>GULIT</h1>
+          <div class="tag" id="tagline">Bilingual Market Price Management</div>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <div class="pill" id="userPill" hidden>
+          <span class="userName"></span>
+          <span class="userRole"></span>
+        </div>
+        <button class="iconbtn" id="langToggle" title="Toggle language" aria-label="Toggle language">
+          <span id="langLabel">EN</span>
+        </button>
+        <button class="smallbtn" id="authBtn">Sign in</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main view container -->
+  <main id="view"></main>
+
+  <!-- Bottom nav (contextual by role) -->
+  <nav class="bottomnav" id="bottomnav" hidden>
+    <div class="bottomnav-inner" id="bottomnavInner"></div>
+  </nav>
+</div>
+
+<!-- Modal overlay -->
+<div class="overlay" id="overlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="mhd">
+      <h3 id="modalTitle">Modal</h3>
+      <button class="xbtn" id="modalClose" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+          <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+    <div class="mbd" id="modalBody"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
