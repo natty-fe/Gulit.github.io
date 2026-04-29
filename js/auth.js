@@ -6,6 +6,17 @@ import { DB } from "./db.js";
 
 const TOKEN_KEY = "gulit:v1:token";
 
+// Accepted email providers. Anything outside this list is rejected at
+// register / updateProfile time. Extend as new providers come online.
+export const ALLOWED_EMAIL_DOMAINS = ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com"];
+
+export function isAcceptedEmail(email) {
+  if (!email) return true; // empty is allowed (signup permits phone-only).
+  const parts = String(email).trim().toLowerCase().split("@");
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return false;
+  return ALLOWED_EMAIL_DOMAINS.includes(parts[1]);
+}
+
 // Per-role Work ID format. Owners get the largest range, committee members
 // the smallest, mirroring the population of each role.
 export const WORK_ID_PATTERNS = {
@@ -14,20 +25,6 @@ export const WORK_ID_PATTERNS = {
   branch:   { regex: /^BC-\d{4}$/,  example: "BC-0001",  prefix: "BC-", digits: 4 },
   main:     { regex: /^MC-\d{3}$/,  example: "MC-001",   prefix: "MC-", digits: 3 },
 };
-
-// Generate a unique 16-digit Fayda FAN at signup. Users can replace it later
-// from the profile editor with their real national-ID number.
-function generateFaydaFan() {
-  for (let attempts = 0; attempts < 20; attempts++) {
-    const buf = crypto.getRandomValues(new Uint32Array(2));
-    let fan = `${buf[0]}${buf[1]}`.replace(/\D/g, "").padStart(16, "0").slice(0, 16);
-    if (fan.length !== 16) continue;
-    const dup = DB.find("users", (u) => u.faydaFan === fan);
-    if (!dup) return fan;
-  }
-  // Fallback: timestamp + random; collisions extremely unlikely on a demo DB.
-  return String(Date.now()).padStart(16, "9").slice(0, 16);
-}
 
 export async function hashPassword(plain) {
   const enc = new TextEncoder().encode(plain);
@@ -44,6 +41,9 @@ export const Auth = {
   async register({ name, email, phone, password, role, subCity, committeeId, workId, faydaFan }) {
     if (!name || !password) throw new Error("Name and password required.");
     if (!role) throw new Error("Role required.");
+    if (email && !isAcceptedEmail(email)) {
+      throw new Error(`Email must use a supported provider: ${ALLOWED_EMAIL_DOMAINS.join(", ")}.`);
+    }
     const existing = DB.find("users", (u) => (email && u.email === email) || (phone && u.phone === phone));
     if (existing) throw new Error("An account with that email or phone already exists.");
 
@@ -62,17 +62,11 @@ export const Auth = {
       const dupWorkId = DB.find("users", (u) => u.workId === candidate);
       if (dupWorkId) throw new Error("That Work ID is already registered.");
       normWorkId = candidate;
-      // Honour an explicit FAN if supplied (e.g., from a future API), else
-      // auto-generate. Validate 16 digits + uniqueness either way.
       const fanDigits = String(faydaFan || "").replace(/\s+/g, "");
-      if (fanDigits) {
-        if (!/^\d{16}$/.test(fanDigits)) throw new Error("Fayda FAN must be exactly 16 digits.");
-        const dupFan = DB.find("users", (u) => u.faydaFan === fanDigits);
-        if (dupFan) throw new Error("That Fayda FAN is already registered to another account.");
-        normFan = fanDigits;
-      } else {
-        normFan = generateFaydaFan();
-      }
+      if (!/^\d{16}$/.test(fanDigits)) throw new Error("Fayda FAN must be exactly 16 digits.");
+      const dupFan = DB.find("users", (u) => u.faydaFan === fanDigits);
+      if (dupFan) throw new Error("That Fayda FAN is already registered to another account.");
+      normFan = fanDigits;
     }
 
     const passwordHash = await hashPassword(password);
@@ -163,8 +157,11 @@ export const Auth = {
       if (newPassword.length < 6) throw new Error("New password must be at least 6 characters.");
     }
 
-    // Email/phone uniqueness when changed.
+    // Email/phone uniqueness + provider check when changed.
     if (email && email !== fullUser.email) {
+      if (!isAcceptedEmail(email)) {
+        throw new Error(`Email must use a supported provider: ${ALLOWED_EMAIL_DOMAINS.join(", ")}.`);
+      }
       const dup = DB.find("users", (u) => u.id !== fullUser.id && u.email === email);
       if (dup) throw new Error("That email is already in use.");
     }

@@ -2,7 +2,7 @@
 // Customer-facing screens (also hosts the auth screen).
 
 import { Deliveries, Inventory, Orders, Products, Shops, Complaints, Users } from "../api.js";
-import { Auth, WORK_ID_PATTERNS } from "../auth.js";
+import { Auth, WORK_ID_PATTERNS, ALLOWED_EMAIL_DOMAINS, isAcceptedEmail } from "../auth.js";
 import { state } from "../state.js";
 import {
   toast, openModal, closeModal, etb, dateShort, statusBadge,
@@ -58,6 +58,8 @@ function drawAuthForm(mode) {
     wrap.innerHTML = `
       ${formField({ label: t("auth.fullname"), name: "name", required: true, placeholder: t("auth.fullname_ph") })}
       ${formField({ label: t("auth.email"), name: "email", placeholder: t("auth.email_ph") })}
+      <div class="muted" style="font-size:12px;margin-top:-6px;">${t("auth.email_accepted_hint", { list: ALLOWED_EMAIL_DOMAINS.join(", ") })}</div>
+      <div id="emailStatus" class="field-status" style="font-size:12px;margin-top:4px;"></div>
       ${formField({ label: t("auth.phone"), name: "phone", placeholder: t("auth.phone_ph") })}
       ${formField({ label: t("auth.password"), name: "password", type: "password", required: true })}
       ${formField({ label: t("auth.password_confirm"), name: "passwordConfirm", type: "password", required: true })}
@@ -75,6 +77,8 @@ function drawAuthForm(mode) {
         ${formField({ label: t("auth.workid"), name: "workId", placeholder: "" })}
         <div id="workIdHint" class="muted" style="font-size:12px;margin-top:-6px;"></div>
         <div id="workIdStatus" class="field-status" style="font-size:12px;margin-top:4px;"></div>
+        ${formField({ label: t("auth.fayda"), name: "faydaFan", placeholder: t("auth.fayda_ph") })}
+        <div id="faydaStatus" class="field-status" style="font-size:12px;margin-top:4px;"></div>
       </div>
       <div class="btnrow">
         <button class="primary" id="signupBtn">${t("auth.signup_btn")}</button>
@@ -85,6 +89,10 @@ function drawAuthForm(mode) {
     const workIdInput = document.querySelector("#authForm [name=workId]");
     const workIdHint = document.getElementById("workIdHint");
     const workIdStatus = document.getElementById("workIdStatus");
+    const fanInput = document.querySelector("#authForm [name=faydaFan]");
+    const fanStatus = document.getElementById("faydaStatus");
+    const emailInput = document.querySelector("#authForm [name=email]");
+    const emailStatus = document.getElementById("emailStatus");
     const syncStaffFields = () => {
       const role = roleSel.value;
       staffFields.hidden = role === "customer";
@@ -96,6 +104,9 @@ function drawAuthForm(mode) {
       }
       workIdStatus.textContent = "";
       workIdStatus.className = "field-status";
+      fanStatus.textContent = "";
+      fanStatus.className = "field-status";
+      if (fanInput) fanInput.value = "";
     };
     let workIdTimer = null;
     const checkWorkId = async () => {
@@ -124,6 +135,52 @@ function drawAuthForm(mode) {
       clearTimeout(workIdTimer);
       workIdTimer = setTimeout(checkWorkId, 250);
     });
+
+    let fanTimer = null;
+    const checkFan = async () => {
+      if (roleSel.value === "customer") return;
+      const fanDigits = (fanInput.value || "").replace(/\s+/g, "");
+      fanStatus.textContent = "";
+      fanStatus.className = "field-status";
+      if (!fanDigits) return;
+      if (!/^\d{16}$/.test(fanDigits)) {
+        fanStatus.textContent = `✗ ${t("auth.field_invalid_format")}`;
+        fanStatus.className = "field-status invalid";
+        return;
+      }
+      const result = await Users.checkUnique({ faydaFan: fanDigits });
+      if (result.faydaFanTaken) {
+        fanStatus.textContent = `✗ ${t("auth.field_taken")}`;
+        fanStatus.className = "field-status taken";
+      } else {
+        fanStatus.textContent = `✓ ${t("auth.field_available")}`;
+        fanStatus.className = "field-status available";
+      }
+    };
+    fanInput?.addEventListener("input", () => {
+      clearTimeout(fanTimer);
+      fanTimer = setTimeout(checkFan, 250);
+    });
+
+    let emailTimer = null;
+    const checkEmail = () => {
+      const value = (emailInput.value || "").trim();
+      emailStatus.textContent = "";
+      emailStatus.className = "field-status";
+      if (!value) return;
+      if (!isAcceptedEmail(value)) {
+        emailStatus.textContent = `✗ ${t("auth.email_unsupported")}`;
+        emailStatus.className = "field-status invalid";
+      } else {
+        emailStatus.textContent = `✓ ${t("auth.email_accepted")}`;
+        emailStatus.className = "field-status available";
+      }
+    };
+    emailInput?.addEventListener("input", () => {
+      clearTimeout(emailTimer);
+      emailTimer = setTimeout(checkEmail, 200);
+    });
+
     roleSel.addEventListener("change", syncStaffFields);
     syncStaffFields();
     document.getElementById("signupBtn").addEventListener("click", onSignup);
@@ -169,6 +226,7 @@ async function onSignup() {
       name: f("name"), email: f("email"), phone: f("phone"),
       password: f("password"), role, subCity, committeeId,
       workId: role === "customer" ? null : f("workId"),
+      faydaFan: role === "customer" ? null : f("faydaFan"),
     });
     state.setUser(user);
     toast(t("auth.account_created", { name: user.name }), "success");
@@ -808,6 +866,8 @@ function openProfileEditor() {
   openModal(t("acc.edit_modal"), `
     ${formField({ label: t("auth.fullname"), name: "name", value: u.name || "", required: true })}
     ${formField({ label: t("auth.email"), name: "email", value: u.email || "" })}
+    <div class="muted" style="font-size:12px;margin-top:-6px;">${t("auth.email_accepted_hint", { list: ALLOWED_EMAIL_DOMAINS.join(", ") })}</div>
+    <div id="profEmailStatus" class="field-status" style="font-size:12px;margin-top:4px;"></div>
     ${formField({ label: t("auth.phone"), name: "phone", value: u.phone || "" })}
     ${formField({ label: t("auth.subcity"), name: "subCity", type: "select", value: u.subCity || "Bole",
       options: SUB_CITIES.map(s => ({ value: s, label: subCityLabel(s) })) })}
@@ -828,6 +888,30 @@ function openProfileEditor() {
     </div>
   `);
   document.getElementById("profCancel").onclick = () => closeModal();
+
+  // Live email-suffix check.
+  {
+    const emailInput = document.querySelector("#modalBody [name=email]");
+    const emailStatus = document.getElementById("profEmailStatus");
+    let emailTimer = null;
+    const checkEmail = () => {
+      const value = (emailInput.value || "").trim();
+      emailStatus.textContent = "";
+      emailStatus.className = "field-status";
+      if (!value) return;
+      if (!isAcceptedEmail(value)) {
+        emailStatus.textContent = `✗ ${t("auth.email_unsupported")}`;
+        emailStatus.className = "field-status invalid";
+      } else {
+        emailStatus.textContent = `✓ ${t("auth.email_accepted")}`;
+        emailStatus.className = "field-status available";
+      }
+    };
+    emailInput?.addEventListener("input", () => {
+      clearTimeout(emailTimer);
+      emailTimer = setTimeout(checkEmail, 200);
+    });
+  }
 
   // Live availability check for Fayda FAN — staff only.
   if (isStaff) {
