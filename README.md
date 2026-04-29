@@ -23,6 +23,7 @@ The architecture mirrors a real backend: a `db.js` table layer underneath an `ap
 - **Price-range enforcement** — listing and ordering reject prices outside the regulated band.
 - **Audit log** — append-only events for registration, login, shop status, price changes, order/delivery status, complaint decisions, refunds.
 - **Bilingual** — EN / አማርኛ toggle in the topbar.
+- **7 themes** — Sunset Market, Saffron Spice, Berry Bloom, Coral Reef, Teal Tide, Forest, and Midnight (dark). Tap the 🎨 in the topbar; selection persists across sessions.
 - **Mobile-first** — responsive layout, role-aware bottom navigation.
 
 ---

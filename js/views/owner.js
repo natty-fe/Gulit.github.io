@@ -169,7 +169,7 @@ async function openOrderDetail(orderId) {
     <hr/>
     ${o.items.map(i => `<div class="row mt8"><div class="muted"><b>${i.name}</b> × ${i.qty}</div><div style="font-weight:900;">${etb(i.lineTotal)}</div></div>`).join("")}
     <hr/>
-    <div class="row"><div style="font-weight:900;">Total</div><div style="font-weight:900;color:var(--g2);">${etb(o.total)}</div></div>
+    <div class="row"><div style="font-weight:900;">Total</div><div style="font-weight:900;color:var(--primary);">${etb(o.total)}</div></div>
     <div class="muted mt8">Payment: <b>${o.paymentType === "prepay" ? "Pay now" : "Cash on delivery"}</b></div>
   `);
 }

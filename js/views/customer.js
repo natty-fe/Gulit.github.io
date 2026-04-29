@@ -439,7 +439,7 @@ export async function renderCart() {
     <hr/>
     <div class="row">
       <div><div style="font-weight:900;">Total</div><div class="muted">Delivery fees added at checkout.</div></div>
-      <div style="font-weight:900;color:var(--g2);font-size:18px;">${etb(total)}</div>
+      <div style="font-weight:900;color:var(--primary);font-size:18px;">${etb(total)}</div>
     </div>
     <div class="mt12"><button class="primary w100" id="checkout">Proceed to checkout</button></div>
   `;
@@ -571,16 +571,16 @@ async function openOrderDetail(orderId) {
       <div class="row mt8"><div class="muted"><b>${i.name}</b> × ${i.qty}</div><div style="font-weight:900;">${etb(i.lineTotal)}</div></div>
     `).join("")}
     <hr/>
-    <div class="row"><div style="font-weight:900;">Total</div><div style="font-weight:900;color:var(--g2);">${etb(o.total)}</div></div>
+    <div class="row"><div style="font-weight:900;">Total</div><div style="font-weight:900;color:var(--primary);">${etb(o.total)}</div></div>
     <div class="muted mt8">Payment: <b>${o.paymentType === "prepay" ? "Pay now" : "Cash on delivery"}</b></div>
     ${delivery ? `
       <hr/>
       <div style="font-weight:900;">Delivery</div>
       <div class="muted mt8">Status: ${statusBadge(delivery.status)} · ETA ${delivery.eta || "—"}</div>
       ${delivery.status !== "delivered" ? `
-        <div class="mt12" style="padding:12px;background:rgba(46,125,50,.08);border-radius:14px;text-align:center;">
+        <div class="mt12" style="padding:12px;background:var(--primary-tint);border:1px solid var(--primary-ring);border-radius:14px;text-align:center;">
           <div class="muted" style="font-size:12px;">Share this OTP with the courier on arrival</div>
-          <div style="font-size:28px;font-weight:900;letter-spacing:.4em;color:var(--g2);">${delivery.otp}</div>
+          <div style="font-size:28px;font-weight:900;letter-spacing:.4em;color:var(--primary);">${delivery.otp}</div>
         </div>
       ` : `<div class="muted mt8">Confirmed at ${dateShort(delivery.confirmedAt)}.</div>`}
     ` : ""}

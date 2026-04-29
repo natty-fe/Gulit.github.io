@@ -9,9 +9,12 @@ import { state } from "./state.js";
 import { start, go } from "./router.js";
 import { defaultRouteFor } from "./views/customer.js";
 import { cartCount } from "./views/customer.js";
-import { ROLE_LABELS, t, getLang, setLang } from "./views/shared.js";
+import { ROLE_LABELS, t, getLang, setLang, applyTheme, openThemePicker } from "./views/shared.js";
 
 (async function bootstrap() {
+  // Theme must be applied before anything paints to avoid a flash.
+  applyTheme();
+
   DB.ensure();
   await runSeed();
 
@@ -22,6 +25,7 @@ import { ROLE_LABELS, t, getLang, setLang } from "./views/shared.js";
   wireTopbar();
   wireBottomNav();
   applyLang();
+  applyThemeButton();
 
   // Re-render topbar/bottom nav whenever the user or cart changes.
   state.on("user", () => { wireTopbar(); wireBottomNav(); });
@@ -125,4 +129,10 @@ function applyLang() {
     wireTopbar();
     wireBottomNav();
   };
+}
+
+function applyThemeButton() {
+  const btn = document.getElementById("themeToggle");
+  if (!btn) return;
+  btn.onclick = () => openThemePicker();
 }

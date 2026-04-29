@@ -248,7 +248,7 @@ async function openAuditLog() {
     <div class="muted">Append-only log of governance and lifecycle events.</div>
     <div class="mt12" style="display:grid;gap:6px;">
       ${rows.map(r => `
-        <div class="comment" style="background:#fff;">
+        <div class="comment" style="background:var(--surface);">
           <div class="row" style="align-items:flex-start;">
             <div>
               <div style="font-weight:900;">${r.action}</div>

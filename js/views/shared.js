@@ -126,6 +126,55 @@ export function t(key) {
   return (STR[lang] && STR[lang][key]) || (STR.en[key] || key);
 }
 
+// ------------------ THEME ------------------
+const THEME_KEY = "gulit:v1:theme";
+export const THEMES = [
+  { id: "sunset",   name: "Sunset Market",  desc: "Warm marketplace orange" },
+  { id: "saffron",  name: "Saffron Spice",  desc: "Golden Ethiopian amber" },
+  { id: "berry",    name: "Berry Bloom",    desc: "Bold magenta energy" },
+  { id: "coral",    name: "Coral Reef",     desc: "Soft coral rose" },
+  { id: "teal",     name: "Teal Tide",      desc: "Fresh ocean cool" },
+  { id: "forest",   name: "Forest",         desc: "Classic Gulit green" },
+  { id: "midnight", name: "Midnight",       desc: "Easy on the eyes (dark)" },
+];
+
+export function getTheme() { return localStorage.getItem(THEME_KEY) || "sunset"; }
+export function setTheme(id) {
+  if (!THEMES.some(t => t.id === id)) return;
+  localStorage.setItem(THEME_KEY, id);
+  applyTheme();
+}
+export function applyTheme() {
+  document.documentElement.setAttribute("data-theme", getTheme());
+}
+
+export function openThemePicker() {
+  const cur = getTheme();
+  openModal("Choose a theme", `
+    <div class="muted">Pick the look that suits you. Saved across sessions.</div>
+    <div class="theme-grid mt12">
+      ${THEMES.map(th => `
+        <button class="theme-card ${th.id === cur ? "selected" : ""}" data-id="${th.id}">
+          <div class="theme-swatch"></div>
+          <div>
+            <div class="theme-name">${th.name}</div>
+            <div class="theme-desc">${th.desc}</div>
+          </div>
+        </button>
+      `).join("")}
+    </div>
+  `);
+  document.querySelectorAll(".theme-card").forEach(btn => {
+    btn.addEventListener("click", () => {
+      setTheme(btn.dataset.id);
+      // Refresh the picker so the selected ring moves to the new card.
+      const name = THEMES.find(x => x.id === btn.dataset.id)?.name || "";
+      toast(`Theme: ${name}`, "success");
+      openThemePicker();
+    });
+  });
+}
+
 // Inline product-icon SVGs (offline-safe, match the prototype's look).
 export function iconSvg(kind) {
   const svgs = {
@@ -187,7 +236,7 @@ export function avatarSvg(seed = 0) {
   const sh = shirts[seed % shirts.length];
   const h = hair[seed % hair.length];
   return `<svg viewBox="0 0 64 64" fill="none" aria-hidden="true" width="56" height="56">
-    <rect x="0" y="0" width="64" height="64" rx="18" fill="rgba(46,125,50,.10)"/>
+    <rect x="0" y="0" width="64" height="64" rx="18" fill="rgba(0,0,0,.04)"/>
     <path d="M14 58c3-14 13-18 18-18s15 4 18 18" fill="${sh}" opacity=".95"/>
     <circle cx="32" cy="28" r="12" fill="${s}" />
     <path d="M20 24c2-10 22-10 24 0 0-10-6-16-12-16s-12 6-12 16Z" fill="${h}"/>
