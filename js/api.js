@@ -482,6 +482,27 @@ export const Users = {
     await sleep();
     return DB.filter("users", (u) => u.role === role).map((u) => Auth.publicUser(u));
   },
+  // Main-committee admin view: every user with an "active" flag derived from
+  // whether they currently have a session token (not signed out yet).
+  async listAll() {
+    Auth.require(["main"]);
+    await sleep();
+    const users = DB.all("users");
+    const sessions = DB.all("sessions");
+    const sessionByUser = new Map();
+    for (const s of sessions) {
+      const prev = sessionByUser.get(s.userId);
+      if (!prev || (prev.lastSeen || "") < (s.lastSeen || "")) sessionByUser.set(s.userId, s);
+    }
+    return users.map((u) => {
+      const session = sessionByUser.get(u.id);
+      return {
+        ...Auth.publicUser(u),
+        active: !!session,
+        lastSeen: session?.lastSeen || u.updatedAt || null,
+      };
+    });
+  },
 };
 
 // ------------------ COMMITTEES ------------------

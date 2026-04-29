@@ -515,6 +515,15 @@ const STR = {
     "mc.no_notifs": "No notifications.",
     "mc.needs_review": "Needs main review",
     "mc.needs_review_hint": "Initial band was set by a branch committee. Tap Update to confirm or override.",
+    "mc.accounts_title": "Accounts",
+    "mc.accounts_subtitle": "Active vs inactive user accounts across the city.",
+    "mc.acc_active": "Active",
+    "mc.acc_inactive": "Inactive",
+    "mc.acc_total": "Total",
+    "mc.acc_last_seen": "Last seen {when}",
+    "mc.acc_never_signed_in": "Never signed in",
+    "mc.acc_filter_all": "All",
+    "mc.no_accounts": "No accounts.",
 
     // ---- notifications (cross-cutting) ----
     "notif.proposal_pending": "{owner} proposed product “{name}” for review",
@@ -928,6 +937,15 @@ const STR = {
     "mc.no_notifs": "ማሳወቂያ የለም።",
     "mc.needs_review": "የዋና ግምገማ ይጠብቃል",
     "mc.needs_review_hint": "የመጀመሪያው ክልል በቅርንጫፍ ኮሚቴ ነው የተቀመጠው። ለማረጋገጥ ወይም ለመቀየር “አስተካክል” ይጫኑ።",
+    "mc.accounts_title": "መለያዎች",
+    "mc.accounts_subtitle": "በከተማ ውስጥ ያሉ አክቲቭ እና አክቲቭ ያልሆኑ መለያዎች።",
+    "mc.acc_active": "አክቲቭ",
+    "mc.acc_inactive": "አክቲቭ ያልሆነ",
+    "mc.acc_total": "ጠቅላላ",
+    "mc.acc_last_seen": "የመጨረሻ ሲሰራ {when}",
+    "mc.acc_never_signed_in": "ገባ ያልገባ",
+    "mc.acc_filter_all": "ሁሉም",
+    "mc.no_accounts": "መለያ የለም።",
 
     // ---- notifications (cross-cutting) ----
     "notif.proposal_pending": "{owner} “{name}” ምርት ለግምገማ ጠቁሟል",
@@ -987,6 +1005,19 @@ const STR = {
 
 export function getLang() { return localStorage.getItem("gulit:v1:lang") || "en"; }
 export function setLang(l) { localStorage.setItem("gulit:v1:lang", l); }
+
+// Developer mode toggle. Set via ?dev=1 in the URL (persists), ?dev=0 to clear.
+// Used to gate destructive demo controls (e.g., "Reset demo data") from
+// regular users — only the developer should ever see them.
+const DEV_KEY = "gulit:v1:dev";
+export function isDev() {
+  try {
+    const param = new URLSearchParams(location.search).get("dev");
+    if (param === "1") localStorage.setItem(DEV_KEY, "1");
+    if (param === "0") localStorage.removeItem(DEV_KEY);
+  } catch { /* search may not parse on file://; safe to ignore */ }
+  return localStorage.getItem(DEV_KEY) === "1";
+}
 
 // t(key, fallback?, params?)  OR  t(key, params)
 //   Examples: t("auth.welcome")

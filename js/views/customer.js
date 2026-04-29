@@ -8,7 +8,7 @@ import {
   toast, openModal, closeModal, etb, dateShort, statusBadge,
   iconSvg, avatarSvg, stars, formField, openThemePicker, getTheme, THEMES,
   t, catLabel, productName, unitLabel, shopName, subCityLabel, cityLabel,
-  SUB_CITY_COORDS, ADDIS_CENTER,
+  SUB_CITY_COORDS, ADDIS_CENTER, isDev,
 } from "./shared.js";
 import { SUB_CITIES, CATEGORIES } from "../seed.js";
 
@@ -691,12 +691,14 @@ export async function renderAccount() {
         <button class="viewbtn" id="themePickBtn">${t("acc.change_theme")}</button>
       </div>
 
+      ${isDev() ? `
       <hr/>
-      <div class="muted">${t("acc.demo")}</div>
+      <div class="muted">${t("acc.demo")} · <span style="color:var(--accent);font-weight:800;">DEV</span></div>
       <div class="btnrow">
         <button class="ghost" id="resetBtn">${t("acc.reset")}</button>
       </div>
       <div class="muted mt8" style="font-size:12px;">${t("acc.reset_note")}</div>
+      ` : ""}
     </div>
   </div></section>`;
 
@@ -720,7 +722,7 @@ export async function renderAccount() {
       location.hash = "#/auth";
     };
   });
-  document.getElementById("resetBtn").addEventListener("click", async () => {
+  document.getElementById("resetBtn")?.addEventListener("click", async () => {
     if (!confirm(t("acc.reset_confirm"))) return;
     const { runSeed } = await import("../seed.js");
     Auth.logout();

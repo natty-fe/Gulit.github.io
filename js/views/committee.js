@@ -329,6 +329,11 @@ export async function renderMainCommittee() {
             <div class="hd"><h2>${t("mc.notifs_title")}</h2><div class="muted">${t("mc.notifs_subtitle")}</div></div>
             <div class="bd" id="mcNotifs">${t("loading")}</div>
           </div>
+
+          <div class="card mt12" style="box-shadow:none;border:1px solid var(--border);">
+            <div class="hd"><h2>${t("mc.accounts_title")}</h2><div class="muted">${t("mc.accounts_subtitle")}</div></div>
+            <div class="bd" id="mcAccounts">${t("loading")}</div>
+          </div>
         </div>
       </div>
     </section>
@@ -339,6 +344,7 @@ export async function renderMainCommittee() {
   await drawEscalations();
   await drawMainOverview();
   await drawMainNotifs();
+  await drawMainAccounts();
 }
 
 async function drawPriceRanges() {
@@ -506,6 +512,47 @@ async function DBCommitteeMain() {
   const { Committees } = await import("../api.js");
   const all = await Committees.list();
   return all.find(c => c.type === "main") || null;
+}
+
+async function drawMainAccounts() {
+  const el = document.getElementById("mcAccounts");
+  if (!el) return;
+  const users = await Users.listAll();
+  if (!users.length) { el.innerHTML = `<div class="empty">${t("mc.no_accounts")}</div>`; return; }
+  const active = users.filter(u => u.active).length;
+  const inactive = users.length - active;
+
+  el.innerHTML = `
+    <div class="statrow">
+      <div class="stat" data-acc="active"><div class="k">${t("mc.acc_active")}</div><div class="v">${active}</div></div>
+      <div class="stat" data-acc="inactive"><div class="k">${t("mc.acc_inactive")}</div><div class="v">${inactive}</div></div>
+      <div class="stat" data-acc="all"><div class="k">${t("mc.acc_total")}</div><div class="v">${users.length}</div></div>
+    </div>
+    <div class="mt12" style="display:grid;gap:8px;" id="mcAccountList"></div>
+  `;
+  const renderList = (filter) => {
+    const list = document.getElementById("mcAccountList");
+    const rows = filter === "all" ? users : users.filter(u => (filter === "active") === u.active);
+    if (!rows.length) { list.innerHTML = `<div class="empty">—</div>`; return; }
+    list.innerHTML = rows.map(u => `
+      <div class="pitem" style="grid-template-columns:1fr auto;">
+        <div>
+          <div class="ptitle">${escapeHtml(u.name)} <span class="tag-chip">${t(`role.${u.role}`)}</span></div>
+          <div class="psub">${u.email || u.phone || "—"}${u.subCity ? ` · ${subCityLabel(u.subCity)}` : ""}</div>
+          <div class="muted mt8" style="font-size:12px;">${u.active
+            ? t("mc.acc_last_seen", { when: u.lastSeen ? `${dateShort(u.lastSeen)} ${timeShort(u.lastSeen)}` : "—" })
+            : t("mc.acc_never_signed_in")}</div>
+        </div>
+        <span class="badge-status ${u.active ? "ok" : "muted"}">${u.active ? t("mc.acc_active") : t("mc.acc_inactive")}</span>
+      </div>
+    `).join("");
+  };
+  renderList("all");
+  el.querySelectorAll("[data-acc]").forEach(b => b.addEventListener("click", () => {
+    el.querySelectorAll(".stat").forEach(s => s.classList.remove("selected"));
+    b.classList.add("selected");
+    renderList(b.dataset.acc);
+  }));
 }
 
 // ------------------ AUDIT LOG (shared modal) ------------------
