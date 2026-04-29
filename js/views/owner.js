@@ -42,8 +42,9 @@ export async function renderOwner() {
           <div class="card mt12" style="box-shadow:none;border:1px solid var(--border);">
             <div class="hd">
               <h2>${t("inventory")}</h2>
-              <div class="flex" style="gap:8px;align-items:center;">
+              <div class="flex" style="gap:8px;align-items:center;flex-wrap:wrap;">
                 <select id="invShopSel">${myShops.map(s => `<option value="${s.id}">${shopName(s)} · ${subCityLabel(s.subCity)}</option>`).join("")}</select>
+                <button class="addbtn" id="bulkBtn" ${myShops.some(s => s.status === "approved") ? "" : "disabled"}>${t("own.bulk_btn")}</button>
                 <button class="addbtn" id="proposeBtn" ${myShops.some(s => s.status === "approved") ? "" : "disabled"}>${t("own.propose_btn")}</button>
               </div>
             </div>
@@ -81,6 +82,10 @@ export async function renderOwner() {
   document.getElementById("newShopBtn").addEventListener("click", () => openShopRegistration());
   document.getElementById("invShopSel")?.addEventListener("change", (e) => drawOwnerInventory(e.target.value));
   document.getElementById("proposeBtn")?.addEventListener("click", () => openProposeProduct(myShops));
+  document.getElementById("bulkBtn")?.addEventListener("click", () => {
+    const shopId = document.getElementById("invShopSel")?.value;
+    if (shopId) openBulkInventoryEditor(shopId);
+  });
 }
 
 async function drawOwnerStats(shops) {
@@ -257,6 +262,137 @@ function openInventoryEditor(shopId, productId, existing, ranges) {
       renderOwner();
     } catch (e) { toast(e.message, "danger"); }
   };
+}
+
+// ------------------ BULK INVENTORY EDITOR -------------------
+async function openBulkInventoryEditor(shopId) {
+  const items = await Inventory.byShop(shopId);
+  const inMap = new Map(items.map(i => [i.productId, i]));
+  const ranges = await PriceRanges.list();
+  const products = await Products.list();
+
+  const rows = products.map(p => {
+    const inv = inMap.get(p.id);
+    const r = ranges.find(x => x.productId === p.id);
+    const fallbackPrice = r ? Number(((r.minPrice + r.maxPrice) / 2).toFixed(2)) : 0;
+    return {
+      product: p,
+      range: r,
+      origQty: inv?.qty ?? 0,
+      origPrice: inv?.price ?? 0,
+      qty: inv?.qty ?? 0,
+      price: inv?.price ?? fallbackPrice,
+      invId: inv?.id || null,
+      isNew: !inv,
+    };
+  });
+
+  const isDirty = (row) => row.qty !== row.origQty || Number(row.price).toFixed(2) !== Number(row.origPrice).toFixed(2);
+
+  function renderEdit() {
+    openModal(t("own.bulk_title"), `
+      <div class="muted">${t("own.bulk_subtitle")}</div>
+      <div class="bulkrows mt12">
+        ${rows.map((row, idx) => `
+          <div class="bulkrow">
+            <div class="row" style="gap:10px;align-items:flex-start;">
+              <div class="pimg" style="width:40px;height:40px;flex-shrink:0;">${iconSvg(row.product.icon)}</div>
+              <div style="flex:1;min-width:0;">
+                <div class="ptitle" style="font-size:14px;">${productName(row.product)}</div>
+                <div class="psub" style="font-size:11px;">${unitLabel(row.product.unit)} · ${row.range ? t("own.range_label", { min: etb(row.range.minPrice), max: etb(row.range.maxPrice) }) : t("own.no_range")}</div>
+              </div>
+            </div>
+            <div class="row mt8" style="gap:8px;">
+              <label style="flex:1;display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted);">
+                ${t("own.qty_label")}
+                <input type="number" class="bulk-qty" data-idx="${idx}" value="${row.qty}" min="0" />
+              </label>
+              <label style="flex:1;display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted);">
+                ${t("own.unit_price")}
+                <input type="number" step="0.01" class="bulk-price" data-idx="${idx}" value="${row.price}" min="0" />
+              </label>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+      <div class="bulkfooter">
+        <span id="bulkCount" class="muted" style="font-size:13px;font-weight:700;"></span>
+        <div class="btnrow" style="margin:0;">
+          <button class="ghost" id="bulkCancel">${t("cancel")}</button>
+          <button class="primary" id="bulkReview">${t("own.bulk_review")}</button>
+        </div>
+      </div>
+    `);
+
+    const updateCount = () => {
+      const n = rows.filter(isDirty).length;
+      document.getElementById("bulkCount").textContent = t("own.bulk_changes", { n });
+    };
+
+    document.querySelectorAll(".bulk-qty").forEach(el => el.addEventListener("input", () => {
+      rows[Number(el.dataset.idx)].qty = Number(el.value || 0);
+      updateCount();
+    }));
+    document.querySelectorAll(".bulk-price").forEach(el => el.addEventListener("input", () => {
+      rows[Number(el.dataset.idx)].price = Number(el.value || 0);
+      updateCount();
+    }));
+    document.getElementById("bulkCancel").onclick = () => closeModal();
+    document.getElementById("bulkReview").onclick = renderReview;
+    updateCount();
+  }
+
+  function renderReview() {
+    const dirty = rows.filter(isDirty);
+    if (dirty.length === 0) {
+      toast(t("own.bulk_no_changes"));
+      return;
+    }
+    openModal(t("own.bulk_review_title"), `
+      <div class="muted">${t("own.bulk_review_subtitle", { n: dirty.length })}</div>
+      <div style="display:grid;gap:10px;margin-top:12px;">
+        ${dirty.map(row => `
+          <div class="case">
+            <div class="row" style="align-items:flex-start;">
+              <div class="pimg" style="width:40px;height:40px;flex-shrink:0;">${iconSvg(row.product.icon)}</div>
+              <div style="flex:1;">
+                <div class="title">${productName(row.product)} ${row.isNew ? `<span class="tag-chip">${t("own.bulk_new")}</span>` : ""}</div>
+                <div class="meta">${t("own.qty_label")}: ${row.origQty} → <b>${row.qty}</b></div>
+                <div class="meta">${t("own.unit_price")}: ${etb(row.origPrice)} → <b>${etb(row.price)}</b></div>
+              </div>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+      <div class="btnrow mt12">
+        <button class="ghost" id="bulkBack">${t("back")}</button>
+        <button class="primary" id="bulkSave">${t("own.bulk_save")}</button>
+      </div>
+    `);
+    document.getElementById("bulkBack").onclick = renderEdit;
+    document.getElementById("bulkSave").onclick = async () => {
+      const errs = [];
+      let saved = 0;
+      for (const row of dirty) {
+        try {
+          await Inventory.upsert({
+            id: row.invId, shopId,
+            productId: row.product.id,
+            qty: row.qty, price: row.price,
+          });
+          saved++;
+        } catch (e) {
+          errs.push(`${productName(row.product)}: ${e.message}`);
+        }
+      }
+      closeModal();
+      if (errs.length) toast(t("own.bulk_partial", { saved, failed: errs.length, first: errs[0] }), "danger");
+      else toast(t("own.bulk_saved", { n: saved }), "success");
+      renderOwner();
+    };
+  }
+
+  renderEdit();
 }
 
 // ------------------ PROPOSAL: new product ---------------

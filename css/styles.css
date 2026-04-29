@@ -807,6 +807,31 @@ input:focus, select:focus, textarea:focus{
 .pwtoggle:hover{ color: var(--text); background: var(--surface-soft); }
 .pwtoggle:focus-visible{ outline: 2px solid var(--primary); outline-offset: 2px; }
 
+.bulkrows{
+  max-height: 50vh;
+  overflow-y: auto;
+  padding-right: 4px;
+  display: grid;
+  gap: 8px;
+}
+.bulkrow{
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: var(--surface-soft);
+}
+.bulkrow input{ width: 100%; }
+.bulkfooter{
+  border-top: 1px solid var(--border);
+  margin-top: 14px;
+  padding-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .field-status{ font-weight: 700; min-height: 1em; }
 .field-status.available{ color: #15803d; }
 .field-status.taken{ color: #b91c1c; }
