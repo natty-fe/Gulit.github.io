@@ -1,7 +1,7 @@
 // js/views/committee.js
 // Branch and Main committee dashboards.
 
-import { Audit, Complaints, Inventory, Notifications, PriceRanges, Products, ProductProposals, Shops } from "../api.js";
+import { Audit, Complaints, Inventory, Notifications, PriceRanges, Products, ProductProposals, Shops, Users } from "../api.js";
 import { state } from "../state.js";
 import {
   toast, openModal, closeModal, etb, dateShort, timeShort, statusBadge, iconSvg, formField, t,
@@ -287,6 +287,11 @@ function notifTitleCommittee(n) {
     });
     case "COMPLAINT_OPEN":       return t("notif.complaint_open",      { shop: d.shopName || "", type: d.type || "" });
     case "COMPLAINT_ESCALATED":  return t("notif.complaint_escalated", { id: (d.complaintId || "").slice(-6).toUpperCase(), type: d.type || "" });
+    case "PRODUCT_ADDED":        return t("notif.product_added", {
+      name: d.productName || "",
+      branch: d.branchName || "",
+      min: etb(d.minPrice ?? 0), max: etb(d.maxPrice ?? 0),
+    });
     default: return n.title || n.type;
   }
 }
@@ -339,19 +344,23 @@ export async function renderMainCommittee() {
 async function drawPriceRanges() {
   const ranges = await PriceRanges.list();
   const products = await Products.list();
+  const branchUsers = await Users.listByRole("branch");
+  const branchIds = new Set(branchUsers.map(u => u.id));
   const el = document.getElementById("prList");
   el.innerHTML = `
     <div class="muted">${t("mc.ranges_note")}</div>
     <div class="mt12" style="display:grid;gap:10px;">
       ${products.map(p => {
         const r = ranges.find(x => x.productId === p.id);
+        const branchOnly = r && branchIds.has(r.setBy);
         return `
           <div class="pitem">
             <div class="pimg"><svg viewBox="0 0 24 24" width="32" height="32" fill="none"><path d="M3 12h18M12 3v18" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="color:var(--primary)"/></svg></div>
             <div>
-              <div class="ptitle">${productName(p)}</div>
+              <div class="ptitle">${productName(p)}${branchOnly ? ` <span class="needs-review">${t("mc.needs_review")}</span>` : ""}</div>
               <div class="psub">${t(`cat.${p.category}`, p.category)} · ${p.unit}</div>
               <div class="muted mt8">${r ? t("mc.effective", { date: dateShort(r.effectiveDate) }) : t("mc.no_range")}</div>
+              ${branchOnly ? `<div class="muted mt8" style="font-size:12px;">${t("mc.needs_review_hint")}</div>` : ""}
             </div>
             <div class="pricebox">
               <div class="now">${r ? `${etb(r.minPrice)} – ${etb(r.maxPrice)}` : "—"}</div>

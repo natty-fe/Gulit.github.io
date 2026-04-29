@@ -764,6 +764,19 @@ input:focus, select:focus, textarea:focus{
 .stat[data-filter]:hover{ border-color: var(--primary); }
 .stat.selected{ border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary-ring, transparent) inset; }
 
+.needs-review{
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--accent, #c97b5e);
+  color: var(--on-primary, #fff);
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
 .empty{
   padding: 24px;
   text-align: center;

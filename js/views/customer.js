@@ -704,7 +704,21 @@ export async function renderAccount() {
   document.getElementById("editProfileBtn").addEventListener("click", () => openProfileEditor());
 
   document.getElementById("logoutBtn").addEventListener("click", () => {
-    Auth.logout(); state.setUser(null); toast(t("acc.signed_out")); location.hash = "#/auth";
+    openModal(t("acc.signout_confirm_title"), `
+      <div class="muted">${t("acc.signout_confirm_body")}</div>
+      <div class="btnrow mt12">
+        <button class="danger" id="signoutYes">${t("acc.signout_yes")}</button>
+        <button class="ghost" id="signoutNo">${t("cancel")}</button>
+      </div>
+    `);
+    document.getElementById("signoutNo").onclick = () => closeModal();
+    document.getElementById("signoutYes").onclick = () => {
+      Auth.logout();
+      state.setUser(null);
+      closeModal();
+      toast(t("acc.signed_out"));
+      location.hash = "#/auth";
+    };
   });
   document.getElementById("resetBtn").addEventListener("click", async () => {
     if (!confirm(t("acc.reset_confirm"))) return;

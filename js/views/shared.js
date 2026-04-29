@@ -341,6 +341,9 @@ const STR = {
     "acc.current_password": "Current password (required for changes)",
     "acc.profile_saved": "Profile saved",
     "acc.bad_password": "Current password is incorrect",
+    "acc.signout_confirm_title": "Sign out?",
+    "acc.signout_confirm_body": "You'll need to sign back in to use GULIT. Any unsaved cart items remain on this device.",
+    "acc.signout_yes": "Yes, sign out",
     "map.loading": "Loading map…",
     "map.shops_in": "{n} shop(s) in {city}",
 
@@ -510,6 +513,8 @@ const STR = {
     "mc.notifs_title": "Notifications",
     "mc.notifs_subtitle": "Escalations and city-wide signals from branch committees.",
     "mc.no_notifs": "No notifications.",
+    "mc.needs_review": "Needs main review",
+    "mc.needs_review_hint": "Initial band was set by a branch committee. Tap Update to confirm or override.",
 
     // ---- notifications (cross-cutting) ----
     "notif.proposal_pending": "{owner} proposed product “{name}” for review",
@@ -518,6 +523,7 @@ const STR = {
     "notif.price_change": "{shop} changed price of {product}: {oldPrice} → {newPrice}",
     "notif.complaint_escalated": "Branch escalated complaint {id} ({type}) — needs main review",
     "notif.complaint_open": "New complaint filed against {shop} ({type})",
+    "notif.product_added": "New product “{name}” added to catalog by {branch} (band {min}–{max})",
 
     // ---- audit ----
     "audit.title": "Audit log (last 100 events)",
@@ -748,6 +754,9 @@ const STR = {
     "acc.current_password": "የአሁኑ የይለፍ ቃል (ለለውጥ ያስፈልጋል)",
     "acc.profile_saved": "መግለጫ ተቀምጧል",
     "acc.bad_password": "የአሁኑ የይለፍ ቃል ትክክል አይደለም",
+    "acc.signout_confirm_title": "መውጣት?",
+    "acc.signout_confirm_body": "GULIT ለመጠቀም እንደገና መግባት ያስፈልግዎታል። ያልተቀመጡ የጋሪ ዕቃዎች በዚህ መሳሪያ ላይ ይቆያሉ።",
+    "acc.signout_yes": "አዎ፣ ውጣ",
     "map.loading": "ካርታ በመጫን ላይ…",
     "map.shops_in": "በ{city} ውስጥ {n} ሱቆች",
 
@@ -917,6 +926,8 @@ const STR = {
     "mc.notifs_title": "ማሳወቂያዎች",
     "mc.notifs_subtitle": "ከቅርንጫፍ ኮሚቴዎች የተላለፉ ጉዳዮችና በከተማ ደረጃ ያሉ ምልክቶች።",
     "mc.no_notifs": "ማሳወቂያ የለም።",
+    "mc.needs_review": "የዋና ግምገማ ይጠብቃል",
+    "mc.needs_review_hint": "የመጀመሪያው ክልል በቅርንጫፍ ኮሚቴ ነው የተቀመጠው። ለማረጋገጥ ወይም ለመቀየር “አስተካክል” ይጫኑ።",
 
     // ---- notifications (cross-cutting) ----
     "notif.proposal_pending": "{owner} “{name}” ምርት ለግምገማ ጠቁሟል",
@@ -925,6 +936,7 @@ const STR = {
     "notif.price_change": "{shop} የ{product} ዋጋ ቀይሯል፡ {oldPrice} → {newPrice}",
     "notif.complaint_escalated": "ቅርንጫፍ ቅሬታ {id} ({type}) ለዋና ኮሚቴ አስተላልፏል",
     "notif.complaint_open": "በ{shop} ላይ አዲስ ቅሬታ ቀርቧል ({type})",
+    "notif.product_added": "“{name}” አዲስ ምርት በ{branch} ወደ ዝርዝሩ ታክሏል (ክልል {min}–{max})",
 
     // ---- audit ----
     "audit.title": "የቁጥጥር ምዝገባ (የመጨረሻ 100 ክስተቶች)",

@@ -594,6 +594,26 @@ export const ProductProposals = {
         body: note,
         data: { proposalId: id, productId: product.id, productName: p.name },
       });
+      // Surface to the main committee so they can confirm or override the
+      // initial band the branch just locked in.
+      const mainId = mainCommitteeId();
+      if (mainId && u.role === "branch") {
+        const branchCommittee = DB.byId("committees", p.branchCommitteeId);
+        notify({
+          recipientType: "committee",
+          recipientId: mainId,
+          type: "PRODUCT_ADDED",
+          title: "New product added",
+          data: {
+            productId: product.id,
+            productName: p.name,
+            productNameAm: p.nameAm,
+            branchName: branchCommittee?.name || "Branch",
+            minPrice: p.suggestedMin,
+            maxPrice: p.suggestedMax,
+          },
+        });
+      }
     } else {
       audit(u.id, "PROPOSAL_REJECTED", "productProposal", id, { note });
       notify({
