@@ -7,7 +7,8 @@ import { state } from "../state.js";
 import {
   toast, openModal, closeModal, etb, dateShort, statusBadge,
   iconSvg, avatarSvg, stars, formField, openThemePicker, getTheme, THEMES,
-  t, catLabel,
+  t, catLabel, productName, unitLabel, shopName, subCityLabel, cityLabel,
+  SUB_CITY_COORDS, ADDIS_CENTER,
 } from "./shared.js";
 import { SUB_CITIES, CATEGORIES } from "../seed.js";
 
@@ -140,7 +141,7 @@ export async function renderHome() {
             <div class="right">
               <div class="muted" style="font-weight:900;">${t("auth.subcity")}</div>
               <select id="subCitySel" style="width:auto; padding: 6px 10px;">
-                ${SUB_CITIES.map(s => `<option value="${s}" ${s === subCity ? "selected" : ""}>${s}</option>`).join("")}
+                ${SUB_CITIES.map(s => `<option value="${s}" ${s === subCity ? "selected" : ""}>${subCityLabel(s)}</option>`).join("")}
               </select>
             </div>
           </div>
@@ -160,19 +161,13 @@ export async function renderHome() {
           <div class="hd">
             <div>
               <h2>${t("home.shops_nearby")}</h2>
-              <div class="muted">${t("home.shops_in", { city: subCity })}</div>
+              <div class="muted">${t("home.shops_in", { city: subCityLabel(subCity) })}</div>
             </div>
             <button class="viewbtn" id="allShopsBtn">${t("all")}</button>
           </div>
           <div class="bd">
-            <div class="map">
-              <div class="pin" aria-hidden="true">
-                <svg width="46" height="46" viewBox="0 0 24 24" fill="none">
-                  <path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z" fill="#ef4444"/>
-                  <circle cx="12" cy="10" r="2.8" fill="white"/>
-                </svg>
-              </div>
-              <div class="maplabel">Addis Ababa · ${subCity}</div>
+            <div class="livemap" id="liveMap">
+              <div class="maplabel">${cityLabel("Addis Ababa")} · ${subCityLabel(subCity)}</div>
             </div>
             <div class="shopsgrid" id="shopsList" style="padding-left:0; padding-right:0;"></div>
           </div>
@@ -205,6 +200,61 @@ export async function renderHome() {
 
   await drawProducts();
   await drawShops();
+  initLiveMap(subCity);
+}
+
+// Module-scoped Leaflet instance so we can tear it down before re-initializing
+// when the user changes sub-city or language (Leaflet leaks if you just drop
+// the container without removing the map first).
+let _leafletMap = null;
+async function initLiveMap(subCity) {
+  const el = document.getElementById("liveMap");
+  if (!el || typeof L === "undefined") return;
+
+  if (_leafletMap) { _leafletMap.remove(); _leafletMap = null; }
+
+  const center = SUB_CITY_COORDS[subCity] || ADDIS_CENTER;
+  _leafletMap = L.map(el, {
+    zoomControl: true, attributionControl: true, scrollWheelZoom: false,
+  }).setView(center, 14);
+
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19, attribution: "© OpenStreetMap contributors",
+  }).addTo(_leafletMap);
+
+  // Drop a marker at the sub-city center, then mark each approved shop in
+  // the area with a slight jitter so multiple shops don't overlap.
+  const css = getComputedStyle(document.documentElement);
+  const primary = css.getPropertyValue("--primary").trim() || "#6b8e4e";
+  const accent  = css.getPropertyValue("--accent").trim()  || "#c97b5e";
+
+  const centerIcon = L.divIcon({
+    className: "leaflet-center-pin",
+    html: `<div style="width:14px;height:14px;border-radius:50%;background:${primary};border:3px solid #fff;box-shadow:0 4px 10px rgba(0,0,0,.25);"></div>`,
+    iconSize: [20, 20], iconAnchor: [10, 10],
+  });
+  L.marker(center, { icon: centerIcon }).addTo(_leafletMap)
+    .bindPopup(`<b>${subCityLabel(subCity)}</b>`);
+
+  const shops = await Shops.list({ subCity });
+  shops.forEach((s, i) => {
+    const c = SUB_CITY_COORDS[s.subCity] || center;
+    // Spiral the markers around the center so they're visually distinct.
+    const angle = (i * 137.5) * (Math.PI / 180);
+    const r = 0.0035 + (i % 3) * 0.0012;
+    const lat = c[0] + Math.sin(angle) * r;
+    const lng = c[1] + Math.cos(angle) * r;
+    const shopIcon = L.divIcon({
+      className: "leaflet-shop-pin",
+      html: `<div style="width:30px;height:30px;border-radius:50%;background:${accent};border:3px solid #fff;display:grid;place-items:center;font-weight:900;color:#fff;font-size:12px;box-shadow:0 6px 14px rgba(0,0,0,.25);">${i+1}</div>`,
+      iconSize: [30, 30], iconAnchor: [15, 15],
+    });
+    L.marker([lat, lng], { icon: shopIcon }).addTo(_leafletMap)
+      .bindPopup(`<b>${shopName(s)}</b><br/>${stars(s.rating || 0)}`);
+  });
+
+  // Fix tile rendering inside flex/grid by invalidating size after layout settles.
+  setTimeout(() => _leafletMap && _leafletMap.invalidateSize(), 60);
 }
 
 async function drawProducts() {
@@ -217,7 +267,7 @@ async function drawProducts() {
 
   const rows = await Inventory.listingsForBrowse({ subCity, q, category });
   if (rows.length === 0) {
-    list.innerHTML = `<div class="empty">${t("home.no_products", { city: subCity })}</div>`;
+    list.innerHTML = `<div class="empty">${t("home.no_products", { city: subCityLabel(subCity) })}</div>`;
     return;
   }
   list.innerHTML = rows.map(r => {
@@ -228,13 +278,13 @@ async function drawProducts() {
       <div class="pitem">
         <div class="pimg">${iconSvg(r.product.icon)}</div>
         <div>
-          <div class="ptitle">${r.product.name}</div>
-          <div class="psub">${catLabel(r.product.category)} · ${t("home.sold_by")} <a data-shop="${r.shop.id}">${r.shop.name}</a></div>
+          <div class="ptitle">${productName(r.product)}</div>
+          <div class="psub">${catLabel(r.product.category)} · ${t("home.sold_by")} <a data-shop="${r.shop.id}">${shopName(r.shop)}</a></div>
           ${range}
         </div>
         <div class="pricebox">
           ${oldPrice}
-          <div class="now">${etb(r.price)} / ${r.product.unit}</div>
+          <div class="now">${etb(r.price)} / ${unitLabel(r.product.unit)}</div>
           <button class="addbtn" data-add="${r.id}">${t("add")}</button>
         </div>
       </div>
@@ -251,16 +301,16 @@ async function drawShops() {
   if (!grid) return;
   const shops = await Shops.list({ subCity });
   if (shops.length === 0) {
-    grid.innerHTML = `<div class="empty">${t("home.no_shops", { city: subCity })}</div>`;
+    grid.innerHTML = `<div class="empty">${t("home.no_shops", { city: subCityLabel(subCity) })}</div>`;
     return;
   }
   grid.innerHTML = shops.map((s, i) => `
     <div class="shopcard">
       <div class="avatar">${avatarSvg(i)}</div>
       <div>
-        <div style="font-weight:900;">${s.name}</div>
+        <div style="font-weight:900;">${shopName(s)}</div>
         <div>${stars(s.rating || 0)}</div>
-        <div class="shopmeta">${t("auth.subcity")}: ${s.subCity}</div>
+        <div class="shopmeta">${t("auth.subcity")}: ${subCityLabel(s.subCity)}</div>
       </div>
       <button class="viewbtn" data-shop="${s.id}">${t("profile")}</button>
     </div>
@@ -276,7 +326,7 @@ export async function renderShops() {
     <section class="page">
       <div class="card">
         <div class="hd">
-          <div><h2>${t("shops.title", { city: subCity })}</h2><div class="muted">${t("shops.subtitle")}</div></div>
+          <div><h2>${t("shops.title", { city: subCityLabel(subCity) })}</h2><div class="muted">${t("shops.subtitle")}</div></div>
           <button class="viewbtn" data-link="home">${t("back")}</button>
         </div>
         <div class="shopsgrid" id="shopsAll"></div>
@@ -285,14 +335,14 @@ export async function renderShops() {
   `;
   const shops = await Shops.list({ subCity });
   const el = document.getElementById("shopsAll");
-  if (shops.length === 0) { el.innerHTML = `<div class="empty">${t("shops.no_approved", { city: subCity })}</div>`; return; }
+  if (shops.length === 0) { el.innerHTML = `<div class="empty">${t("shops.no_approved", { city: subCityLabel(subCity) })}</div>`; return; }
   el.innerHTML = shops.map((s, i) => `
     <div class="shopcard">
       <div class="avatar">${avatarSvg(i)}</div>
       <div>
-        <div style="font-weight:900;">${s.name}</div>
+        <div style="font-weight:900;">${shopName(s)}</div>
         <div>${stars(s.rating || 0)}</div>
-        <div class="shopmeta">${t("auth.subcity")}: ${s.subCity}</div>
+        <div class="shopmeta">${t("auth.subcity")}: ${subCityLabel(s.subCity)}</div>
       </div>
       <button class="viewbtn" data-shop="${s.id}">${t("profile")}</button>
     </div>
@@ -306,11 +356,11 @@ async function openShopModal(shopId) {
   if (!shop) return;
   const inv = await Inventory.byShop(shopId);
   const sample = inv.slice(0, 6);
-  openModal(`${shop.name} · ${t("profile")}`, `
+  openModal(`${shopName(shop)} · ${t("profile")}`, `
     <div class="row">
       <div>
-        <div style="font-weight:900;font-size:16px;">${shop.name}</div>
-        <div class="muted">${t("auth.subcity")}: <b>${shop.subCity}</b></div>
+        <div style="font-weight:900;font-size:16px;">${shopName(shop)}</div>
+        <div class="muted">${t("auth.subcity")}: <b>${subCityLabel(shop.subCity)}</b></div>
         <div class="mt8">${stars(shop.rating || 0)}</div>
       </div>
       <div>${statusBadge(shop.status)}</div>
@@ -324,8 +374,8 @@ async function openShopModal(shopId) {
         <div class="pitem">
           <div class="pimg">${iconSvg(i.product?.icon || "grain")}</div>
           <div>
-            <div class="ptitle">${i.product?.name || ""}</div>
-            <div class="psub">${catLabel(i.product?.category || "All")} · ${etb(i.price)} / ${i.product?.unit || "kg"}</div>
+            <div class="ptitle">${productName(i.product)}</div>
+            <div class="psub">${catLabel(i.product?.category || "All")} · ${etb(i.price)} / ${unitLabel(i.product?.unit || "kg")}</div>
           </div>
           <div class="pricebox">
             <button class="addbtn" data-add="${i.id}">${t("add")}</button>
@@ -421,8 +471,8 @@ export async function renderCart() {
         <div class="pitem">
           <div class="pimg">${iconSvg(inv.product?.icon || "grain")}</div>
           <div>
-            <div class="ptitle">${inv.product?.name || ""}</div>
-            <div class="psub">${etb(inv.price)} / ${inv.product?.unit} · ${t("br.shop_label")}: ${inv.shop?.name || ""}</div>
+            <div class="ptitle">${productName(inv.product)}</div>
+            <div class="psub">${etb(inv.price)} / ${unitLabel(inv.product?.unit)} · ${t("br.shop_label")}: ${shopName(inv.shop)}</div>
           </div>
           <div class="pricebox">
             <div style="font-weight:900;">x ${qty}</div>
@@ -479,7 +529,7 @@ export async function renderCheckout() {
     <hr/>
     <div class="fieldlabel">${t("checkout.address")}</div>
     <select id="deliverySubCity">
-      ${SUB_CITIES.map(s => `<option ${s === state.user?.subCity ? "selected" : ""}>${s}</option>`).join("")}
+      ${SUB_CITIES.map(s => `<option value="${s}" ${s === state.user?.subCity ? "selected" : ""}>${subCityLabel(s)}</option>`).join("")}
     </select>
 
     <div class="btnrow">
@@ -623,12 +673,13 @@ export async function renderAccount() {
       <button class="danger" id="logoutBtn">${t("acc.signout")}</button>
     </div>
     <div class="bd">
-      <div class="row">
+      <div class="row" style="align-items:flex-start;">
         <div>
-          <div style="font-weight:900;">${u.name}</div>
-          <div class="muted">${t("acc.role")}: <b>${t(`role.${u.role}`)}</b> · ${t("acc.subcity")}: <b>${u.subCity || "—"}</b></div>
+          <div style="font-weight:900;font-size:16px;">${u.name}</div>
+          <div class="muted">${t("acc.role")}: <b>${t(`role.${u.role}`)}</b> · ${t("acc.subcity")}: <b>${subCityLabel(u.subCity) || "—"}</b></div>
           <div class="muted">${t("acc.email")}: ${u.email || "—"} · ${t("acc.phone")}: ${u.phone || "—"}</div>
         </div>
+        <button class="viewbtn" id="editProfileBtn">${t("acc.edit_profile")}</button>
       </div>
       <hr/>
       <div style="font-weight:900;">${t("preferences")}</div>
@@ -650,6 +701,7 @@ export async function renderAccount() {
   </div></section>`;
 
   document.getElementById("themePickBtn").addEventListener("click", () => openThemePicker());
+  document.getElementById("editProfileBtn").addEventListener("click", () => openProfileEditor());
 
   document.getElementById("logoutBtn").addEventListener("click", () => {
     Auth.logout(); state.setUser(null); toast(t("acc.signed_out")); location.hash = "#/auth";
@@ -663,4 +715,41 @@ export async function renderAccount() {
     toast(t("acc.reset_done"), "success");
     location.hash = "#/auth";
   });
+}
+
+function openProfileEditor() {
+  const u = state.user;
+  if (!u) return;
+  openModal(t("acc.edit_modal"), `
+    ${formField({ label: t("auth.fullname"), name: "name", value: u.name || "", required: true })}
+    ${formField({ label: t("auth.email"), name: "email", value: u.email || "" })}
+    ${formField({ label: t("auth.phone"), name: "phone", value: u.phone || "" })}
+    ${formField({ label: t("auth.subcity"), name: "subCity", type: "select", value: u.subCity || "Bole",
+      options: SUB_CITIES.map(s => ({ value: s, label: subCityLabel(s) })) })}
+    <hr/>
+    ${formField({ label: t("acc.current_password"), name: "currentPassword", type: "password" })}
+    ${formField({ label: t("acc.new_password"), name: "newPassword", type: "password" })}
+    <div class="btnrow">
+      <button class="primary" id="profSave">${t("save")}</button>
+      <button class="ghost" id="profCancel">${t("cancel")}</button>
+    </div>
+  `);
+  document.getElementById("profCancel").onclick = () => closeModal();
+  document.getElementById("profSave").onclick = async () => {
+    const f = (n) => document.querySelector(`#modalBody [name=${n}]`).value;
+    try {
+      const updated = await Auth.updateProfile({
+        name: f("name").trim(),
+        email: f("email").trim(),
+        phone: f("phone").trim(),
+        subCity: f("subCity"),
+        currentPassword: f("currentPassword"),
+        newPassword: f("newPassword"),
+      });
+      state.setUser(updated);
+      toast(t("acc.profile_saved"), "success");
+      closeModal();
+      renderAccount();
+    } catch (e) { toast(e.message, "danger"); }
+  };
 }

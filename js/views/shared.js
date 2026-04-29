@@ -72,6 +72,88 @@ export function statusBadge(status) {
 // Translate a category id (used in the category chips).
 export function catLabel(c) { return t(`cat.${c}`, c); }
 
+// ---- Data-name lookups (product/shop/sub-city/city) -------------------
+// Stored values stay in English (so backend filters and seed lookups keep
+// working). These helpers translate at render time.
+const PRODUCT_NAMES_AM = {
+  prd_onion:   "ሽንኩርት",
+  prd_tomato:  "ቲማቲም",
+  prd_potato:  "ድንች",
+  prd_carrot:  "ካሮት",
+  prd_pepper:  "ቃሪያ",
+  prd_cabbage: "ጥቅል ጎመን",
+  prd_egg:     "እንቁላል (ትሬ)",
+  prd_teff:    "ጤፍ",
+  prd_rice:    "ሩዝ",
+  prd_lentils: "ምስር",
+  prd_banana:  "ሙዝ",
+  prd_berbere: "በርበሬ",
+};
+const PRODUCT_UNITS_AM = {
+  kg:    "ኪሎ",
+  tray:  "ትሬ",
+  dozen: "ደርዘን",
+  pack:  "ጥቅል",
+};
+const SHOP_NAMES_AM = {
+  "Bole Fresh Veggies":   "ቦሌ ፍሬሽ አትክልቶች",
+  "Kirkos Market Corner": "ቅርቆስ ገበያ ጥግ",
+  "Arada Daily Goods":    "አራዳ የዕለት ዕቃዎች",
+  "Yeka Grain & Eggs":    "የካ ጥራጥሬና እንቁላል",
+};
+const SUB_CITIES_AM = {
+  "Bole":              "ቦሌ",
+  "Kirkos":            "ቅርቆስ",
+  "Arada":             "አራዳ",
+  "Yeka":              "የካ",
+  "Lideta":            "ልደታ",
+  "Akaki Kality":      "አቃቂ ቃሊቲ",
+  "Addis Ketema":      "አዲስ ከተማ",
+  "Gulele":            "ጉለሌ",
+  "Nifas Silk-Lafto":  "ንፋስ ስልክ-ላፍቶ",
+  "Kolfe Keranio":     "ኮልፌ ቀራኒዮ",
+  "Lemi Kura":         "ለሚ ኩራ",
+};
+
+export function productName(p) {
+  if (!p) return "";
+  return getLang() === "am" ? (PRODUCT_NAMES_AM[p.id] || p.name) : p.name;
+}
+export function unitLabel(u) {
+  if (!u) return "";
+  return getLang() === "am" ? (PRODUCT_UNITS_AM[u] || u) : u;
+}
+export function shopName(s) {
+  if (!s) return "";
+  return getLang() === "am" ? (SHOP_NAMES_AM[s.name] || s.name) : s.name;
+}
+export function subCityLabel(name) {
+  if (!name) return "";
+  return getLang() === "am" ? (SUB_CITIES_AM[name] || name) : name;
+}
+export function cityLabel(name) {
+  if (!name) return "";
+  if (getLang() === "am" && name === "Addis Ababa") return "አዲስ አበባ";
+  return name;
+}
+
+// Latitude/longitude (approximate centers) for the Leaflet map.
+// Used by views/customer.js to drop a marker per sub-city.
+export const SUB_CITY_COORDS = {
+  "Bole":             [8.9806, 38.7578],
+  "Kirkos":           [9.0156, 38.7547],
+  "Arada":            [9.0376, 38.7522],
+  "Yeka":             [9.0422, 38.7892],
+  "Lideta":           [9.0083, 38.7281],
+  "Akaki Kality":     [8.8633, 38.7889],
+  "Addis Ketema":     [9.0319, 38.7383],
+  "Gulele":           [9.0533, 38.7406],
+  "Nifas Silk-Lafto": [8.9628, 38.7472],
+  "Kolfe Keranio":    [9.0144, 38.6925],
+  "Lemi Kura":        [9.0625, 38.8086],
+};
+export const ADDIS_CENTER = [9.0192, 38.7525];
+
 // Comprehensive EN/AM dictionary. Any view string used by the user-visible
 // UI should live here so the language toggle translates everything.
 const STR = {
@@ -251,6 +333,15 @@ const STR = {
     "acc.reset_confirm": "Reset all local demo data? This signs you out.",
     "acc.reset_done": "Demo data reset",
     "acc.signed_out": "Signed out",
+    "acc.account_btn": "Account",
+    "acc.edit_profile": "Edit profile",
+    "acc.edit_modal": "Edit profile",
+    "acc.new_password": "New password (leave blank to keep current)",
+    "acc.current_password": "Current password (required for changes)",
+    "acc.profile_saved": "Profile saved",
+    "acc.bad_password": "Current password is incorrect",
+    "map.loading": "Loading map…",
+    "map.shops_in": "{n} shop(s) in {city}",
 
     // ---- owner ----
     "own.title": "Shop Owner Dashboard",
@@ -586,6 +677,15 @@ const STR = {
     "acc.reset_confirm": "ሁሉንም በዚህ መሳሪያ ያለ የናሙና መረጃ እንደ አዲስ ይጀምር? ይህ ከመለያው ያስወጣዎታል።",
     "acc.reset_done": "የናሙና መረጃ እንደ አዲስ ተጀምሯል",
     "acc.signed_out": "ወጥተዋል",
+    "acc.account_btn": "መለያ",
+    "acc.edit_profile": "መግለጫ አስተካክል",
+    "acc.edit_modal": "መግለጫ አስተካክል",
+    "acc.new_password": "አዲስ የይለፍ ቃል (ለመተው ባዶ ይተዉት)",
+    "acc.current_password": "የአሁኑ የይለፍ ቃል (ለለውጥ ያስፈልጋል)",
+    "acc.profile_saved": "መግለጫ ተቀምጧል",
+    "acc.bad_password": "የአሁኑ የይለፍ ቃል ትክክል አይደለም",
+    "map.loading": "ካርታ በመጫን ላይ…",
+    "map.shops_in": "በ{city} ውስጥ {n} ሱቆች",
 
     // ---- owner ----
     "own.title": "የሱቅ ባለቤት ዳሽቦርድ",

@@ -5,6 +5,7 @@ import { Audit, Complaints, PriceRanges, Products, Shops } from "../api.js";
 import { state } from "../state.js";
 import {
   toast, openModal, closeModal, etb, dateShort, timeShort, statusBadge, formField, t,
+  productName, shopName, subCityLabel,
 } from "./shared.js";
 
 const view = () => document.getElementById("view");
@@ -19,7 +20,7 @@ export async function renderBranchCommittee() {
     <section class="page">
       <div class="card">
         <div class="hd">
-          <div><h2>${t("br.title", { city: u.subCity })}</h2><div class="muted">${t("br.subtitle")}</div></div>
+          <div><h2>${t("br.title", { city: subCityLabel(u.subCity) })}</h2><div class="muted">${t("br.subtitle")}</div></div>
           <div class="flex"><button class="viewbtn" id="auditBtn">${t("br.audit_btn")}</button></div>
         </div>
         <div class="bd">
@@ -52,8 +53,8 @@ async function drawPendingShops() {
     <div class="case">
       <div class="row">
         <div>
-          <div class="title">${s.name}</div>
-          <div class="meta">${t("auth.subcity")}: <b>${s.subCity}</b> · ${t("br.submitted", { date: dateShort(s.createdAt) })} · ${statusBadge(s.status)}</div>
+          <div class="title">${shopName(s)}</div>
+          <div class="meta">${t("auth.subcity")}: <b>${subCityLabel(s.subCity)}</b> · ${t("br.submitted", { date: dateShort(s.createdAt) })} · ${statusBadge(s.status)}</div>
         </div>
       </div>
       <div class="actions">
@@ -100,7 +101,7 @@ async function drawComplaintsForBranch() {
       <div class="row">
         <div>
           <div class="title">${c.id.slice(-6).toUpperCase()} · ${c.type}</div>
-          <div class="meta">${t("br.from")}: <b>${c.fromName}</b> · ${t("br.order_label")}: <b>${c.orderId.slice(-6).toUpperCase()}</b> · ${t("br.shop_label")}: <b>${c.shopName}</b></div>
+          <div class="meta">${t("br.from")}: <b>${c.fromName}</b> · ${t("br.order_label")}: <b>${c.orderId.slice(-6).toUpperCase()}</b> · ${t("br.shop_label")}: <b>${shopName({ name: c.shopName })}</b></div>
           <div class="meta">${t("br.submitted", { date: dateShort(c.createdAt) })} · ${statusBadge(c.status)}</div>
         </div>
       </div>
@@ -171,7 +172,7 @@ async function drawPriceRanges() {
           <div class="pitem">
             <div class="pimg"><svg viewBox="0 0 24 24" width="32" height="32" fill="none"><path d="M3 12h18M12 3v18" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="color:var(--primary)"/></svg></div>
             <div>
-              <div class="ptitle">${p.name}</div>
+              <div class="ptitle">${productName(p)}</div>
               <div class="psub">${t(`cat.${p.category}`, p.category)} · ${p.unit}</div>
               <div class="muted mt8">${r ? t("mc.effective", { date: dateShort(r.effectiveDate) }) : t("mc.no_range")}</div>
             </div>
@@ -191,7 +192,7 @@ async function drawPriceRanges() {
 function openSetRange(productId, ranges, products) {
   const product = products.find(p => p.id === productId);
   const range = ranges.find(r => r.productId === productId);
-  openModal(t("mc.set_modal", { name: product.name }), `
+  openModal(t("mc.set_modal", { name: productName(product) }), `
     ${formField({ label: t("mc.min_price"), name: "min", type: "number", value: range?.minPrice || 0 })}
     ${formField({ label: t("mc.max_price"), name: "max", type: "number", value: range?.maxPrice || 0 })}
     <div class="muted mt8" style="font-size:12px;">${t("mc.set_note")}</div>
@@ -219,7 +220,7 @@ async function drawEscalations() {
       <div class="row">
         <div>
           <div class="title">${c.id.slice(-6).toUpperCase()} · ${c.type}</div>
-          <div class="meta">${t("br.from")}: <b>${c.fromName}</b> · ${t("br.shop_label")}: <b>${c.shopName}</b> · ${statusBadge(c.status)}</div>
+          <div class="meta">${t("br.from")}: <b>${c.fromName}</b> · ${t("br.shop_label")}: <b>${shopName({ name: c.shopName })}</b> · ${statusBadge(c.status)}</div>
         </div>
       </div>
       <div class="muted mt8">${c.detail}</div>

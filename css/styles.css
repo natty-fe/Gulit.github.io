@@ -495,7 +495,27 @@ input:focus, select:focus, textarea:focus{
   font-size: 13px;
   font-weight: 800;
   color: var(--text);
+  z-index: 400; /* above leaflet panes */
+  pointer-events: none;
 }
+
+/* Real (Leaflet + OSM) map */
+.livemap{
+  height: 260px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  position: relative;
+  background: var(--surface-soft);
+}
+.livemap .leaflet-container{ height: 100%; width: 100%; background: var(--surface-soft); }
+.livemap .leaflet-control-attribution{
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 10px;
+}
+.livemap .leaflet-control-attribution a{ color: var(--primary); }
+[data-theme="midnight"] .livemap .leaflet-tile{ filter: brightness(.65) contrast(1.05) hue-rotate(180deg) invert(.92); }
 
 /* =====================================================================
    TOAST

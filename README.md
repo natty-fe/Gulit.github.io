@@ -22,8 +22,10 @@ The architecture mirrors a real backend: a `db.js` table layer underneath an `ap
 - **RBAC** — every API method enforces role checks (`Auth.require([...])`).
 - **Price-range enforcement** — listing and ordering reject prices outside the regulated band.
 - **Audit log** — append-only events for registration, login, shop status, price changes, order/delivery status, complaint decisions, refunds.
-- **Bilingual** — EN / አማርኛ toggle in the topbar; flips every UI string (auth, browse, cart, checkout, tracking, owner, delivery, committee, status badges, role labels) and re-renders the current view.
+- **Bilingual** — EN / አማርኛ toggle in the topbar; flips every UI string AND data values (product names, shop names, sub-cities, units, "Addis Ababa") and re-renders the current view.
 - **7 themes** — botanical/garden palette: Garden Cream (default), Terracotta Earth, Sage Garden, Dusty Rose, Mustard Field, Plum Bloom, plus a warm Midnight dark mode. Tap the palette icon in the topbar; selection persists across sessions.
+- **Real map** — Leaflet + OpenStreetMap tiles, no API key. Centers on the chosen sub-city of Addis Ababa, drops a center pin and numbered markers for each approved shop in the area. Re-centers on sub-city change.
+- **Profile editor** — Account → "Edit profile" lets users change name, email, phone, sub-city, and password (gated on current password).
 - **Mobile-first** — responsive layout, role-aware bottom navigation.
 
 ---

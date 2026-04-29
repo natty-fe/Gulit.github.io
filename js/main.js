@@ -59,11 +59,11 @@ function wireTopbar() {
     pill.hidden = false;
     pill.querySelector(".userName").textContent = u.name;
     pill.querySelector(".userRole").textContent = ROLE_LABELS[u.role] || u.role;
-    authBtn.textContent = "Account";
+    authBtn.textContent = t("acc.account_btn");
     authBtn.onclick = () => go("#/account");
   } else {
     pill.hidden = true;
-    authBtn.textContent = "Sign in";
+    authBtn.textContent = t("signin");
     authBtn.onclick = () => go("#/auth");
   }
 

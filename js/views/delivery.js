@@ -5,6 +5,7 @@ import { Deliveries, Orders } from "../api.js";
 import { state } from "../state.js";
 import {
   toast, openModal, closeModal, etb, dateShort, statusBadge, formField, t,
+  subCityLabel,
 } from "./shared.js";
 
 const view = () => document.getElementById("view");
@@ -46,7 +47,7 @@ async function drawList() {
         <div class="row">
           <div>
             <div style="font-weight:900;">${t("track.delivery")} · ${t("track.order_label")} ${o ? o.id.slice(-6).toUpperCase() : "—"}</div>
-            <div class="muted">${t("dlv.drop")}: <b>${o?.customerSubCity || "—"}</b> · ${t("dlv.eta")} <b>${d.eta || "—"}</b></div>
+            <div class="muted">${t("dlv.drop")}: <b>${subCityLabel(o?.customerSubCity) || "—"}</b> · ${t("dlv.eta")} <b>${d.eta || "—"}</b></div>
           </div>
           <div>${statusBadge(d.status)}</div>
         </div>

@@ -6,6 +6,7 @@ import { Inventory, Orders, PriceRanges, Products, Shops, Users } from "../api.j
 import { state } from "../state.js";
 import {
   toast, openModal, closeModal, etb, dateShort, statusBadge, iconSvg, formField, t,
+  productName, unitLabel, shopName, subCityLabel,
 } from "./shared.js";
 import { SUB_CITIES } from "../seed.js";
 
@@ -38,7 +39,7 @@ export async function renderOwner() {
           <div class="card mt12" style="box-shadow:none;border:1px solid var(--border);">
             <div class="hd">
               <h2>${t("inventory")}</h2>
-              <select id="invShopSel">${myShops.map(s => `<option value="${s.id}">${s.name} · ${s.subCity}</option>`).join("")}</select>
+              <select id="invShopSel">${myShops.map(s => `<option value="${s.id}">${shopName(s)} · ${subCityLabel(s.subCity)}</option>`).join("")}</select>
             </div>
             <div class="bd" id="ownerInv">${t("loading")}</div>
           </div>
@@ -93,7 +94,7 @@ async function drawOwnerOrders(shops) {
     <div class="pitem" style="grid-template-columns:48px 1fr auto;">
       <div class="pimg">${iconSvg("tomato")}</div>
       <div>
-        <div class="ptitle">${t("track.order_label")} ${o.id.slice(-6).toUpperCase()} <span class="tag-chip">${o.shopName}</span></div>
+        <div class="ptitle">${t("track.order_label")} ${o.id.slice(-6).toUpperCase()} <span class="tag-chip">${shopName({ name: o.shopName })}</span></div>
         <div class="psub">${t("items_count", { n: o.items.length })} · ${etb(o.total)} · ${t("own.customer")}: ${o.customerName}</div>
         <div class="muted mt8">${dateShort(o.createdAt)} · ${statusBadge(o.status)}</div>
       </div>
@@ -163,7 +164,7 @@ async function openOrderDetail(orderId) {
   if (!o) return;
   openModal(`${t("track.order_label")} ${o.id.slice(-6).toUpperCase()}`, `
     <div class="row">
-      <div><div style="font-weight:900;">${t("own.customer")}: ${o.customerName}</div><div class="muted">${t("own.subcity")}: ${o.customerSubCity || "—"}</div></div>
+      <div><div style="font-weight:900;">${t("own.customer")}: ${o.customerName}</div><div class="muted">${t("own.subcity")}: ${subCityLabel(o.customerSubCity) || "—"}</div></div>
       <div>${statusBadge(o.status)}</div>
     </div>
     <hr/>
@@ -195,8 +196,8 @@ async function drawOwnerInventory(shopId) {
           <div class="pitem">
             <div class="pimg">${iconSvg(p.icon)}</div>
             <div>
-              <div class="ptitle">${p.name}</div>
-              <div class="psub">${t(`cat.${p.category}`, p.category)} · ${p.unit}</div>
+              <div class="ptitle">${productName(p)}</div>
+              <div class="psub">${t(`cat.${p.category}`, p.category)} · ${unitLabel(p.unit)}</div>
               <div class="muted mt8">${rangeText}</div>
             </div>
             <div class="pricebox">
@@ -240,7 +241,7 @@ function openShopRegistration() {
   openModal(t("own.shop_modal"), `
     ${formField({ label: t("own.shop_name"), name: "name", required: true, placeholder: t("own.shop_name_ph") })}
     ${formField({ label: t("auth.subcity"), name: "subCity", type: "select", value: "Bole",
-      options: SUB_CITIES.map(s => ({ value: s, label: s })) })}
+      options: SUB_CITIES.map(s => ({ value: s, label: subCityLabel(s) })) })}
     <div class="muted mt8" style="font-size:12px;">${t("own.shop_note")}</div>
     <div class="btnrow"><button class="primary" id="shopSave">${t("submit")}</button><button class="ghost" id="shopCancel">${t("cancel")}</button></div>
   `);

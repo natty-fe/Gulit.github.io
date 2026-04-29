@@ -94,4 +94,42 @@ export const Auth = {
     }
     return u;
   },
+
+  // Update profile fields. Password change is gated on the current password.
+  async updateProfile({ name, email, phone, subCity, currentPassword, newPassword }) {
+    const me = Auth.currentUser();
+    if (!me) throw new Error("Authentication required.");
+    const fullUser = DB.byId("users", me.id);
+    if (!fullUser) throw new Error("User not found.");
+
+    const wantsPasswordChange = !!(newPassword && newPassword.length);
+    if (wantsPasswordChange) {
+      if (!currentPassword) throw new Error("Current password required to change password.");
+      const cur = await hashPassword(currentPassword);
+      if (cur !== fullUser.passwordHash) throw new Error("Current password is incorrect.");
+      if (newPassword.length < 6) throw new Error("New password must be at least 6 characters.");
+    }
+
+    // Email/phone uniqueness when changed.
+    if (email && email !== fullUser.email) {
+      const dup = DB.find("users", (u) => u.id !== fullUser.id && u.email === email);
+      if (dup) throw new Error("That email is already in use.");
+    }
+    if (phone && phone !== fullUser.phone) {
+      const dup = DB.find("users", (u) => u.id !== fullUser.id && u.phone === phone);
+      if (dup) throw new Error("That phone is already in use.");
+    }
+
+    const patch = { name: name || fullUser.name, email: email || null, phone: phone || null, subCity: subCity || fullUser.subCity };
+    if (wantsPasswordChange) patch.passwordHash = await hashPassword(newPassword);
+
+    const updated = DB.update("users", fullUser.id, patch);
+
+    DB.insert("auditLogs", {
+      actorId: fullUser.id, action: "PROFILE_UPDATED", entity: "user", entityId: fullUser.id,
+      details: { changedPassword: wantsPasswordChange }, timestamp: new Date().toISOString(),
+    });
+
+    return Auth.publicUser(updated);
+  },
 };
