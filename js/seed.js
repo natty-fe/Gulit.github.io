@@ -88,8 +88,11 @@ export async function runSeed({ force = false } = {}) {
   // ---- Demo staff accounts (everyone except customer) ----
   await insertDemoStaff({ mainCommitteeId: mainCommittee.id, branchByCity });
 
+  // ---- Demo shops + inventory for every owner ----
+  seedDemoShopsAndInventory({ branchByCity });
+
   DB.setMeta("seeded", true);
-  DB.setMeta("seedVersion", 5);
+  DB.setMeta("seedVersion", 6);
 }
 
 // All demo staff share this password so the demo flow stays simple.
@@ -196,6 +199,49 @@ async function insertDemoStaff({ mainCommitteeId, branchByCity }) {
   }
 }
 
+// Auto-create one approved shop per demo owner, stocked with every product
+// at an in-band random price. Idempotent: skips owners who already have a
+// shop. Used by both fresh-install seed and the v5→v6 migration.
+function seedDemoShopsAndInventory({ branchByCity }) {
+  const owners = DB.filter("users", (u) => u.role === "owner");
+  const products = DB.all("products");
+  const ranges = DB.all("priceRanges");
+
+  for (const owner of owners) {
+    if (DB.find("shops", (s) => s.ownerId === owner.id)) continue;
+    const branchId = branchByCity[owner.subCity];
+    if (!branchId) continue;
+
+    const firstName = (owner.name || "").split(" ")[0] || "Shop";
+    const shop = DB.insert("shops", {
+      ownerId: owner.id,
+      name: `${firstName}'s ${owner.subCity} Market`,
+      subCity: owner.subCity,
+      branchCommitteeId: branchId,
+      status: "approved",
+      approvedAt: new Date().toISOString(),
+      rating: 0,
+      reviews: [],
+    });
+
+    for (const p of products) {
+      const r = ranges.find((x) => x.productId === p.id);
+      let price = 0;
+      if (r) {
+        const ratio = 0.3 + Math.random() * 0.5;
+        price = Number((r.minPrice + (r.maxPrice - r.minPrice) * ratio).toFixed(2));
+      }
+      DB.insert("inventory", {
+        shopId: shop.id,
+        productId: p.id,
+        qty: 30 + Math.floor(Math.random() * 70),
+        price,
+        oldPrice: Number((price * 1.6).toFixed(2)),
+      });
+    }
+  }
+}
+
 // Backfill keys added after the initial seed so existing browser installs
 // pick them up without needing a hard reset.
 const PRODUCT_NAMES_AM_BACKFILL = {
@@ -291,5 +337,16 @@ export async function runMigrations() {
       await insertDemoStaff({ mainCommitteeId: main.id, branchByCity });
     }
     DB.setMeta("seedVersion", 5);
+  }
+
+  // v5 → v6: pre-stock every demo owner with an approved shop carrying every
+  // product. Idempotent — skips owners that already have a shop.
+  if (v < 6) {
+    const branchByCity = {};
+    for (const c of DB.all("committees")) {
+      if (c.type === "branch") branchByCity[c.jurisdiction] = c.id;
+    }
+    seedDemoShopsAndInventory({ branchByCity });
+    DB.setMeta("seedVersion", 6);
   }
 }
