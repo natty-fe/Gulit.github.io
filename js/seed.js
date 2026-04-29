@@ -4,6 +4,7 @@
 // signup / shop registration / inventory flows — there are no demo accounts.
 
 import { DB } from "./db.js";
+import { hashPassword } from "./auth.js";
 
 export const SUB_CITIES = [
   "Bole", "Kirkos", "Arada", "Yeka", "Lideta", "Akaki Kality", "Addis Ketema",
@@ -52,20 +53,22 @@ export async function runSeed({ force = false } = {}) {
   if (force) DB.hardReset();
   DB.ensure();
 
-  // ---- Committees (governance structure; no users attached yet) ----
+  // ---- Committees (governance structure) ----
   const mainCommittee = DB.insert("committees", {
     type: "main",
     name: "Addis Ababa Main Committee",
     jurisdiction: "Addis Ababa",
   });
 
+  const branchByCity = {};
   for (const sc of SUB_CITIES) {
-    DB.insert("committees", {
+    const b = DB.insert("committees", {
       type: "branch",
       name: `${sc} Branch Committee`,
       jurisdiction: sc,
       parentId: mainCommittee.id,
     });
+    branchByCity[sc] = b.id;
   }
 
   // ---- Catalog ----
@@ -82,8 +85,32 @@ export async function runSeed({ force = false } = {}) {
     });
   }
 
+  // ---- Demo staff accounts (everyone except customer) ----
+  await insertDemoStaff({ mainCommitteeId: mainCommittee.id, branchByCity });
+
   DB.setMeta("seeded", true);
-  DB.setMeta("seedVersion", 3);
+  DB.setMeta("seedVersion", 4);
+}
+
+// All demo staff share this password so the demo flow stays simple.
+const DEMO_STAFF_PASSWORD = "demo1234";
+
+const DEMO_STAFF = [
+  { name: "Abebe Kebede",   email: "abebe@gmail.com",       phone: "+251911000001", role: "owner",    subCity: "Bole", workId: "SO-00001", faydaFan: "1000000000000001" },
+  { name: "Yonas Tadesse",  email: "yonas@gmail.com",       phone: "+251911000002", role: "delivery", subCity: "Bole", workId: "D-000001", faydaFan: "1000000000000002" },
+  { name: "Mulugeta Alemu", email: "branch.bole@gmail.com", phone: "+251911000003", role: "branch",   subCity: "Bole", workId: "BC-0001",  faydaFan: "1000000000000003" },
+  { name: "Sara Tesfaye",   email: "main@gmail.com",        phone: "+251911000004", role: "main",     subCity: "Addis Ababa", workId: "MC-001", faydaFan: "1000000000000004" },
+];
+
+async function insertDemoStaff({ mainCommitteeId, branchByCity }) {
+  const passwordHash = await hashPassword(DEMO_STAFF_PASSWORD);
+  for (const a of DEMO_STAFF) {
+    if (DB.find("users", (u) => u.email === a.email)) continue;
+    let committeeId = null;
+    if (a.role === "branch") committeeId = branchByCity[a.subCity] || null;
+    if (a.role === "main")   committeeId = mainCommitteeId;
+    DB.insert("users", { ...a, committeeId, passwordHash });
+  }
 }
 
 // Backfill keys added after the initial seed so existing browser installs
@@ -149,5 +176,21 @@ export async function runMigrations() {
       for (const u of demoUsers) DB.remove("users", u.id);
     }
     DB.setMeta("seedVersion", 3);
+  }
+
+  // v3 → v4: re-introduce a small set of demo staff accounts (one per
+  // non-customer role) so the demo is testable without registering five
+  // accounts by hand. Customer is intentionally not seeded.
+  if (v < 4) {
+    const committees = DB.all("committees");
+    const main = committees.find((c) => c.type === "main");
+    const branchByCity = {};
+    for (const c of committees) {
+      if (c.type === "branch") branchByCity[c.jurisdiction] = c.id;
+    }
+    if (main) {
+      await insertDemoStaff({ mainCommitteeId: main.id, branchByCity });
+    }
+    DB.setMeta("seedVersion", 4);
   }
 }
