@@ -293,6 +293,10 @@ function notifTitleCommittee(n) {
     });
     case "COMPLAINT_OPEN":       return t("notif.complaint_open",      { shop: d.shopName || "", type: d.type || "" });
     case "COMPLAINT_ESCALATED":  return t("notif.complaint_escalated", { id: (d.complaintId || "").slice(-6).toUpperCase(), type: d.type || "" });
+    case "INVENTORY_NEW":        return t("notif.inventory_new", {
+      shop: d.shopName || "", product: d.productName || "",
+      price: etb(d.price ?? 0), qty: d.qty ?? 0,
+    });
     case "PRODUCT_ADDED":        return t("notif.product_added", {
       name: d.productName || "",
       branch: d.branchName || "",

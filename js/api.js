@@ -160,7 +160,7 @@ export const Inventory = {
     const priceChanged = (prev) =>
       prev && Number(prev.price).toFixed(2) !== Number(price).toFixed(2);
 
-    const fireNotification = (prev) => {
+    const firePriceChange = (prev) => {
       if (!priceChanged(prev) || !shop.branchCommitteeId) return;
       notify({
         recipientType: "committee",
@@ -175,11 +175,26 @@ export const Inventory = {
       });
     };
 
+    const fireNewListing = () => {
+      if (!shop.branchCommitteeId) return;
+      notify({
+        recipientType: "committee",
+        recipientId: shop.branchCommitteeId,
+        type: "INVENTORY_NEW",
+        title: "New listing",
+        data: {
+          shopId: shop.id, shopName: shop.name,
+          productId, productName: product?.name || "",
+          qty: Number(qty), price: Number(price),
+        },
+      });
+    };
+
     if (id) {
       const existing = DB.byId("inventory", id);
       if (!existing) throw new Error("Inventory item not found.");
       const next = DB.update("inventory", id, { qty: Number(qty), price: Number(price) });
-      fireNotification(existing);
+      firePriceChange(existing);
       audit(u.id, "INVENTORY_UPDATED", "inventory", id, { qty, price });
       return next;
     } else {
@@ -187,7 +202,7 @@ export const Inventory = {
       const existing = DB.find("inventory", (i) => i.shopId === shopId && i.productId === productId);
       if (existing) {
         const next = DB.update("inventory", existing.id, { qty: Number(qty), price: Number(price) });
-        fireNotification(existing);
+        firePriceChange(existing);
         audit(u.id, "INVENTORY_UPDATED", "inventory", existing.id, { qty, price });
         return next;
       }
@@ -195,6 +210,7 @@ export const Inventory = {
         shopId, productId, qty: Number(qty), price: Number(price),
         oldPrice: Number((Number(price) * 1.6).toFixed(2)),
       });
+      fireNewListing();
       audit(u.id, "INVENTORY_CREATED", "inventory", inserted.id, { qty, price });
       return inserted;
     }
