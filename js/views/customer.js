@@ -2,7 +2,7 @@
 // Customer-facing screens (also hosts the auth screen).
 
 import { Deliveries, Inventory, Orders, Products, Shops, Complaints } from "../api.js";
-import { Auth } from "../auth.js";
+import { Auth, WORK_ID_PATTERNS } from "../auth.js";
 import { state } from "../state.js";
 import {
   toast, openModal, closeModal, etb, dateShort, statusBadge,
@@ -60,6 +60,7 @@ function drawAuthForm(mode) {
       ${formField({ label: t("auth.email"), name: "email", placeholder: t("auth.email_ph") })}
       ${formField({ label: t("auth.phone"), name: "phone", placeholder: t("auth.phone_ph") })}
       ${formField({ label: t("auth.password"), name: "password", type: "password", required: true })}
+      ${formField({ label: t("auth.password_confirm"), name: "passwordConfirm", type: "password", required: true })}
       ${formField({ label: t("auth.role"), name: "role", type: "select", value: "customer", options: [
         { value: "customer", label: t("role.customer") },
         { value: "owner", label: t("role.owner") },
@@ -71,8 +72,8 @@ function drawAuthForm(mode) {
         options: SUB_CITIES.map(s => ({ value: s, label: subCityLabel(s) })) })}
       <div id="staffFields" hidden>
         <div class="muted mt8" style="font-size:12px;">${t("auth.staff_note")}</div>
-        ${formField({ label: t("auth.workid"), name: "workId", placeholder: t("auth.workid_ph") })}
-        ${formField({ label: t("auth.fayda"), name: "faydaFan", placeholder: t("auth.fayda_ph") })}
+        ${formField({ label: t("auth.workid"), name: "workId", placeholder: "" })}
+        <div id="workIdHint" class="muted" style="font-size:12px;margin-top:-6px;"></div>
       </div>
       <div class="btnrow">
         <button class="primary" id="signupBtn">${t("auth.signup_btn")}</button>
@@ -80,7 +81,18 @@ function drawAuthForm(mode) {
     `;
     const roleSel = document.querySelector("#authForm [name=role]");
     const staffFields = document.getElementById("staffFields");
-    const syncStaffFields = () => { staffFields.hidden = roleSel.value === "customer"; };
+    const workIdInput = document.querySelector("#authForm [name=workId]");
+    const workIdHint = document.getElementById("workIdHint");
+    const syncStaffFields = () => {
+      const role = roleSel.value;
+      staffFields.hidden = role === "customer";
+      const pattern = WORK_ID_PATTERNS[role];
+      if (pattern && workIdInput) {
+        workIdInput.placeholder = pattern.example;
+        workIdInput.value = "";
+        workIdHint.textContent = t(`auth.workid_format_${role}`);
+      }
+    };
     roleSel.addEventListener("change", syncStaffFields);
     syncStaffFields();
     document.getElementById("signupBtn").addEventListener("click", onSignup);
@@ -105,6 +117,12 @@ async function onSignup() {
   const f = (n) => document.querySelector(`#authForm [name=${n}]`).value.trim();
   const role = f("role");
   const subCity = f("subCity");
+  const password = f("password");
+  const passwordConfirm = f("passwordConfirm");
+  if (password !== passwordConfirm) {
+    toast(t("auth.password_mismatch"), "danger");
+    return;
+  }
   let committeeId = null;
   if (role === "branch" || role === "main") {
     const { Committees } = await import("../api.js");
@@ -120,7 +138,6 @@ async function onSignup() {
       name: f("name"), email: f("email"), phone: f("phone"),
       password: f("password"), role, subCity, committeeId,
       workId: role === "customer" ? null : f("workId"),
-      faydaFan: role === "customer" ? null : f("faydaFan"),
     });
     state.setUser(user);
     toast(t("auth.account_created", { name: user.name }), "success");
@@ -756,15 +773,23 @@ export async function renderAccount() {
 function openProfileEditor() {
   const u = state.user;
   if (!u) return;
+  const isStaff = u.role !== "customer";
   openModal(t("acc.edit_modal"), `
     ${formField({ label: t("auth.fullname"), name: "name", value: u.name || "", required: true })}
     ${formField({ label: t("auth.email"), name: "email", value: u.email || "" })}
     ${formField({ label: t("auth.phone"), name: "phone", value: u.phone || "" })}
     ${formField({ label: t("auth.subcity"), name: "subCity", type: "select", value: u.subCity || "Bole",
       options: SUB_CITIES.map(s => ({ value: s, label: subCityLabel(s) })) })}
+    ${isStaff ? `
+      <hr/>
+      <div class="muted" style="font-size:12px;">${t("acc.workid_readonly")}: <b>${u.workId || "—"}</b></div>
+      ${formField({ label: t("auth.fayda"), name: "faydaFan", value: u.faydaFan || "", placeholder: t("auth.fayda_ph") })}
+      <div class="muted" style="font-size:11px;margin-top:-6px;">${t("acc.fayda_hint")}</div>
+    ` : ""}
     <hr/>
     ${formField({ label: t("acc.current_password"), name: "currentPassword", type: "password" })}
     ${formField({ label: t("acc.new_password"), name: "newPassword", type: "password" })}
+    ${formField({ label: t("acc.confirm_new_password"), name: "newPasswordConfirm", type: "password" })}
     <div class="btnrow">
       <button class="primary" id="profSave">${t("save")}</button>
       <button class="ghost" id="profCancel">${t("cancel")}</button>
@@ -772,7 +797,12 @@ function openProfileEditor() {
   `);
   document.getElementById("profCancel").onclick = () => closeModal();
   document.getElementById("profSave").onclick = async () => {
-    const f = (n) => document.querySelector(`#modalBody [name=${n}]`).value;
+    const f = (n) => document.querySelector(`#modalBody [name=${n}]`)?.value ?? "";
+    const newPw = f("newPassword");
+    if (newPw && newPw !== f("newPasswordConfirm")) {
+      toast(t("auth.password_mismatch"), "danger");
+      return;
+    }
     try {
       const updated = await Auth.updateProfile({
         name: f("name").trim(),
@@ -780,7 +810,8 @@ function openProfileEditor() {
         phone: f("phone").trim(),
         subCity: f("subCity"),
         currentPassword: f("currentPassword"),
-        newPassword: f("newPassword"),
+        newPassword: newPw,
+        faydaFan: isStaff ? f("faydaFan").trim() : undefined,
       });
       state.setUser(updated);
       toast(t("acc.profile_saved"), "success");

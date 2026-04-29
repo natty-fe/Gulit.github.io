@@ -6,6 +6,29 @@ import { DB } from "./db.js";
 
 const TOKEN_KEY = "gulit:v1:token";
 
+// Per-role Work ID format. Owners get the largest range, committee members
+// the smallest, mirroring the population of each role.
+export const WORK_ID_PATTERNS = {
+  owner:    { regex: /^SO-\d{5}$/,  example: "SO-00001", prefix: "SO-", digits: 5 },
+  delivery: { regex: /^D-\d{6}$/,   example: "D-000001", prefix: "D-",  digits: 6 },
+  branch:   { regex: /^BC-\d{4}$/,  example: "BC-0001",  prefix: "BC-", digits: 4 },
+  main:     { regex: /^MC-\d{3}$/,  example: "MC-001",   prefix: "MC-", digits: 3 },
+};
+
+// Generate a unique 16-digit Fayda FAN at signup. Users can replace it later
+// from the profile editor with their real national-ID number.
+function generateFaydaFan() {
+  for (let attempts = 0; attempts < 20; attempts++) {
+    const buf = crypto.getRandomValues(new Uint32Array(2));
+    let fan = `${buf[0]}${buf[1]}`.replace(/\D/g, "").padStart(16, "0").slice(0, 16);
+    if (fan.length !== 16) continue;
+    const dup = DB.find("users", (u) => u.faydaFan === fan);
+    if (!dup) return fan;
+  }
+  // Fallback: timestamp + random; collisions extremely unlikely on a demo DB.
+  return String(Date.now()).padStart(16, "9").slice(0, 16);
+}
+
 export async function hashPassword(plain) {
   const enc = new TextEncoder().encode(plain);
   const buf = await crypto.subtle.digest("SHA-256", enc);
@@ -25,23 +48,31 @@ export const Auth = {
     if (existing) throw new Error("An account with that email or phone already exists.");
 
     // Every non-customer role requires staff verification: a work ID number
-    // (organization-issued) and a 16-digit Fayda FAN (national digital ID).
+    // matching its role-specific format. The Fayda FAN is auto-generated at
+    // signup; the user can replace it with their real number from the
+    // profile editor afterwards.
     let normWorkId = null;
     let normFan = null;
     if (role !== "customer") {
-      if (!workId || !String(workId).trim()) {
-        throw new Error("Work ID number is required for staff accounts.");
+      const pattern = WORK_ID_PATTERNS[role];
+      const candidate = String(workId || "").trim().toUpperCase();
+      if (!pattern || !pattern.regex.test(candidate)) {
+        throw new Error(`Work ID must match the format ${pattern?.example || "a role-specific code"}.`);
       }
-      normWorkId = String(workId).trim();
+      const dupWorkId = DB.find("users", (u) => u.workId === candidate);
+      if (dupWorkId) throw new Error("That Work ID is already registered.");
+      normWorkId = candidate;
+      // Honour an explicit FAN if supplied (e.g., from a future API), else
+      // auto-generate. Validate 16 digits + uniqueness either way.
       const fanDigits = String(faydaFan || "").replace(/\s+/g, "");
-      if (!/^\d{16}$/.test(fanDigits)) {
-        throw new Error("Fayda FAN must be exactly 16 digits.");
+      if (fanDigits) {
+        if (!/^\d{16}$/.test(fanDigits)) throw new Error("Fayda FAN must be exactly 16 digits.");
+        const dupFan = DB.find("users", (u) => u.faydaFan === fanDigits);
+        if (dupFan) throw new Error("That Fayda FAN is already registered to another account.");
+        normFan = fanDigits;
+      } else {
+        normFan = generateFaydaFan();
       }
-      const dupFan = DB.find("users", (u) => u.faydaFan === fanDigits);
-      if (dupFan) throw new Error("That Fayda FAN is already registered to another account.");
-      const dupWorkId = DB.find("users", (u) => u.workId === normWorkId && u.role === role);
-      if (dupWorkId) throw new Error("That Work ID is already registered for this role.");
-      normFan = fanDigits;
     }
 
     const passwordHash = await hashPassword(password);
@@ -118,7 +149,7 @@ export const Auth = {
   },
 
   // Update profile fields. Password change is gated on the current password.
-  async updateProfile({ name, email, phone, subCity, currentPassword, newPassword }) {
+  async updateProfile({ name, email, phone, subCity, currentPassword, newPassword, faydaFan }) {
     const me = Auth.currentUser();
     if (!me) throw new Error("Authentication required.");
     const fullUser = DB.byId("users", me.id);
@@ -144,6 +175,18 @@ export const Auth = {
 
     const patch = { name: name || fullUser.name, email: email || null, phone: phone || null, subCity: subCity || fullUser.subCity };
     if (wantsPasswordChange) patch.passwordHash = await hashPassword(newPassword);
+
+    // Fayda FAN is editable post-signup but only for staff accounts (customer
+    // accounts never have one). Same validation as register: 16 digits, unique.
+    if (faydaFan !== undefined && fullUser.role !== "customer") {
+      const fanDigits = String(faydaFan || "").replace(/\s+/g, "");
+      if (fanDigits && fanDigits !== fullUser.faydaFan) {
+        if (!/^\d{16}$/.test(fanDigits)) throw new Error("Fayda FAN must be exactly 16 digits.");
+        const dupFan = DB.find("users", (u) => u.id !== fullUser.id && u.faydaFan === fanDigits);
+        if (dupFan) throw new Error("That Fayda FAN is already registered to another account.");
+        patch.faydaFan = fanDigits;
+      }
+    }
 
     const updated = DB.update("users", fullUser.id, patch);
 
