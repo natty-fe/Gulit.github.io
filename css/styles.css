@@ -777,6 +777,26 @@ input:focus, select:focus, textarea:focus{
   margin-left: 6px;
 }
 
+.pwwrap{ position: relative; }
+.pwwrap input{ padding-right: 44px; }
+.pwtoggle{
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: 0;
+  padding: 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pwtoggle:hover{ color: var(--text); background: var(--surface-soft); }
+.pwtoggle:focus-visible{ outline: 2px solid var(--primary); outline-offset: 2px; }
+
 .empty{
   padding: 24px;
   text-align: center;

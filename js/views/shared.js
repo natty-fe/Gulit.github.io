@@ -231,6 +231,8 @@ const STR = {
     "auth.subcity": "Sub-city",
     "auth.signup_btn": "Create account",
     "auth.committee_note": "Branch and Main Committee accounts are provisioned by administrators.",
+    "auth.show_password": "Show password",
+    "auth.hide_password": "Hide password",
     "auth.demo_logins": "Demo logins (password demo1234):",
     "auth.enter_creds": "Enter your credentials",
     "auth.welcome_user": "Welcome, {name}",
@@ -653,6 +655,8 @@ const STR = {
     "auth.subcity": "ክፍለ ከተማ",
     "auth.signup_btn": "መለያ ይክፈቱ",
     "auth.committee_note": "የቅርንጫፍ እና ዋና ኮሚቴ መለያዎች በአስተዳዳሪዎች ይሰጣሉ።",
+    "auth.show_password": "የይለፍ ቃል አሳይ",
+    "auth.hide_password": "የይለፍ ቃል ደብቅ",
     "auth.demo_logins": "የናሙና መለያዎች (የይለፍ ቃል፡ demo1234):",
     "auth.enter_creds": "የመለያ መረጃዎን ያስገቡ",
     "auth.welcome_user": "እንኳን ደህና መጡ፣ {name}",
@@ -1162,7 +1166,11 @@ export function stars(n) {
   return `<span class="stars">${"★".repeat(full)}${half}</span> <span class="muted">(${Number(n).toFixed(1)})</span>`;
 }
 
-// Simple form helper: build a form node from a schema.
+const EYE_SVG = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const EYE_OFF_SVG = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-10-7-10-7a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19"/><path d="m1 1 22 22"/></svg>`;
+
+// Simple form helper: build a form node from a schema. Password fields get a
+// click-to-reveal eye button via the global delegate below.
 export function formField({ label, name, type = "text", value = "", placeholder = "", options = null, required = false }) {
   const id = `f_${name}`;
   let input;
@@ -1171,8 +1179,28 @@ export function formField({ label, name, type = "text", value = "", placeholder 
     input = `<select id="${id}" name="${name}" ${required ? "required" : ""}>${opts}</select>`;
   } else if (type === "textarea") {
     input = `<textarea id="${id}" name="${name}" placeholder="${placeholder}" ${required ? "required" : ""}>${value || ""}</textarea>`;
+  } else if (type === "password") {
+    input = `
+      <div class="pwwrap">
+        <input id="${id}" name="${name}" type="password" placeholder="${placeholder}" value="${value ?? ""}" ${required ? "required" : ""} />
+        <button type="button" class="pwtoggle" data-toggle-pw aria-label="${t("auth.show_password")}">${EYE_SVG}</button>
+      </div>
+    `;
   } else {
     input = `<input id="${id}" name="${name}" type="${type}" placeholder="${placeholder}" value="${value ?? ""}" ${required ? "required" : ""} />`;
   }
   return `<div class="fieldlabel">${label}${required ? " *" : ""}</div>${input}`;
 }
+
+// Global delegate: any [data-toggle-pw] button flips its sibling input
+// between password and text type.
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-toggle-pw]");
+  if (!btn) return;
+  const input = btn.closest(".pwwrap")?.querySelector("input");
+  if (!input) return;
+  const showing = input.type === "password";
+  input.type = showing ? "text" : "password";
+  btn.innerHTML = showing ? EYE_OFF_SVG : EYE_SVG;
+  btn.setAttribute("aria-label", showing ? t("auth.hide_password") : t("auth.show_password"));
+});
