@@ -69,10 +69,20 @@ function drawAuthForm(mode) {
       ]})}
       ${formField({ label: t("auth.subcity"), name: "subCity", type: "select", value: "Bole",
         options: SUB_CITIES.map(s => ({ value: s, label: subCityLabel(s) })) })}
+      <div id="staffFields" hidden>
+        <div class="muted mt8" style="font-size:12px;">${t("auth.staff_note")}</div>
+        ${formField({ label: t("auth.workid"), name: "workId", placeholder: t("auth.workid_ph") })}
+        ${formField({ label: t("auth.fayda"), name: "faydaFan", placeholder: t("auth.fayda_ph") })}
+      </div>
       <div class="btnrow">
         <button class="primary" id="signupBtn">${t("auth.signup_btn")}</button>
       </div>
     `;
+    const roleSel = document.querySelector("#authForm [name=role]");
+    const staffFields = document.getElementById("staffFields");
+    const syncStaffFields = () => { staffFields.hidden = roleSel.value === "customer"; };
+    roleSel.addEventListener("change", syncStaffFields);
+    syncStaffFields();
     document.getElementById("signupBtn").addEventListener("click", onSignup);
   }
 }
@@ -109,6 +119,8 @@ async function onSignup() {
     const { user } = await Auth.register({
       name: f("name"), email: f("email"), phone: f("phone"),
       password: f("password"), role, subCity, committeeId,
+      workId: role === "customer" ? null : f("workId"),
+      faydaFan: role === "customer" ? null : f("faydaFan"),
     });
     state.setUser(user);
     toast(t("auth.account_created", { name: user.name }), "success");

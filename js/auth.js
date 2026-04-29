@@ -18,15 +18,37 @@ function newToken() {
 }
 
 export const Auth = {
-  async register({ name, email, phone, password, role, subCity, committeeId }) {
+  async register({ name, email, phone, password, role, subCity, committeeId, workId, faydaFan }) {
     if (!name || !password) throw new Error("Name and password required.");
     if (!role) throw new Error("Role required.");
     const existing = DB.find("users", (u) => (email && u.email === email) || (phone && u.phone === phone));
     if (existing) throw new Error("An account with that email or phone already exists.");
+
+    // Every non-customer role requires staff verification: a work ID number
+    // (organization-issued) and a 16-digit Fayda FAN (national digital ID).
+    let normWorkId = null;
+    let normFan = null;
+    if (role !== "customer") {
+      if (!workId || !String(workId).trim()) {
+        throw new Error("Work ID number is required for staff accounts.");
+      }
+      normWorkId = String(workId).trim();
+      const fanDigits = String(faydaFan || "").replace(/\s+/g, "");
+      if (!/^\d{16}$/.test(fanDigits)) {
+        throw new Error("Fayda FAN must be exactly 16 digits.");
+      }
+      const dupFan = DB.find("users", (u) => u.faydaFan === fanDigits);
+      if (dupFan) throw new Error("That Fayda FAN is already registered to another account.");
+      const dupWorkId = DB.find("users", (u) => u.workId === normWorkId && u.role === role);
+      if (dupWorkId) throw new Error("That Work ID is already registered for this role.");
+      normFan = fanDigits;
+    }
+
     const passwordHash = await hashPassword(password);
     const user = DB.insert("users", {
       name, email: email || null, phone: phone || null, passwordHash,
       role, subCity: subCity || null, committeeId: committeeId || null,
+      workId: normWorkId, faydaFan: normFan,
     });
 
     DB.insert("auditLogs", {
