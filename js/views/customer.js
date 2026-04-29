@@ -1,7 +1,7 @@
 // js/views/customer.js
 // Customer-facing screens (also hosts the auth screen).
 
-import { Deliveries, Inventory, Orders, Products, Shops, Complaints } from "../api.js";
+import { Deliveries, Inventory, Orders, Products, Shops, Complaints, Users } from "../api.js";
 import { Auth, WORK_ID_PATTERNS } from "../auth.js";
 import { state } from "../state.js";
 import {
@@ -74,6 +74,7 @@ function drawAuthForm(mode) {
         <div class="muted mt8" style="font-size:12px;">${t("auth.staff_note")}</div>
         ${formField({ label: t("auth.workid"), name: "workId", placeholder: "" })}
         <div id="workIdHint" class="muted" style="font-size:12px;margin-top:-6px;"></div>
+        <div id="workIdStatus" class="field-status" style="font-size:12px;margin-top:4px;"></div>
       </div>
       <div class="btnrow">
         <button class="primary" id="signupBtn">${t("auth.signup_btn")}</button>
@@ -83,6 +84,7 @@ function drawAuthForm(mode) {
     const staffFields = document.getElementById("staffFields");
     const workIdInput = document.querySelector("#authForm [name=workId]");
     const workIdHint = document.getElementById("workIdHint");
+    const workIdStatus = document.getElementById("workIdStatus");
     const syncStaffFields = () => {
       const role = roleSel.value;
       staffFields.hidden = role === "customer";
@@ -92,7 +94,36 @@ function drawAuthForm(mode) {
         workIdInput.value = "";
         workIdHint.textContent = t(`auth.workid_format_${role}`);
       }
+      workIdStatus.textContent = "";
+      workIdStatus.className = "field-status";
     };
+    let workIdTimer = null;
+    const checkWorkId = async () => {
+      const role = roleSel.value;
+      if (role === "customer") return;
+      const value = workIdInput.value.trim().toUpperCase();
+      workIdStatus.textContent = "";
+      workIdStatus.className = "field-status";
+      if (!value) return;
+      const pattern = WORK_ID_PATTERNS[role];
+      if (!pattern || !pattern.regex.test(value)) {
+        workIdStatus.textContent = `✗ ${t("auth.field_invalid_format")}`;
+        workIdStatus.className = "field-status invalid";
+        return;
+      }
+      const result = await Users.checkUnique({ workId: value });
+      if (result.workIdTaken) {
+        workIdStatus.textContent = `✗ ${t("auth.field_taken")}`;
+        workIdStatus.className = "field-status taken";
+      } else {
+        workIdStatus.textContent = `✓ ${t("auth.field_available")}`;
+        workIdStatus.className = "field-status available";
+      }
+    };
+    workIdInput.addEventListener("input", () => {
+      clearTimeout(workIdTimer);
+      workIdTimer = setTimeout(checkWorkId, 250);
+    });
     roleSel.addEventListener("change", syncStaffFields);
     syncStaffFields();
     document.getElementById("signupBtn").addEventListener("click", onSignup);
@@ -785,6 +816,7 @@ function openProfileEditor() {
       <div class="muted" style="font-size:12px;">${t("acc.workid_readonly")}: <b>${u.workId || "—"}</b></div>
       ${formField({ label: t("auth.fayda"), name: "faydaFan", value: u.faydaFan || "", placeholder: t("auth.fayda_ph") })}
       <div class="muted" style="font-size:11px;margin-top:-6px;">${t("acc.fayda_hint")}</div>
+      <div id="faydaStatus" class="field-status" style="font-size:12px;margin-top:4px;"></div>
     ` : ""}
     <hr/>
     ${formField({ label: t("acc.current_password"), name: "currentPassword", type: "password" })}
@@ -796,6 +828,37 @@ function openProfileEditor() {
     </div>
   `);
   document.getElementById("profCancel").onclick = () => closeModal();
+
+  // Live availability check for Fayda FAN — staff only.
+  if (isStaff) {
+    const fanInput = document.querySelector("#modalBody [name=faydaFan]");
+    const fanStatus = document.getElementById("faydaStatus");
+    let fanTimer = null;
+    const checkFan = async () => {
+      const fanDigits = (fanInput.value || "").replace(/\s+/g, "");
+      fanStatus.textContent = "";
+      fanStatus.className = "field-status";
+      if (!fanDigits || fanDigits === u.faydaFan) return;
+      if (!/^\d{16}$/.test(fanDigits)) {
+        fanStatus.textContent = `✗ ${t("auth.field_invalid_format")}`;
+        fanStatus.className = "field-status invalid";
+        return;
+      }
+      const result = await Users.checkUnique({ faydaFan: fanDigits, excludeUserId: u.id });
+      if (result.faydaFanTaken) {
+        fanStatus.textContent = `✗ ${t("auth.field_taken")}`;
+        fanStatus.className = "field-status taken";
+      } else {
+        fanStatus.textContent = `✓ ${t("auth.field_available")}`;
+        fanStatus.className = "field-status available";
+      }
+    };
+    fanInput?.addEventListener("input", () => {
+      clearTimeout(fanTimer);
+      fanTimer = setTimeout(checkFan, 250);
+    });
+  }
+
   document.getElementById("profSave").onclick = async () => {
     const f = (n) => document.querySelector(`#modalBody [name=${n}]`)?.value ?? "";
     const newPw = f("newPassword");

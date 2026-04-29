@@ -482,6 +482,26 @@ export const Users = {
     await sleep();
     return DB.filter("users", (u) => u.role === role).map((u) => Auth.publicUser(u));
   },
+  // Check whether a Work ID and/or Fayda FAN is already taken. Used by the
+  // signup and profile-editor forms to give the user immediate feedback while
+  // typing, instead of failing only at submit. excludeUserId lets the profile
+  // editor ignore the user's own existing values when they aren't changing.
+  async checkUnique({ workId, faydaFan, excludeUserId } = {}) {
+    await sleep(40);
+    const out = {};
+    if (workId) {
+      const v = String(workId).trim().toUpperCase();
+      const found = DB.find("users", (u) => u.workId === v && (!excludeUserId || u.id !== excludeUserId));
+      out.workIdTaken = !!found;
+    }
+    if (faydaFan) {
+      const v = String(faydaFan).replace(/\s+/g, "");
+      const found = DB.find("users", (u) => u.faydaFan === v && (!excludeUserId || u.id !== excludeUserId));
+      out.faydaFanTaken = !!found;
+    }
+    return out;
+  },
+
   // Main-committee admin view: every user with an "active" flag derived from
   // whether they currently have a session token (not signed out yet).
   async listAll() {

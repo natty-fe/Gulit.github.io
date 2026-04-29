@@ -797,6 +797,14 @@ input:focus, select:focus, textarea:focus{
 .pwtoggle:hover{ color: var(--text); background: var(--surface-soft); }
 .pwtoggle:focus-visible{ outline: 2px solid var(--primary); outline-offset: 2px; }
 
+.field-status{ font-weight: 700; min-height: 1em; }
+.field-status.available{ color: #15803d; }
+.field-status.taken{ color: #b91c1c; }
+.field-status.invalid{ color: #b45309; }
+[data-theme="midnight"] .field-status.available{ color: #86efac; }
+[data-theme="midnight"] .field-status.taken{ color: #fca5a5; }
+[data-theme="midnight"] .field-status.invalid{ color: #fdba74; }
+
 .empty{
   padding: 24px;
   text-align: center;
