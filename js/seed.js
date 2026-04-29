@@ -89,7 +89,7 @@ export async function runSeed({ force = false } = {}) {
   await insertDemoStaff({ mainCommitteeId: mainCommittee.id, branchByCity });
 
   DB.setMeta("seeded", true);
-  DB.setMeta("seedVersion", 4);
+  DB.setMeta("seedVersion", 5);
 }
 
 // All demo staff share this password so the demo flow stays simple.
@@ -102,9 +102,92 @@ const DEMO_STAFF = [
   { name: "Sara Tesfaye",   email: "main@gmail.com",        phone: "+251911000004", role: "main",     subCity: "Addis Ababa", workId: "MC-001", faydaFan: "1000000000000004" },
 ];
 
+// Larger demo cohort: one branch member per sub-city (Bole's already in
+// DEMO_STAFF) and four shop owners per sub-city. Generated programmatically
+// so the data stays consistent and easy to extend.
+const ETHIOPIAN_FIRST_NAMES = [
+  "Hana", "Daniel", "Eden", "Solomon", "Mekdes", "Selam", "Henok", "Rahel", "Bereket", "Senait",
+  "Dawit", "Marta", "Tewodros", "Almaz", "Helen", "Zelalem", "Bethel", "Nahom", "Frehiwot", "Mesfin",
+  "Tirsit", "Yared", "Lily", "Robel", "Birtukan", "Samson", "Eyerusalem", "Dereje", "Lulit", "Kalkidan",
+  "Bemnet", "Yohanna", "Samuel", "Alemnesh", "Wendwosen", "Tibebu", "Helina", "Gelila", "Beza", "Hiwot",
+  "Endalk", "Aster", "Genet", "Berhanu", "Meron", "Saba", "Hawi", "Joseph", "Hilina", "Kidist",
+  "Maeza", "Mahder", "Yabsira", "Naod", "Eyob",
+];
+const ETHIOPIAN_LAST_NAMES = [
+  "Bekele", "Hailu", "Mihret", "Wolde", "Mengistu", "Girma", "Worku", "Demissie", "Abate", "Lemma",
+  "Ayele", "Gebre", "Asfaw", "Tolossa", "Habte",
+];
+
+const EXTRA_STAFF = generateExtraStaff();
+
+function generateExtraStaff() {
+  const accounts = [];
+  const usedEmails = new Set(DEMO_STAFF.map((a) => a.email));
+  const usedFans = new Set(DEMO_STAFF.map((a) => a.faydaFan));
+  let ownerSeq = 2;     // SO-00001 already taken
+  let branchSeq = 2;    // BC-0001 already taken (Bole)
+  let fanSeed = 1000000000000005;
+  let phoneSeed = 251911000005;
+  let nameIdx = 0;
+
+  function pickName() {
+    const f = ETHIOPIAN_FIRST_NAMES[nameIdx % ETHIOPIAN_FIRST_NAMES.length];
+    const l = ETHIOPIAN_LAST_NAMES[Math.floor(nameIdx / ETHIOPIAN_FIRST_NAMES.length) % ETHIOPIAN_LAST_NAMES.length];
+    nameIdx++;
+    return `${f} ${l}`;
+  }
+  function makeEmailFromName(name) {
+    const base = name.toLowerCase().replace(/\s+/g, ".");
+    let candidate = `${base}@gmail.com`;
+    let n = 2;
+    while (usedEmails.has(candidate)) candidate = `${base}.${n++}@gmail.com`;
+    usedEmails.add(candidate);
+    return candidate;
+  }
+  function makeFan() {
+    while (usedFans.has(String(fanSeed))) fanSeed++;
+    const fan = String(fanSeed).padStart(16, "0");
+    usedFans.add(fan);
+    fanSeed++;
+    return fan;
+  }
+  function makePhone() { return `+${phoneSeed++}`; }
+
+  for (const subCity of SUB_CITIES) {
+    if (subCity !== "Bole") {
+      const slug = subCity.toLowerCase().replace(/[^a-z]+/g, "");
+      const email = `branch.${slug}@gmail.com`;
+      usedEmails.add(email);
+      accounts.push({
+        name: pickName(),
+        email,
+        phone: makePhone(),
+        role: "branch",
+        subCity,
+        workId: `BC-${String(branchSeq++).padStart(4, "0")}`,
+        faydaFan: makeFan(),
+      });
+    }
+    const ownersToAdd = subCity === "Bole" ? 3 : 4;
+    for (let i = 0; i < ownersToAdd; i++) {
+      const name = pickName();
+      accounts.push({
+        name,
+        email: makeEmailFromName(name),
+        phone: makePhone(),
+        role: "owner",
+        subCity,
+        workId: `SO-${String(ownerSeq++).padStart(5, "0")}`,
+        faydaFan: makeFan(),
+      });
+    }
+  }
+  return accounts;
+}
+
 async function insertDemoStaff({ mainCommitteeId, branchByCity }) {
   const passwordHash = await hashPassword(DEMO_STAFF_PASSWORD);
-  for (const a of DEMO_STAFF) {
+  for (const a of [...DEMO_STAFF, ...EXTRA_STAFF]) {
     if (DB.find("users", (u) => u.email === a.email)) continue;
     let committeeId = null;
     if (a.role === "branch") committeeId = branchByCity[a.subCity] || null;
@@ -192,5 +275,21 @@ export async function runMigrations() {
       await insertDemoStaff({ mainCommitteeId: main.id, branchByCity });
     }
     DB.setMeta("seedVersion", 4);
+  }
+
+  // v4 → v5: extend the demo cohort to one branch member + four owners per
+  // sub-city. Same insertDemoStaff helper, which skips entries already
+  // present (matched by email).
+  if (v < 5) {
+    const committees = DB.all("committees");
+    const main = committees.find((c) => c.type === "main");
+    const branchByCity = {};
+    for (const c of committees) {
+      if (c.type === "branch") branchByCity[c.jurisdiction] = c.id;
+    }
+    if (main) {
+      await insertDemoStaff({ mainCommitteeId: main.id, branchByCity });
+    }
+    DB.setMeta("seedVersion", 5);
   }
 }
