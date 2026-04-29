@@ -1,9 +1,9 @@
 // js/seed.js
-// Initial reference data + a few demo accounts. Runs once on first load,
-// or on demand from the Account "Reset demo data" button.
+// Reference data only: committees, products, regulated price ranges.
+// User accounts, shops, and inventory are all created at runtime by the
+// signup / shop registration / inventory flows — there are no demo accounts.
 
 import { DB } from "./db.js";
-import { hashPassword } from "./auth.js";
 
 export const SUB_CITIES = [
   "Bole", "Kirkos", "Arada", "Yeka", "Lideta", "Akaki Kality", "Addis Ketema",
@@ -27,7 +27,9 @@ const PRODUCTS = [
   { id: "prd_berbere",  name: "Berbere",      nameAm: "በርበሬ",        category: "Spices",     unit: "pack",  icon: "spice" },
 ];
 
-// Regulated price bands set by the city main committee (ETB).
+// Initial regulated price bands (ETB). setBy is null because no main-committee
+// user exists at seed time; the first registered main user can override these
+// from the regulated-ranges panel.
 const PRICE_RANGES = [
   { productId: "prd_onion",   min: 2.50, max: 4.50 },
   { productId: "prd_tomato",  min: 3.00, max: 5.00 },
@@ -50,167 +52,38 @@ export async function runSeed({ force = false } = {}) {
   if (force) DB.hardReset();
   DB.ensure();
 
-  // ---- Committees ----
+  // ---- Committees (governance structure; no users attached yet) ----
   const mainCommittee = DB.insert("committees", {
     type: "main",
     name: "Addis Ababa Main Committee",
     jurisdiction: "Addis Ababa",
   });
 
-  const branchByCity = {};
   for (const sc of SUB_CITIES) {
-    const branch = DB.insert("committees", {
+    DB.insert("committees", {
       type: "branch",
       name: `${sc} Branch Committee`,
       jurisdiction: sc,
       parentId: mainCommittee.id,
     });
-    branchByCity[sc] = branch.id;
   }
-
-  // ---- Demo users (one per role) ----
-  const passHash = await hashPassword("demo1234");
-  const customer = DB.insert("users", {
-    name: "Hana Tesfaye",
-    email: "hana@example.com",
-    phone: "+251911234567",
-    role: "customer",
-    subCity: "Bole",
-    passwordHash: passHash,
-  });
-  const owner = DB.insert("users", {
-    name: "Abebe Kebede",
-    email: "abebe@example.com",
-    phone: "+251911000001",
-    role: "owner",
-    subCity: "Bole",
-    passwordHash: passHash,
-  });
-  const courier = DB.insert("users", {
-    name: "Yonas Tadesse",
-    email: "yonas@example.com",
-    phone: "+251911000002",
-    role: "delivery",
-    subCity: "Bole",
-    passwordHash: passHash,
-  });
-  const branchMember = DB.insert("users", {
-    name: "Mulugeta Alemu",
-    email: "branch@example.com",
-    phone: "+251911000003",
-    role: "branch",
-    subCity: "Bole",
-    committeeId: branchByCity["Bole"],
-    passwordHash: passHash,
-  });
-  const mainMember = DB.insert("users", {
-    name: "Sara Tesfaye",
-    email: "main@example.com",
-    phone: "+251911000004",
-    role: "main",
-    subCity: "Addis Ababa",
-    committeeId: mainCommittee.id,
-    passwordHash: passHash,
-  });
 
   // ---- Catalog ----
   for (const p of PRODUCTS) DB.insert("products", { ...p });
 
-  // ---- Price ranges (signed by main committee) ----
+  // ---- Initial regulated price bands ----
   for (const pr of PRICE_RANGES) {
     DB.insert("priceRanges", {
       productId: pr.productId,
       minPrice: pr.min,
       maxPrice: pr.max,
       effectiveDate: new Date().toISOString(),
-      setBy: mainMember.id,
+      setBy: null,
     });
   }
 
-  // ---- Shops ----
-  const ownerShop = DB.insert("shops", {
-    ownerId: owner.id,
-    name: "Bole Fresh Veggies",
-    subCity: "Bole",
-    branchCommitteeId: branchByCity["Bole"],
-    status: "approved",
-    approvedBy: branchMember.id,
-    approvedAt: new Date().toISOString(),
-    rating: 4.7,
-    reviews: [
-      { by: "Hana Tesfaye",  text: "Fresh onions and fair prices. Fast packing.",   stars: 5, date: "2026-04-12" },
-      { by: "Dawit Girma",   text: "Good tomatoes, delivery arrived on time.",      stars: 5, date: "2026-04-10" },
-      { by: "Mekdes Alemu",  text: "Very polite seller and clean packaging.",       stars: 4, date: "2026-04-04" },
-    ],
-  });
-
-  const otherShops = [
-    {
-      ownerId: owner.id, name: "Kirkos Market Corner", subCity: "Kirkos",
-      branchCommitteeId: branchByCity["Kirkos"], status: "approved", rating: 4.5,
-      reviews: [
-        { by: "Mulugeta Alemu", text: "Great potatoes, consistent stock.", stars: 5, date: "2026-04-09" },
-        { by: "Rahel Abate",    text: "Friendly and quick dispatch.",       stars: 4, date: "2026-04-02" },
-      ],
-    },
-    {
-      ownerId: owner.id, name: "Arada Daily Goods", subCity: "Arada",
-      branchCommitteeId: branchByCity["Arada"], status: "approved", rating: 4.4,
-      reviews: [
-        { by: "Kidus Mihret",   text: "Good peppers and grains. Fair ranges.", stars: 5, date: "2026-04-15" },
-        { by: "Saron Getachew", text: "Sometimes busy, but quality is high.",  stars: 4, date: "2026-04-01" },
-      ],
-    },
-    {
-      ownerId: owner.id, name: "Yeka Grain & Eggs", subCity: "Yeka",
-      branchCommitteeId: branchByCity["Yeka"], status: "approved", rating: 4.6,
-      reviews: [
-        { by: "Eden Abebe",    text: "Teff quality is excellent and clean.",     stars: 5, date: "2026-04-13" },
-        { by: "Hana Tesfaye",  text: "Egg tray arrived safely. Great packaging.", stars: 5, date: "2026-04-11" },
-      ],
-    },
-  ];
-  const shopIds = [ownerShop.id];
-  for (const s of otherShops) shopIds.push(DB.insert("shops", s).id);
-
-  // ---- Inventory: each shop carries a subset of products at prices inside range ----
-  const inRange = (pid) => {
-    const r = PRICE_RANGES.find((p) => p.productId === pid);
-    // pick a price ~ middle of range
-    return Number((r.min + (r.max - r.min) * (0.3 + Math.random() * 0.5)).toFixed(2));
-  };
-
-  const inventoryMap = [
-    [shopIds[0], ["prd_onion", "prd_tomato", "prd_cabbage", "prd_berbere"]],
-    [shopIds[1], ["prd_potato", "prd_carrot", "prd_lentils"]],
-    [shopIds[2], ["prd_pepper", "prd_rice", "prd_banana"]],
-    [shopIds[3], ["prd_egg", "prd_teff"]],
-  ];
-  for (const [shopId, products] of inventoryMap) {
-    for (const pid of products) {
-      const price = inRange(pid);
-      DB.insert("inventory", {
-        shopId,
-        productId: pid,
-        qty: 30 + Math.floor(Math.random() * 80),
-        price,
-        oldPrice: Number((price * 1.6).toFixed(2)),
-      });
-    }
-  }
-
-  // ---- Audit ----
-  DB.insert("auditLogs", {
-    actorId: mainMember.id,
-    action: "SEED",
-    entity: "system",
-    entityId: null,
-    details: { note: "Initial demo data seeded." },
-    timestamp: new Date().toISOString(),
-  });
-
   DB.setMeta("seeded", true);
-  DB.setMeta("seedVersion", 2);
+  DB.setMeta("seedVersion", 3);
 }
 
 // Backfill keys added after the initial seed so existing browser installs
@@ -230,6 +103,14 @@ const PRODUCT_NAMES_AM_BACKFILL = {
   prd_berbere: "በርበሬ",
 };
 
+const DEMO_EMAILS = new Set([
+  "hana@example.com",
+  "abebe@example.com",
+  "yonas@example.com",
+  "branch@example.com",
+  "main@example.com",
+]);
+
 export async function runMigrations() {
   DB.ensure();
   const v = DB.getMeta("seedVersion") || 0;
@@ -243,5 +124,30 @@ export async function runMigrations() {
       if (nameAm) DB.update("products", p.id, { nameAm });
     }
     DB.setMeta("seedVersion", 2);
+  }
+
+  // v2 → v3: drop the seeded demo accounts and their dependent shops/
+  // inventory/sessions so existing browser installs match new ones (no
+  // pre-baked accounts; the operator creates their own).
+  if (v < 3) {
+    const demoUsers = DB.filter("users", (u) => DEMO_EMAILS.has(u.email));
+    const demoUserIds = new Set(demoUsers.map((u) => u.id));
+
+    if (demoUserIds.size) {
+      // Sessions for those users
+      for (const s of DB.all("sessions")) {
+        if (demoUserIds.has(s.userId)) DB.remove("sessions", s.id);
+      }
+      // Shops owned by the demo owner
+      const demoShops = DB.filter("shops", (s) => demoUserIds.has(s.ownerId));
+      const demoShopIds = new Set(demoShops.map((s) => s.id));
+      for (const i of DB.all("inventory")) {
+        if (demoShopIds.has(i.shopId)) DB.remove("inventory", i.id);
+      }
+      for (const s of demoShops) DB.remove("shops", s.id);
+      // Users themselves
+      for (const u of demoUsers) DB.remove("users", u.id);
+    }
+    DB.setMeta("seedVersion", 3);
   }
 }

@@ -32,11 +32,6 @@ export async function renderAuth() {
           <div id="authForm"></div>
 
           <hr/>
-          <div class="muted" style="font-size:12px;">
-            ${t("auth.demo_logins")}<br/>
-            <b>${t("role.customer")}</b> hana@example.com · <b>${t("role.owner")}</b> abebe@example.com · <b>${t("role.delivery")}</b> yonas@example.com<br/>
-            <b>${t("role.branch")}</b> branch@example.com · <b>${t("role.main")}</b> main@example.com
-          </div>
         </div>
       </div>
     </section>
@@ -52,8 +47,8 @@ function drawAuthForm(mode) {
   const wrap = document.getElementById("authForm");
   if (mode === "login") {
     wrap.innerHTML = `
-      ${formField({ label: t("auth.identifier"), name: "identifier", required: true, value: "hana@example.com" })}
-      ${formField({ label: t("auth.password"), name: "password", type: "password", required: true, value: "demo1234" })}
+      ${formField({ label: t("auth.identifier"), name: "identifier", required: true })}
+      ${formField({ label: t("auth.password"), name: "password", type: "password", required: true })}
       <div class="btnrow">
         <button class="primary" id="loginBtn">${t("auth.signin_btn")}</button>
       </div>
@@ -69,13 +64,14 @@ function drawAuthForm(mode) {
         { value: "customer", label: t("role.customer") },
         { value: "owner", label: t("role.owner") },
         { value: "delivery", label: t("role.delivery") },
+        { value: "branch", label: t("role.branch") },
+        { value: "main", label: t("role.main") },
       ]})}
       ${formField({ label: t("auth.subcity"), name: "subCity", type: "select", value: "Bole",
-        options: SUB_CITIES.map(s => ({ value: s, label: s })) })}
+        options: SUB_CITIES.map(s => ({ value: s, label: subCityLabel(s) })) })}
       <div class="btnrow">
         <button class="primary" id="signupBtn">${t("auth.signup_btn")}</button>
       </div>
-      <div class="muted mt8" style="font-size:12px;">${t("auth.committee_note")}</div>
     `;
     document.getElementById("signupBtn").addEventListener("click", onSignup);
   }
@@ -97,10 +93,22 @@ async function onLogin() {
 
 async function onSignup() {
   const f = (n) => document.querySelector(`#authForm [name=${n}]`).value.trim();
+  const role = f("role");
+  const subCity = f("subCity");
+  let committeeId = null;
+  if (role === "branch" || role === "main") {
+    const { Committees } = await import("../api.js");
+    const committees = await Committees.list();
+    if (role === "branch") {
+      committeeId = committees.find(c => c.type === "branch" && c.jurisdiction === subCity)?.id || null;
+    } else {
+      committeeId = committees.find(c => c.type === "main")?.id || null;
+    }
+  }
   try {
     const { user } = await Auth.register({
       name: f("name"), email: f("email"), phone: f("phone"),
-      password: f("password"), role: f("role"), subCity: f("subCity"),
+      password: f("password"), role, subCity, committeeId,
     });
     state.setUser(user);
     toast(t("auth.account_created", { name: user.name }), "success");
