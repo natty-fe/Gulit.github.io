@@ -117,7 +117,8 @@ const SUB_CITIES_AM = {
 
 export function productName(p) {
   if (!p) return "";
-  return getLang() === "am" ? (PRODUCT_NAMES_AM[p.id] || p.name) : p.name;
+  if (getLang() === "am") return p.nameAm || PRODUCT_NAMES_AM[p.id] || p.name;
+  return p.name;
 }
 export function unitLabel(u) {
   if (!u) return "";
@@ -391,6 +392,33 @@ const STR = {
     "own.shop_note": "After submission, the local branch committee reviews and approves your shop before you can sell.",
     "own.shop_submitted": "Submitted for branch committee review",
 
+    // ---- owner: product proposals + notifications ----
+    "own.propose_btn": "+ Propose new product",
+    "own.propose_title": "Propose new product",
+    "own.propose_subtitle": "Suggest a new product for the catalog. The branch committee will review and, if approved, set the regulated price band and add it to your inventory.",
+    "own.propose_shop": "Your shop",
+    "own.product_name_en": "Product name (English)",
+    "own.product_name_en_ph": "e.g., Cucumber",
+    "own.product_name_am": "Product name (Amharic)",
+    "own.product_name_am_ph": "e.g., ኪያር",
+    "own.product_category": "Category",
+    "own.product_unit": "Unit",
+    "own.product_icon": "Icon",
+    "own.suggested_min": "Suggested minimum (ETB)",
+    "own.suggested_max": "Suggested maximum (ETB)",
+    "own.initial_price": "My initial price (ETB)",
+    "own.initial_qty": "Initial stock",
+    "own.propose_send": "Submit for review",
+    "own.proposal_sent": "Proposal sent to branch committee",
+    "own.activity_title": "Notifications",
+    "own.activity_subtitle": "Decisions on your proposals and committee responses to price changes.",
+    "own.no_activity": "No notifications yet.",
+    "own.mark_read": "Mark as read",
+    "own.proposals_title": "My proposals",
+    "own.no_proposals": "No proposals yet. Use “Propose new product” to suggest one.",
+    "own.proposal_status": "Status",
+    "own.notify_committee": "Branch committee will be notified of this price change.",
+
     // ---- delivery ----
     "dlv.title": "Delivery dashboard",
     "dlv.subtitle": "Update task status and confirm with customer OTP.",
@@ -433,6 +461,22 @@ const STR = {
     "br.escalate": "Escalate",
     "br.decision_note": "Decision note:",
     "br.case_updated": "Case {decision}",
+    "br.proposals_title": "Product proposals",
+    "br.proposals_subtitle": "Owners suggest new products with bilingual names and a suggested price band. Approving adds the product to the catalog with that band, and stocks the proposing shop.",
+    "br.no_proposals": "No pending proposals.",
+    "br.proposed_by": "Proposed by",
+    "br.suggested_label": "Suggested band",
+    "br.initial_label": "Initial price",
+    "br.shops_title": "Shops & inventory",
+    "br.shops_subtitle": "Approved shops in your jurisdiction. Tap a shop to see what they sell and at what price.",
+    "br.no_shops_here": "No approved shops in your jurisdiction yet.",
+    "br.view_inventory": "View inventory",
+    "br.inv_modal": "{shop} · inventory",
+    "br.no_inventory": "No items listed yet.",
+    "br.notifs_title": "Notifications",
+    "br.notifs_subtitle": "Price changes, proposals, and shop activity in your jurisdiction.",
+    "br.no_notifs": "No notifications.",
+    "br.proposal_decided": "Proposal {decision}",
 
     // ---- committee (main) ----
     "mc.title": "City Main Committee",
@@ -454,6 +498,26 @@ const STR = {
     "mc.no_escalations": "No escalated cases.",
     "mc.mark_resolved": "Mark resolved",
     "mc.final_note": "Final decision note:",
+    "mc.complaints_overview": "Complaints overview",
+    "mc.complaints_subtitle": "All complaints in the city by status — for next-meeting tracking.",
+    "mc.no_complaints": "No complaints recorded.",
+    "mc.cnt_unanswered": "Unanswered",
+    "mc.cnt_in_review": "In review",
+    "mc.cnt_resolved": "Resolved",
+    "mc.cnt_rejected": "Rejected",
+    "mc.cnt_escalated": "Escalated",
+    "mc.filter_all": "All",
+    "mc.notifs_title": "Notifications",
+    "mc.notifs_subtitle": "Escalations and city-wide signals from branch committees.",
+    "mc.no_notifs": "No notifications.",
+
+    // ---- notifications (cross-cutting) ----
+    "notif.proposal_pending": "{owner} proposed product “{name}” for review",
+    "notif.proposal_approved": "Your proposal “{name}” was approved and added to the catalog",
+    "notif.proposal_rejected": "Your proposal “{name}” was rejected",
+    "notif.price_change": "{shop} changed price of {product}: {oldPrice} → {newPrice}",
+    "notif.complaint_escalated": "Branch escalated complaint {id} ({type}) — needs main review",
+    "notif.complaint_open": "New complaint filed against {shop} ({type})",
 
     // ---- audit ----
     "audit.title": "Audit log (last 100 events)",
@@ -735,6 +799,33 @@ const STR = {
     "own.shop_note": "ካስገቡ በኋላ የአካባቢው የቅርንጫፍ ኮሚቴ ሱቅዎን ይገመግማል፣ ካፀደቀ በኋላ መሸጥ ይጀምራሉ።",
     "own.shop_submitted": "ለቅርንጫፍ ኮሚቴ ግምገማ ቀርቧል",
 
+    // ---- owner: product proposals + notifications ----
+    "own.propose_btn": "+ አዲስ ምርት ጠቁም",
+    "own.propose_title": "አዲስ ምርት ጠቁም",
+    "own.propose_subtitle": "በዝርዝሩ ላይ የሚጨመር አዲስ ምርት ይጠቁሙ። የቅርንጫፍ ኮሚቴ ይገመግማል፤ ካፀደቀ የተወሰነ የዋጋ ክልል ይዘጋጅና ወደ ክምችትዎ ይታከላል።",
+    "own.propose_shop": "ሱቅዎ",
+    "own.product_name_en": "የምርት ስም (በእንግሊዝኛ)",
+    "own.product_name_en_ph": "ለምሳሌ፣ Cucumber",
+    "own.product_name_am": "የምርት ስም (በአማርኛ)",
+    "own.product_name_am_ph": "ለምሳሌ፣ ኪያር",
+    "own.product_category": "ምድብ",
+    "own.product_unit": "መለኪያ",
+    "own.product_icon": "አዶ",
+    "own.suggested_min": "የተጠቆመ ዝቅተኛ (ብር)",
+    "own.suggested_max": "የተጠቆመ ከፍተኛ (ብር)",
+    "own.initial_price": "የእርስዎ የመጀመሪያ ዋጋ (ብር)",
+    "own.initial_qty": "የመጀመሪያ ክምችት",
+    "own.propose_send": "ለግምገማ አስገባ",
+    "own.proposal_sent": "ጥቆማ ለቅርንጫፍ ኮሚቴ ቀርቧል",
+    "own.activity_title": "ማሳወቂያዎች",
+    "own.activity_subtitle": "ስለ ጥቆማዎችዎ ውሳኔዎችና ስለ ዋጋ ለውጥ የኮሚቴ ምላሾች።",
+    "own.no_activity": "ገና ማሳወቂያ የለም።",
+    "own.mark_read": "እንደ ተነበበ ምልክት",
+    "own.proposals_title": "የእኔ ጥቆማዎች",
+    "own.no_proposals": "ገና ጥቆማ የለም። “አዲስ ምርት ጠቁም” የሚለውን ይጠቀሙ።",
+    "own.proposal_status": "ሁኔታ",
+    "own.notify_committee": "የቅርንጫፍ ኮሚቴ ለዚህ ዋጋ ለውጥ ማሳወቂያ ይደርሰዋል።",
+
     // ---- delivery ----
     "dlv.title": "የአስረካቢ ዳሽቦርድ",
     "dlv.subtitle": "የተግባር ሁኔታ ያስተካክሉና በደንበኛ ኮድ ያረጋግጡ።",
@@ -777,6 +868,22 @@ const STR = {
     "br.escalate": "ለዋና ያስተላልፉ",
     "br.decision_note": "የውሳኔ ማስታወሻ:",
     "br.case_updated": "ጉዳይ {decision}",
+    "br.proposals_title": "የምርት ጥቆማዎች",
+    "br.proposals_subtitle": "ባለቤቶች በሁለት ቋንቋ ስምና የተጠቆመ የዋጋ ክልል ያላቸውን አዳዲስ ምርቶች ይጠቁማሉ። ካፀደቁ ምርቱ ወደ ዝርዝሩ ይታከላል፣ ጠቋሚው ሱቅም ይከማቻል።",
+    "br.no_proposals": "በመጠባበቅ ላይ ጥቆማ የለም።",
+    "br.proposed_by": "ጠቋሚ",
+    "br.suggested_label": "የተጠቆመ ክልል",
+    "br.initial_label": "የመጀመሪያ ዋጋ",
+    "br.shops_title": "ሱቆችና ክምችት",
+    "br.shops_subtitle": "በሥልጣንዎ ስር ያሉ የተፈቀዱ ሱቆች። ምን እንደሚሸጡና በምን ዋጋ ለማየት ሱቅን ይንኩ።",
+    "br.no_shops_here": "በሥልጣንዎ ስር የተፈቀደ ሱቅ የለም።",
+    "br.view_inventory": "ክምችት ይመልከቱ",
+    "br.inv_modal": "{shop} · ክምችት",
+    "br.no_inventory": "ገና የተዘረዘረ ዕቃ የለም።",
+    "br.notifs_title": "ማሳወቂያዎች",
+    "br.notifs_subtitle": "በሥልጣንዎ ውስጥ ያሉ የዋጋ ለውጦች፣ ጥቆማዎችና የሱቅ እንቅስቃሴዎች።",
+    "br.no_notifs": "ማሳወቂያ የለም።",
+    "br.proposal_decided": "ጥቆማ {decision}",
 
     // ---- committee (main) ----
     "mc.title": "የከተማ ዋና ኮሚቴ",
@@ -798,6 +905,26 @@ const STR = {
     "mc.no_escalations": "የተላለፈ ጉዳይ የለም።",
     "mc.mark_resolved": "እንደ ተፈታ ምልክት",
     "mc.final_note": "የመጨረሻ ውሳኔ ማስታወሻ:",
+    "mc.complaints_overview": "የቅሬታዎች አጠቃላይ እይታ",
+    "mc.complaints_subtitle": "በከተማው ውስጥ ያሉ ሁሉም ቅሬታዎች በሁኔታ ተከፋፍለው — ለቀጣዩ ስብሰባ ክትትል።",
+    "mc.no_complaints": "የተመዘገበ ቅሬታ የለም።",
+    "mc.cnt_unanswered": "ምላሽ ያልተሰጣቸው",
+    "mc.cnt_in_review": "በግምገማ ላይ",
+    "mc.cnt_resolved": "የተፈቱ",
+    "mc.cnt_rejected": "አልተፈቀዱም",
+    "mc.cnt_escalated": "የተላለፉ",
+    "mc.filter_all": "ሁሉም",
+    "mc.notifs_title": "ማሳወቂያዎች",
+    "mc.notifs_subtitle": "ከቅርንጫፍ ኮሚቴዎች የተላለፉ ጉዳዮችና በከተማ ደረጃ ያሉ ምልክቶች።",
+    "mc.no_notifs": "ማሳወቂያ የለም።",
+
+    // ---- notifications (cross-cutting) ----
+    "notif.proposal_pending": "{owner} “{name}” ምርት ለግምገማ ጠቁሟል",
+    "notif.proposal_approved": "የእርስዎ ጥቆማ “{name}” ፀድቆ ወደ ዝርዝሩ ታክሏል",
+    "notif.proposal_rejected": "የእርስዎ ጥቆማ “{name}” አልተፈቀደም",
+    "notif.price_change": "{shop} የ{product} ዋጋ ቀይሯል፡ {oldPrice} → {newPrice}",
+    "notif.complaint_escalated": "ቅርንጫፍ ቅሬታ {id} ({type}) ለዋና ኮሚቴ አስተላልፏል",
+    "notif.complaint_open": "በ{shop} ላይ አዲስ ቅሬታ ቀርቧል ({type})",
 
     // ---- audit ----
     "audit.title": "የቁጥጥር ምዝገባ (የመጨረሻ 100 ክስተቶች)",

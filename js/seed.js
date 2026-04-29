@@ -13,18 +13,18 @@ export const SUB_CITIES = [
 export const CATEGORIES = ["All", "Vegetables", "Grains", "Cereals", "Fruits", "Protein", "Spices"];
 
 const PRODUCTS = [
-  { id: "prd_onion",    name: "Onion",        category: "Vegetables", unit: "kg",    icon: "onion" },
-  { id: "prd_tomato",   name: "Tomato",       category: "Vegetables", unit: "kg",    icon: "tomato" },
-  { id: "prd_potato",   name: "Potato",       category: "Vegetables", unit: "kg",    icon: "potato" },
-  { id: "prd_carrot",   name: "Carrot",       category: "Vegetables", unit: "kg",    icon: "carrot" },
-  { id: "prd_pepper",   name: "Green Pepper", category: "Vegetables", unit: "kg",    icon: "pepper" },
-  { id: "prd_cabbage",  name: "Cabbage",      category: "Vegetables", unit: "kg",    icon: "cabbage" },
-  { id: "prd_egg",      name: "Egg (tray)",   category: "Protein",    unit: "tray",  icon: "egg" },
-  { id: "prd_teff",     name: "Teff",         category: "Grains",     unit: "kg",    icon: "grain" },
-  { id: "prd_rice",     name: "Rice",         category: "Cereals",    unit: "kg",    icon: "grain" },
-  { id: "prd_lentils",  name: "Lentils",      category: "Grains",     unit: "kg",    icon: "grain" },
-  { id: "prd_banana",   name: "Banana",       category: "Fruits",     unit: "dozen", icon: "banana" },
-  { id: "prd_berbere",  name: "Berbere",      category: "Spices",     unit: "pack",  icon: "spice" },
+  { id: "prd_onion",    name: "Onion",        nameAm: "ሽንኩርት",       category: "Vegetables", unit: "kg",    icon: "onion" },
+  { id: "prd_tomato",   name: "Tomato",       nameAm: "ቲማቲም",       category: "Vegetables", unit: "kg",    icon: "tomato" },
+  { id: "prd_potato",   name: "Potato",       nameAm: "ድንች",         category: "Vegetables", unit: "kg",    icon: "potato" },
+  { id: "prd_carrot",   name: "Carrot",       nameAm: "ካሮት",         category: "Vegetables", unit: "kg",    icon: "carrot" },
+  { id: "prd_pepper",   name: "Green Pepper", nameAm: "ቃሪያ",         category: "Vegetables", unit: "kg",    icon: "pepper" },
+  { id: "prd_cabbage",  name: "Cabbage",      nameAm: "ጥቅል ጎመን",     category: "Vegetables", unit: "kg",    icon: "cabbage" },
+  { id: "prd_egg",      name: "Egg (tray)",   nameAm: "እንቁላል (ትሬ)",  category: "Protein",    unit: "tray",  icon: "egg" },
+  { id: "prd_teff",     name: "Teff",         nameAm: "ጤፍ",          category: "Grains",     unit: "kg",    icon: "grain" },
+  { id: "prd_rice",     name: "Rice",         nameAm: "ሩዝ",          category: "Cereals",    unit: "kg",    icon: "grain" },
+  { id: "prd_lentils",  name: "Lentils",      nameAm: "ምስር",         category: "Grains",     unit: "kg",    icon: "grain" },
+  { id: "prd_banana",   name: "Banana",       nameAm: "ሙዝ",          category: "Fruits",     unit: "dozen", icon: "banana" },
+  { id: "prd_berbere",  name: "Berbere",      nameAm: "በርበሬ",        category: "Spices",     unit: "pack",  icon: "spice" },
 ];
 
 // Regulated price bands set by the city main committee (ETB).
@@ -210,5 +210,38 @@ export async function runSeed({ force = false } = {}) {
   });
 
   DB.setMeta("seeded", true);
-  DB.setMeta("seedVersion", 1);
+  DB.setMeta("seedVersion", 2);
+}
+
+// Backfill keys added after the initial seed so existing browser installs
+// pick them up without needing a hard reset.
+const PRODUCT_NAMES_AM_BACKFILL = {
+  prd_onion:   "ሽንኩርት",
+  prd_tomato:  "ቲማቲም",
+  prd_potato:  "ድንች",
+  prd_carrot:  "ካሮት",
+  prd_pepper:  "ቃሪያ",
+  prd_cabbage: "ጥቅል ጎመን",
+  prd_egg:     "እንቁላል (ትሬ)",
+  prd_teff:    "ጤፍ",
+  prd_rice:    "ሩዝ",
+  prd_lentils: "ምስር",
+  prd_banana:  "ሙዝ",
+  prd_berbere: "በርበሬ",
+};
+
+export async function runMigrations() {
+  DB.ensure();
+  const v = DB.getMeta("seedVersion") || 0;
+
+  // v1 → v2: products gained a nameAm field; backfill from the static map.
+  if (v < 2) {
+    const products = DB.all("products");
+    for (const p of products) {
+      if (p.nameAm) continue;
+      const nameAm = PRODUCT_NAMES_AM_BACKFILL[p.id];
+      if (nameAm) DB.update("products", p.id, { nameAm });
+    }
+    DB.setMeta("seedVersion", 2);
+  }
 }

@@ -3,7 +3,7 @@
 // (topbar, bottom nav), and starts the router.
 
 import { DB } from "./db.js";
-import { runSeed } from "./seed.js";
+import { runSeed, runMigrations } from "./seed.js";
 import { Auth } from "./auth.js";
 import { state } from "./state.js";
 import { start, go, route } from "./router.js";
@@ -17,6 +17,7 @@ import { ROLE_LABELS, t, getLang, setLang, applyTheme, openThemePicker } from ".
 
   DB.ensure();
   await runSeed();
+  await runMigrations();
 
   // Restore session if a token exists.
   const u = Auth.currentUser();

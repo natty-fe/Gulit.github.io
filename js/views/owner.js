@@ -2,13 +2,16 @@
 // Shop owner dashboard: orders queue, accept/reject, assign deliveries,
 // inventory CRUD with regulated-range validation, and shop registration.
 
-import { Inventory, Orders, PriceRanges, Products, Shops, Users } from "../api.js";
+import { Inventory, Notifications, Orders, PriceRanges, Products, ProductProposals, Shops, Users } from "../api.js";
 import { state } from "../state.js";
 import {
-  toast, openModal, closeModal, etb, dateShort, statusBadge, iconSvg, formField, t,
+  toast, openModal, closeModal, etb, dateShort, timeShort, statusBadge, iconSvg, formField, t,
   productName, unitLabel, shopName, subCityLabel,
 } from "./shared.js";
-import { SUB_CITIES } from "../seed.js";
+import { SUB_CITIES, CATEGORIES } from "../seed.js";
+
+const PROPOSE_UNITS = ["kg", "tray", "dozen", "pack", "litre", "piece"];
+const PROPOSE_ICONS = ["onion", "tomato", "potato", "carrot", "pepper", "cabbage", "egg", "grain", "banana", "spice"];
 
 const view = () => document.getElementById("view");
 
@@ -39,9 +42,25 @@ export async function renderOwner() {
           <div class="card mt12" style="box-shadow:none;border:1px solid var(--border);">
             <div class="hd">
               <h2>${t("inventory")}</h2>
-              <select id="invShopSel">${myShops.map(s => `<option value="${s.id}">${shopName(s)} · ${subCityLabel(s.subCity)}</option>`).join("")}</select>
+              <div class="flex" style="gap:8px;align-items:center;">
+                <select id="invShopSel">${myShops.map(s => `<option value="${s.id}">${shopName(s)} · ${subCityLabel(s.subCity)}</option>`).join("")}</select>
+                <button class="addbtn" id="proposeBtn" ${myShops.some(s => s.status === "approved") ? "" : "disabled"}>${t("own.propose_btn")}</button>
+              </div>
             </div>
             <div class="bd" id="ownerInv">${t("loading")}</div>
+          </div>
+
+          <div class="card mt12" style="box-shadow:none;border:1px solid var(--border);">
+            <div class="hd"><h2>${t("own.proposals_title")}</h2></div>
+            <div class="bd" id="ownerProposals">${t("loading")}</div>
+          </div>
+
+          <div class="card mt12" style="box-shadow:none;border:1px solid var(--border);">
+            <div class="hd">
+              <h2>${t("own.activity_title")}</h2>
+              <div class="muted">${t("own.activity_subtitle")}</div>
+            </div>
+            <div class="bd" id="ownerActivity">${t("loading")}</div>
           </div>
         </div>
       </div>
@@ -56,9 +75,12 @@ export async function renderOwner() {
     document.getElementById("ownerInv").innerHTML =
       `<div class="empty">${t("own.inv_no_shops")}</div>`;
   }
+  drawOwnerProposals();
+  drawOwnerActivity();
 
   document.getElementById("newShopBtn").addEventListener("click", () => openShopRegistration());
   document.getElementById("invShopSel")?.addEventListener("change", (e) => drawOwnerInventory(e.target.value));
+  document.getElementById("proposeBtn")?.addEventListener("click", () => openProposeProduct(myShops));
 }
 
 async function drawOwnerStats(shops) {
@@ -221,6 +243,7 @@ function openInventoryEditor(shopId, productId, existing, ranges) {
     ${range ? `<div class="muted">${t("own.allowed_range", { min: etb(range.minPrice), max: etb(range.maxPrice) })}</div>` : ""}
     ${formField({ label: t("own.qty_label"), name: "qty", type: "number", value: String(existing?.qty || 10) })}
     ${formField({ label: t("own.unit_price"), name: "price", type: "number", value: String(existing?.price || (range ? ((range.minPrice + range.maxPrice) / 2).toFixed(2) : "")) })}
+    ${existing ? `<div class="muted mt8" style="font-size:12px;">${t("own.notify_committee")}</div>` : ""}
     <div class="btnrow"><button class="primary" id="invSave">${t("save")}</button><button class="ghost" id="invCancel">${t("cancel")}</button></div>
   `);
   document.getElementById("invCancel").onclick = () => closeModal();
@@ -230,6 +253,119 @@ function openInventoryEditor(shopId, productId, existing, ranges) {
     try {
       await Inventory.upsert({ id: existing?.id, shopId, productId, qty, price });
       toast(t("own.inv_saved"), "success");
+      closeModal();
+      renderOwner();
+    } catch (e) { toast(e.message, "danger"); }
+  };
+}
+
+// ------------------ PROPOSAL: new product ---------------
+async function drawOwnerProposals() {
+  const u = state.user;
+  const el = document.getElementById("ownerProposals");
+  if (!el) return;
+  const proposals = await ProductProposals.list({ ownerId: u.id });
+  if (!proposals.length) { el.innerHTML = `<div class="empty">${t("own.no_proposals")}</div>`; return; }
+  el.innerHTML = proposals.map(p => `
+    <div class="pitem" style="grid-template-columns:48px 1fr auto;">
+      <div class="pimg">${iconSvg(p.icon)}</div>
+      <div>
+        <div class="ptitle">${p.name} · <span class="muted" style="font-weight:600;">${p.nameAm}</span></div>
+        <div class="psub">${t(`cat.${p.category}`, p.category)} · ${unitLabel(p.unit)} · ${t("br.suggested_label")}: <b>${etb(p.suggestedMin)}–${etb(p.suggestedMax)}</b></div>
+        <div class="muted mt8">${shopName({ name: p.shopName })} · ${dateShort(p.createdAt)}</div>
+        ${p.decisionNote ? `<div class="muted mt8">"${escapeAttr(p.decisionNote)}"</div>` : ""}
+      </div>
+      <div>${statusBadge(p.status)}</div>
+    </div>
+  `).join("");
+}
+
+async function drawOwnerActivity() {
+  const u = state.user;
+  const el = document.getElementById("ownerActivity");
+  if (!el) return;
+  const items = await Notifications.list({ recipientType: "user", recipientId: u.id, limit: 30 });
+  if (!items.length) { el.innerHTML = `<div class="empty">${t("own.no_activity")}</div>`; return; }
+  el.innerHTML = items.map(n => `
+    <div class="comment ${n.read ? "" : "unread"}" style="background:var(--surface);">
+      <div class="row" style="align-items:flex-start;">
+        <div>
+          <div style="font-weight:900;">${notifTitle(n)}</div>
+          ${n.body ? `<div class="muted mt8" style="font-size:13px;">${escapeAttr(n.body)}</div>` : ""}
+        </div>
+        <div class="muted" style="font-size:12px;">${dateShort(n.createdAt)} ${timeShort(n.createdAt)}</div>
+      </div>
+      ${n.read ? "" : `<div class="actions"><button class="ghost" data-mark="${n.id}">${t("own.mark_read")}</button></div>`}
+    </div>
+  `).join("");
+  el.querySelectorAll("[data-mark]").forEach(b => b.addEventListener("click", async () => {
+    await Notifications.markRead(b.dataset.mark);
+    drawOwnerActivity();
+  }));
+}
+
+function notifTitle(n) {
+  const d = n.data || {};
+  switch (n.type) {
+    case "PROPOSAL_APPROVED": return t("notif.proposal_approved", { name: d.productName || "" });
+    case "PROPOSAL_REJECTED": return t("notif.proposal_rejected", { name: d.productName || "" });
+    case "PROPOSAL_PENDING":  return t("notif.proposal_pending",  { owner: d.ownerName || "", name: d.productName || "" });
+    case "PRICE_CHANGE":      return t("notif.price_change", {
+      shop: d.shopName || "", product: d.productName || "",
+      oldPrice: etb(d.oldPrice ?? 0), newPrice: etb(d.newPrice ?? 0),
+    });
+    case "COMPLAINT_OPEN":       return t("notif.complaint_open",       { shop: d.shopName || "", type: d.type || "" });
+    case "COMPLAINT_ESCALATED":  return t("notif.complaint_escalated",  { id: (d.complaintId || "").slice(-6).toUpperCase(), type: d.type || "" });
+    default: return n.title || n.type;
+  }
+}
+
+function escapeAttr(s) {
+  return String(s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function openProposeProduct(myShops) {
+  const eligible = myShops.filter(s => s.status === "approved");
+  if (eligible.length === 0) { toast(t("own.inv_no_shops"), "danger"); return; }
+  const catOptions = CATEGORIES.filter(c => c !== "All").map(c => ({ value: c, label: t(`cat.${c}`, c) }));
+  const unitOptions = PROPOSE_UNITS.map(u => ({ value: u, label: unitLabel(u) }));
+  const iconOptions = PROPOSE_ICONS.map(i => ({ value: i, label: i }));
+  openModal(t("own.propose_title"), `
+    <div class="muted">${t("own.propose_subtitle")}</div>
+    ${formField({ label: t("own.propose_shop"), name: "shopId", type: "select",
+      options: eligible.map(s => ({ value: s.id, label: `${shopName(s)} · ${subCityLabel(s.subCity)}` })) })}
+    ${formField({ label: t("own.product_name_en"), name: "name", required: true, placeholder: t("own.product_name_en_ph") })}
+    ${formField({ label: t("own.product_name_am"), name: "nameAm", required: true, placeholder: t("own.product_name_am_ph") })}
+    ${formField({ label: t("own.product_category"), name: "category", type: "select", value: "Vegetables", options: catOptions })}
+    ${formField({ label: t("own.product_unit"), name: "unit", type: "select", value: "kg", options: unitOptions })}
+    ${formField({ label: t("own.product_icon"), name: "icon", type: "select", value: "grain", options: iconOptions })}
+    <div class="row mt8" style="gap:8px;">
+      <div style="flex:1;">${formField({ label: t("own.suggested_min"), name: "min", type: "number" })}</div>
+      <div style="flex:1;">${formField({ label: t("own.suggested_max"), name: "max", type: "number" })}</div>
+    </div>
+    <div class="row mt8" style="gap:8px;">
+      <div style="flex:1;">${formField({ label: t("own.initial_price"), name: "ip", type: "number" })}</div>
+      <div style="flex:1;">${formField({ label: t("own.initial_qty"), name: "iq", type: "number", value: "20" })}</div>
+    </div>
+    <div class="btnrow"><button class="primary" id="propSave">${t("own.propose_send")}</button><button class="ghost" id="propCancel">${t("cancel")}</button></div>
+  `);
+  document.getElementById("propCancel").onclick = () => closeModal();
+  document.getElementById("propSave").onclick = async () => {
+    const get = (n) => document.querySelector(`#modalBody [name=${n}]`).value;
+    try {
+      await ProductProposals.propose({
+        shopId: get("shopId"),
+        name: get("name").trim(),
+        nameAm: get("nameAm").trim(),
+        category: get("category"),
+        unit: get("unit"),
+        icon: get("icon"),
+        suggestedMin: Number(get("min")),
+        suggestedMax: Number(get("max")),
+        initialPrice: Number(get("ip")),
+        initialQty: Number(get("iq")),
+      });
+      toast(t("own.proposal_sent"), "success");
       closeModal();
       renderOwner();
     } catch (e) { toast(e.message, "danger"); }

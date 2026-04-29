@@ -706,6 +706,11 @@ input:focus, select:focus, textarea:focus{
   background: var(--surface-soft);
   margin-top: 8px;
 }
+.comment.unread{
+  border-color: var(--primary);
+  background: var(--primary-tint, var(--surface-soft));
+  box-shadow: 0 0 0 1px var(--primary-ring, transparent) inset;
+}
 
 /* =====================================================================
    DELIVERY / TRACKING / QUEUE / OWNER
@@ -755,6 +760,9 @@ input:focus, select:focus, textarea:focus{
 }
 .stat .k{ font-size: 12px; color: var(--muted); font-weight: 800; }
 .stat .v{ font-size: 18px; font-weight: 900; margin-top: 4px; color: var(--primary); }
+.stat[data-filter]{ cursor: pointer; transition: transform .15s ease, border-color .15s ease; }
+.stat[data-filter]:hover{ border-color: var(--primary); }
+.stat.selected{ border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary-ring, transparent) inset; }
 
 .empty{
   padding: 24px;

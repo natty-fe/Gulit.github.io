@@ -17,6 +17,20 @@ function audit(actorId, action, entity, entityId, details = {}) {
   });
 }
 
+// Notifications are addressed to either a user (recipientType="user") or a
+// committee inbox (recipientType="committee" + recipientId=committeeId, or
+// recipientType="main" for the main committee broadcast).
+function notify({ recipientType, recipientId = null, type, title, body = "", data = {} }) {
+  return DB.insert("notifications", {
+    recipientType, recipientId, type, title, body, data, read: false,
+  });
+}
+
+function mainCommitteeId() {
+  const c = DB.find("committees", (x) => x.type === "main");
+  return c ? c.id : null;
+}
+
 // ------------------ PRODUCTS & PRICING ------------------
 export const Products = {
   async list({ q = "", category = "All" } = {}) {
@@ -141,10 +155,30 @@ export const Inventory = {
     if (range && (price < range.minPrice || price > range.maxPrice)) {
       throw new Error(`Price ${price} outside regulated range ${range.minPrice}–${range.maxPrice}.`);
     }
+    const product = DB.byId("products", productId);
+    const priceChanged = (prev) =>
+      prev && Number(prev.price).toFixed(2) !== Number(price).toFixed(2);
+
+    const fireNotification = (prev) => {
+      if (!priceChanged(prev) || !shop.branchCommitteeId) return;
+      notify({
+        recipientType: "committee",
+        recipientId: shop.branchCommitteeId,
+        type: "PRICE_CHANGE",
+        title: "Price change",
+        data: {
+          shopId: shop.id, shopName: shop.name,
+          productId, productName: product?.name || "",
+          oldPrice: Number(prev.price), newPrice: Number(price),
+        },
+      });
+    };
+
     if (id) {
       const existing = DB.byId("inventory", id);
       if (!existing) throw new Error("Inventory item not found.");
       const next = DB.update("inventory", id, { qty: Number(qty), price: Number(price) });
+      fireNotification(existing);
       audit(u.id, "INVENTORY_UPDATED", "inventory", id, { qty, price });
       return next;
     } else {
@@ -152,6 +186,7 @@ export const Inventory = {
       const existing = DB.find("inventory", (i) => i.shopId === shopId && i.productId === productId);
       if (existing) {
         const next = DB.update("inventory", existing.id, { qty: Number(qty), price: Number(price) });
+        fireNotification(existing);
         audit(u.id, "INVENTORY_UPDATED", "inventory", existing.id, { qty, price });
         return next;
       }
@@ -364,6 +399,15 @@ export const Complaints = {
       branchCommitteeId: shop.branchCommitteeId,
       status: "open",
     });
+    if (shop.branchCommitteeId) {
+      notify({
+        recipientType: "committee",
+        recipientId: shop.branchCommitteeId,
+        type: "COMPLAINT_OPEN",
+        title: "New complaint",
+        data: { complaintId: c.id, shopName: shop.name, type: c.type },
+      });
+    }
     audit(u.id, "COMPLAINT_CREATED", "complaint", c.id, { orderId, type });
     return c;
   },
@@ -388,6 +432,20 @@ export const Complaints = {
       "resolved";
 
     const updated = DB.update("complaints", id, { decision, decisionNote: note, status, decisionBy: u.id });
+
+    // Escalations notify the main committee for next-meeting tracking.
+    if (decision === "escalated") {
+      const mainId = mainCommitteeId();
+      if (mainId) {
+        notify({
+          recipientType: "committee",
+          recipientId: mainId,
+          type: "COMPLAINT_ESCALATED",
+          title: "Complaint escalated",
+          data: { complaintId: id, type: c.type, shopName: c.shopName },
+        });
+      }
+    }
 
     // If approved and order was prepay, mark refund.
     if (decision === "approved") {
@@ -431,5 +489,148 @@ export const Committees = {
   async list() {
     await sleep();
     return DB.all("committees");
+  },
+};
+
+// ------------------ PRODUCT PROPOSALS ------------------
+// Owners suggest new catalog products with bilingual names + a suggested
+// price band. Branch committee approves/rejects. Approval creates a product,
+// a price range, and stocks the proposing shop in one shot.
+export const ProductProposals = {
+  async list({ status, ownerId, branchCommitteeId } = {}) {
+    await sleep();
+    let rows = DB.all("productProposals");
+    if (status) rows = rows.filter((p) => p.status === status);
+    if (ownerId) rows = rows.filter((p) => p.ownerId === ownerId);
+    if (branchCommitteeId) rows = rows.filter((p) => p.branchCommitteeId === branchCommitteeId);
+    return rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  },
+
+  async propose({ shopId, name, nameAm, category = "Vegetables", unit = "kg", icon = "grain", suggestedMin, suggestedMax, initialPrice, initialQty }) {
+    const u = Auth.require(["owner"]);
+    if (!name || !name.trim() || !nameAm || !nameAm.trim())
+      throw new Error("Both English and Amharic names are required.");
+    const min = Number(suggestedMin), max = Number(suggestedMax);
+    if (!(min >= 0) || !(max > min)) throw new Error("Invalid suggested price range.");
+    const ip = Number(initialPrice);
+    if (!(ip >= min && ip <= max)) throw new Error("Initial price must be inside the suggested range.");
+    const iq = Number(initialQty);
+    if (!(iq > 0)) throw new Error("Initial stock must be greater than zero.");
+
+    const shop = DB.byId("shops", shopId);
+    if (!shop) throw new Error("Shop not found.");
+    if (shop.ownerId !== u.id) throw new Error("Not your shop.");
+    if (shop.status !== "approved") throw new Error("Shop must be approved before proposing products.");
+
+    const proposal = DB.insert("productProposals", {
+      ownerId: u.id, ownerName: u.name,
+      shopId, shopName: shop.name,
+      branchCommitteeId: shop.branchCommitteeId,
+      name: name.trim(), nameAm: nameAm.trim(),
+      category, unit, icon,
+      suggestedMin: min, suggestedMax: max,
+      initialPrice: ip, initialQty: iq,
+      status: "pending",
+    });
+
+    if (shop.branchCommitteeId) {
+      notify({
+        recipientType: "committee",
+        recipientId: shop.branchCommitteeId,
+        type: "PROPOSAL_PENDING",
+        title: "New product proposal",
+        data: {
+          proposalId: proposal.id,
+          ownerName: u.name,
+          productName: proposal.name,
+          productNameAm: proposal.nameAm,
+          shopName: shop.name,
+        },
+      });
+    }
+    audit(u.id, "PROPOSAL_CREATED", "productProposal", proposal.id, { name, nameAm });
+    return proposal;
+  },
+
+  async decide(id, decision, note = "") {
+    const u = Auth.require(["branch", "main"]);
+    if (!["approved", "rejected"].includes(decision)) throw new Error("Invalid decision.");
+    const p = DB.byId("productProposals", id);
+    if (!p) throw new Error("Proposal not found.");
+    if (p.status !== "pending") throw new Error("Already decided.");
+
+    const updated = DB.update("productProposals", id, {
+      status: decision, decisionBy: u.id, decisionNote: note,
+    });
+
+    if (decision === "approved") {
+      // Generate a stable-ish product id from the English name.
+      const slug = p.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 20) || "item";
+      const productId = `prd_${slug}_${Date.now().toString(36).slice(-4)}`;
+      const product = DB.insert("products", {
+        id: productId,
+        name: p.name, nameAm: p.nameAm,
+        category: p.category, unit: p.unit, icon: p.icon || "grain",
+      });
+      // Initial regulated price band.
+      DB.insert("priceRanges", {
+        productId: product.id,
+        minPrice: p.suggestedMin, maxPrice: p.suggestedMax,
+        effectiveDate: new Date().toISOString(),
+        setBy: u.id,
+      });
+      // Stock the proposing shop with the initial entry.
+      DB.insert("inventory", {
+        shopId: p.shopId, productId: product.id,
+        qty: p.initialQty, price: p.initialPrice,
+        oldPrice: Number((p.initialPrice * 1.6).toFixed(2)),
+      });
+      audit(u.id, "PROPOSAL_APPROVED", "productProposal", id, { productId: product.id, note });
+      notify({
+        recipientType: "user",
+        recipientId: p.ownerId,
+        type: "PROPOSAL_APPROVED",
+        title: "Proposal approved",
+        body: note,
+        data: { proposalId: id, productId: product.id, productName: p.name },
+      });
+    } else {
+      audit(u.id, "PROPOSAL_REJECTED", "productProposal", id, { note });
+      notify({
+        recipientType: "user",
+        recipientId: p.ownerId,
+        type: "PROPOSAL_REJECTED",
+        title: "Proposal rejected",
+        body: note,
+        data: { proposalId: id, productName: p.name },
+      });
+    }
+    return updated;
+  },
+};
+
+// ------------------ NOTIFICATIONS ------------------
+export const Notifications = {
+  async list({ recipientType, recipientId, unreadOnly = false, limit = 50 } = {}) {
+    await sleep();
+    let rows = DB.all("notifications");
+    if (recipientType) rows = rows.filter((n) => n.recipientType === recipientType);
+    if (recipientId !== undefined && recipientId !== null) rows = rows.filter((n) => n.recipientId === recipientId);
+    if (unreadOnly) rows = rows.filter((n) => !n.read);
+    return rows
+      .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""))
+      .slice(0, limit);
+  },
+  async markRead(id) {
+    return DB.update("notifications", id, { read: true });
+  },
+  async markAllRead({ recipientType, recipientId }) {
+    const all = DB.all("notifications");
+    for (const n of all) {
+      if (n.read) continue;
+      if (recipientType && n.recipientType !== recipientType) continue;
+      if (recipientId && n.recipientId !== recipientId) continue;
+      DB.update("notifications", n.id, { read: true });
+    }
   },
 };
