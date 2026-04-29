@@ -161,6 +161,7 @@ const STR = {
   en: {
     // ---- common ----
     "tagline": "Bilingual Market Price Management",
+    "footer.copyright": "© {year} GULIT — Built by Natan Feyisa. All rights reserved.",
     "loading": "Loading…",
     "back": "Back",
     "close": "Close",
@@ -605,6 +606,7 @@ const STR = {
   am: {
     // ---- common ----
     "tagline": "የጉሊት ገበያ ዋጋ አስተዳደር",
+    "footer.copyright": "© {year} GULIT — የተሰራው በናታን ፈይሳ። መብቱ በህግ የተጠበቀ ነው።",
     "loading": "በመጫን ላይ…",
     "back": "ተመለስ",
     "close": "ዝጋ",

@@ -70,6 +70,9 @@ function wireTopbar() {
 
   const tagline = document.getElementById("tagline");
   if (tagline) tagline.textContent = t("tagline");
+
+  const footerText = document.getElementById("footerText");
+  if (footerText) footerText.textContent = t("footer.copyright", { year: new Date().getFullYear() });
 }
 
 function wireBottomNav() {

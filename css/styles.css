@@ -312,6 +312,16 @@ button.danger{
    LAYOUT
    ===================================================================== */
 main#view{ padding: 14px; }
+.appfooter{
+  text-align: center;
+  padding: 18px 16px 24px;
+  font-size: 12px;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+  margin-top: 32px;
+}
+/* Leave room for the bottom nav (only present when signed in). */
+body:has(#bottomnav:not([hidden])) .appfooter{ padding-bottom: 88px; }
 .grid{ display: grid; gap: 12px; }
 .grid.cols2{ grid-template-columns: 1.2fr .8fr; }
 @media (max-width: 860px){ .grid.cols2{ grid-template-columns: 1fr; } }
