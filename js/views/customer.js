@@ -400,8 +400,12 @@ async function drawProducts() {
     const oldPrice = r.oldPrice && r.oldPrice > r.price
       ? `<div class="old">${etb(r.oldPrice)}</div>` : "";
     const range = r.range ? `<div class="range">${t("home.range", { min: etb(r.range.minPrice), max: etb(r.range.maxPrice) })}</div>` : "";
+    const outOfStock = !(r.qty > 0);
+    const buyAction = outOfStock
+      ? `<span class="oos-badge">${t("home.out_of_stock")}</span>`
+      : `<button class="addbtn" data-add="${r.id}">${t("add")}</button>`;
     return `
-      <div class="pitem">
+      <div class="pitem ${outOfStock ? "is-oos" : ""}">
         <div class="pimg">${iconSvg(r.product.icon)}</div>
         <div>
           <div class="ptitle">${productName(r.product)}</div>
@@ -411,7 +415,7 @@ async function drawProducts() {
         <div class="pricebox">
           ${oldPrice}
           <div class="now">${etb(r.price)} / ${unitLabel(r.product.unit)}</div>
-          <button class="addbtn" data-add="${r.id}">${t("add")}</button>
+          ${buyAction}
         </div>
       </div>
     `;
@@ -496,18 +500,20 @@ async function openShopModal(shopId) {
     <div style="font-weight:900;">${t("shops.popular_items")}</div>
     <div class="muted">${t("shops.regulated_note")}</div>
     <div class="mt8" style="display:grid;gap:10px;">
-      ${sample.map(i => `
-        <div class="pitem">
+      ${sample.map(i => {
+        const oos = !(i.qty > 0);
+        return `
+        <div class="pitem ${oos ? "is-oos" : ""}">
           <div class="pimg">${iconSvg(i.product?.icon || "grain")}</div>
           <div>
             <div class="ptitle">${productName(i.product)}</div>
             <div class="psub">${catLabel(i.product?.category || "All")} · ${etb(i.price)} / ${unitLabel(i.product?.unit || "kg")}</div>
           </div>
           <div class="pricebox">
-            <button class="addbtn" data-add="${i.id}">${t("add")}</button>
+            ${oos ? `<span class="oos-badge">${t("home.out_of_stock")}</span>` : `<button class="addbtn" data-add="${i.id}">${t("add")}</button>`}
           </div>
         </div>
-      `).join("") || `<div class="muted">${t("shops.no_listed")}</div>`}
+      `;}).join("") || `<div class="muted">${t("shops.no_listed")}</div>`}
     </div>
 
     <hr/>

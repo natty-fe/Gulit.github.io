@@ -232,7 +232,10 @@ async function drawOwnerInventory(shopId) {
             <div class="pricebox">
               <div class="now">${priceField}</div>
               <div class="muted">${t("own.qty")}: ${inv ? inv.qty : 0}</div>
-              <button class="addbtn" data-edit="${p.id}">${inv ? t("own.update") : t("own.add")}</button>
+              <div class="flex" style="gap:6px;justify-content:flex-end;flex-wrap:wrap;">
+                <button class="addbtn" data-edit="${p.id}">${inv ? t("own.update") : t("own.add")}</button>
+                ${inv ? `<button class="ghost" data-remove="${inv.id}" data-pname="${escapeAttr(productName(p))}" style="font-size:11px;padding:6px 10px;">${t("own.remove")}</button>` : ""}
+              </div>
             </div>
           </div>
         `;
@@ -242,6 +245,27 @@ async function drawOwnerInventory(shopId) {
 
   el.querySelectorAll("[data-edit]").forEach(b =>
     b.addEventListener("click", () => openInventoryEditor(shopId, b.dataset.edit, inMap.get(b.dataset.edit), ranges)));
+  el.querySelectorAll("[data-remove]").forEach(b =>
+    b.addEventListener("click", () => confirmRemoveListing(b.dataset.remove, b.dataset.pname, shopId)));
+}
+
+function confirmRemoveListing(invId, productLabel, shopId) {
+  openModal(t("own.remove_title"), `
+    <div class="muted">${t("own.remove_confirm", { product: productLabel })}</div>
+    <div class="btnrow mt12">
+      <button class="danger" id="rmYes">${t("own.remove_yes")}</button>
+      <button class="ghost" id="rmNo">${t("cancel")}</button>
+    </div>
+  `);
+  document.getElementById("rmNo").onclick = () => closeModal();
+  document.getElementById("rmYes").onclick = async () => {
+    try {
+      await Inventory.remove(invId);
+      toast(t("own.removed"), "success");
+      closeModal();
+      drawOwnerInventory(shopId);
+    } catch (e) { toast(e.message, "danger"); }
+  };
 }
 
 function openInventoryEditor(shopId, productId, existing, ranges) {

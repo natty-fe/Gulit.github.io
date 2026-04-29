@@ -279,6 +279,33 @@ export const Inventory = {
     return DB.byId("inventory", id);
   },
 
+  // Owner removes one of their listings entirely (e.g., they no longer sell
+  // it). Notifies the branch for awareness so they can prune any in-flight
+  // approval queue entries.
+  async remove(id) {
+    const u = Auth.require(["owner"]);
+    const inv = DB.byId("inventory", id);
+    if (!inv) throw new Error("Listing not found.");
+    const shop = DB.byId("shops", inv.shopId);
+    if (!shop || shop.ownerId !== u.id) throw new Error("Not your listing.");
+    const product = DB.byId("products", inv.productId);
+    DB.remove("inventory", id);
+    audit(u.id, "INVENTORY_REMOVED", "inventory", id, {});
+    if (shop.branchCommitteeId) {
+      notify({
+        recipientType: "committee",
+        recipientId: shop.branchCommitteeId,
+        type: "INVENTORY_REMOVED",
+        title: "Listing removed",
+        data: {
+          shopId: shop.id, shopName: shop.name,
+          productId: inv.productId, productName: product?.name || "",
+        },
+      });
+    }
+    return true;
+  },
+
   async listPending({ branchCommitteeId } = {}) {
     await sleep();
     const rows = DB.filter("inventory", (i) => i.status === "pending");
@@ -309,6 +336,7 @@ export const Orders = {
     for (const it of items) {
       const inv = DB.byId("inventory", it.inventoryId);
       if (!inv) throw new Error("Inventory item missing.");
+      if (inv.status && inv.status !== "approved") throw new Error("Listing is not available for purchase.");
       const shop = DB.byId("shops", inv.shopId);
       if (!shop || shop.status !== "approved") throw new Error("Shop unavailable.");
       const product = DB.byId("products", inv.productId);
@@ -317,6 +345,8 @@ export const Orders = {
         throw new Error(`Listed price for ${product.name} is outside regulated range.`);
       }
       const qty = Math.max(1, Number(it.qty || 1));
+      if (inv.qty <= 0) throw new Error(`${product.name} is out of stock.`);
+      if (qty > inv.qty) throw new Error(`Only ${inv.qty} ${product.unit} of ${product.name} left in stock.`);
       const list = byShop.get(shop.id) || [];
       list.push({
         productId: product.id, name: product.name, unit: product.unit,

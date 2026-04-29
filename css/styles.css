@@ -832,6 +832,20 @@ input:focus, select:focus, textarea:focus{
   flex-wrap: wrap;
 }
 
+.oos-badge{
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .4px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--border);
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.pitem.is-oos{ opacity: .65; }
+.pitem.is-oos .now{ text-decoration: line-through; }
+
 .readonly-field{
   padding: 10px 12px;
   border-radius: 12px;

@@ -268,6 +268,7 @@ const STR = {
     "home.sold_by": "Sold by",
     "home.unit": "per",
     "home.added": "Added to cart",
+    "home.out_of_stock": "Out of stock",
 
     // ---- shops ----
     "shops.title": "Shops in {city}",
@@ -469,6 +470,11 @@ const STR = {
     "own.bulk_saved": "{n} item(s) saved",
     "own.bulk_partial": "{saved} saved, {failed} failed: {first}",
     "own.bulk_new": "NEW",
+    "own.remove": "Remove",
+    "own.remove_title": "Stop selling this item?",
+    "own.remove_confirm": "This will delete the listing for {product} from your shop. Customers will no longer see it.",
+    "own.remove_yes": "Yes, remove",
+    "own.removed": "Listing removed",
 
     // ---- delivery ----
     "dlv.title": "Delivery dashboard",
@@ -759,6 +765,7 @@ const STR = {
     "home.sold_by": "ሻጭ",
     "home.unit": "በ",
     "home.added": "ወደ ጋሪ ታክሏል",
+    "home.out_of_stock": "በክምችት የለም",
 
     // ---- shops ----
     "shops.title": "በ{city} ውስጥ ያሉ ሱቆች",
@@ -960,6 +967,11 @@ const STR = {
     "own.bulk_saved": "{n} ዕቃዎች ተቀምጠዋል",
     "own.bulk_partial": "{saved} ተቀምጠዋል፣ {failed} አልተሳኩም፡ {first}",
     "own.bulk_new": "አዲስ",
+    "own.remove": "አስወግድ",
+    "own.remove_title": "ይህን ዕቃ መሸጥ ያቁሙ?",
+    "own.remove_confirm": "ይህ የ{product} ዝርዝር ከሱቅዎ ይሰረዛል። ደንበኞች ከእንግዲህ አያዩትም።",
+    "own.remove_yes": "አዎ፣ አስወግድ",
+    "own.removed": "ዝርዝር ተወግዷል",
 
     // ---- delivery ----
     "dlv.title": "የአስረካቢ ዳሽቦርድ",
