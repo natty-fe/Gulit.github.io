@@ -6,6 +6,7 @@
 
 import { DB } from "./db.js";
 import { Auth } from "./auth.js";
+import { SUB_CITIES } from "./seed.js";
 
 // Tiny artificial latency to mimic network calls (and let UI show loading).
 const sleep = (ms = 80) => new Promise((r) => setTimeout(r, ms));
@@ -667,6 +668,165 @@ export const ProductProposals = {
       });
     }
     return updated;
+  },
+};
+
+// ------------------ LOCATION CHANGE REQUESTS -----------------
+// Sub-city changes for staff roles go through committee approval. Owners and
+// delivery agents need their branch committee to approve; the main committee
+// is then notified and can override (revert). Branch members request directly
+// from the main committee.
+const LOCATION_OPEN_STATUSES = ["pending_branch", "branch_approved", "pending_main"];
+
+export const LocationChanges = {
+  async create({ toSubCity, reason = "" }) {
+    const u = Auth.require(["owner", "delivery", "branch"]);
+    if (!toSubCity) throw new Error("Target sub-city required.");
+    if (!SUB_CITIES.includes(toSubCity)) throw new Error("Invalid sub-city.");
+    if (toSubCity === u.subCity) throw new Error("You're already in that sub-city.");
+
+    const existing = DB.find(
+      "locationChangeRequests",
+      (r) => r.userId === u.id && LOCATION_OPEN_STATUSES.includes(r.status)
+    );
+    if (existing) throw new Error("You already have a pending location request.");
+
+    let branchCommitteeId = null;
+    let initialStatus;
+    if (u.role === "branch") {
+      initialStatus = "pending_main";
+    } else {
+      const branch = DB.find("committees", (c) => c.type === "branch" && c.jurisdiction === u.subCity);
+      if (!branch) throw new Error("No branch committee for your current sub-city.");
+      branchCommitteeId = branch.id;
+      initialStatus = "pending_branch";
+    }
+
+    const req = DB.insert("locationChangeRequests", {
+      userId: u.id, userName: u.name, userRole: u.role,
+      fromSubCity: u.subCity, toSubCity, reason: String(reason || "").trim(),
+      branchCommitteeId,
+      status: initialStatus,
+      branchDecision: null, mainDecision: null,
+    });
+
+    if (u.role === "branch") {
+      const mainId = mainCommitteeId();
+      if (mainId) {
+        notify({
+          recipientType: "committee", recipientId: mainId,
+          type: "LOCATION_REQUEST",
+          title: "Location change request",
+          data: { requestId: req.id, userName: u.name, userRole: u.role,
+                  fromSubCity: req.fromSubCity, toSubCity: req.toSubCity },
+        });
+      }
+    } else {
+      notify({
+        recipientType: "committee", recipientId: branchCommitteeId,
+        type: "LOCATION_REQUEST",
+        title: "Location change request",
+        data: { requestId: req.id, userName: u.name, userRole: u.role,
+                fromSubCity: req.fromSubCity, toSubCity: req.toSubCity },
+      });
+    }
+    audit(u.id, "LOCATION_REQUESTED", "locationChange", req.id, {
+      from: req.fromSubCity, to: req.toSubCity,
+    });
+    return req;
+  },
+
+  async list({ status, branchCommitteeId, forMain = false, userId } = {}) {
+    await sleep();
+    let rows = DB.all("locationChangeRequests");
+    if (userId) rows = rows.filter((r) => r.userId === userId);
+    if (status) rows = rows.filter((r) => r.status === status);
+    if (branchCommitteeId) rows = rows.filter((r) => r.branchCommitteeId === branchCommitteeId);
+    if (forMain) rows = rows.filter((r) => r.status === "pending_main" || r.status === "branch_approved");
+    return rows.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+  },
+
+  async myPending() {
+    const u = Auth.currentUser();
+    if (!u) return null;
+    return DB.find(
+      "locationChangeRequests",
+      (r) => r.userId === u.id && LOCATION_OPEN_STATUSES.includes(r.status)
+    ) || null;
+  },
+
+  async decide(id, decision, note = "") {
+    const u = Auth.require(["branch", "main"]);
+    if (!["approved", "rejected"].includes(decision)) throw new Error("Invalid decision.");
+    const req = DB.byId("locationChangeRequests", id);
+    if (!req) throw new Error("Request not found.");
+
+    const stamp = { by: u.id, decision, note: String(note || ""), at: new Date().toISOString() };
+
+    if (u.role === "branch") {
+      if (req.status !== "pending_branch") throw new Error("Request is not pending branch review.");
+      if (u.committeeId && req.branchCommitteeId && u.committeeId !== req.branchCommitteeId) {
+        throw new Error("Not in your jurisdiction.");
+      }
+      if (decision === "rejected") {
+        DB.update("locationChangeRequests", id, { status: "rejected", branchDecision: stamp });
+        notify({
+          recipientType: "user", recipientId: req.userId, type: "LOCATION_REJECTED",
+          title: "Location change rejected", body: stamp.note,
+          data: { requestId: id, by: "branch", fromSubCity: req.fromSubCity, toSubCity: req.toSubCity },
+        });
+      } else {
+        // Apply the change immediately and forward to main for confirmation.
+        DB.update("users", req.userId, { subCity: req.toSubCity });
+        DB.update("locationChangeRequests", id, { status: "branch_approved", branchDecision: stamp });
+        const mainId = mainCommitteeId();
+        if (mainId) {
+          notify({
+            recipientType: "committee", recipientId: mainId, type: "LOCATION_BRANCH_APPROVED",
+            title: "Branch approved a location change",
+            data: { requestId: id, userName: req.userName, userRole: req.userRole,
+                    fromSubCity: req.fromSubCity, toSubCity: req.toSubCity },
+          });
+        }
+        notify({
+          recipientType: "user", recipientId: req.userId, type: "LOCATION_BRANCH_APPROVED",
+          title: "Location change approved by branch", body: stamp.note,
+          data: { requestId: id, fromSubCity: req.fromSubCity, toSubCity: req.toSubCity },
+        });
+      }
+      audit(u.id, "LOCATION_BRANCH_DECIDED", "locationChange", id, { decision });
+    } else {
+      // main
+      if (req.status === "pending_main") {
+        if (decision === "approved") {
+          DB.update("users", req.userId, { subCity: req.toSubCity });
+          DB.update("locationChangeRequests", id, { status: "approved", mainDecision: stamp });
+        } else {
+          DB.update("locationChangeRequests", id, { status: "rejected", mainDecision: stamp });
+        }
+      } else if (req.status === "branch_approved") {
+        if (decision === "approved") {
+          DB.update("locationChangeRequests", id, { status: "approved", mainDecision: stamp });
+        } else {
+          // Override: revert the user's sub-city.
+          DB.update("users", req.userId, { subCity: req.fromSubCity });
+          DB.update("locationChangeRequests", id, {
+            status: "rejected", mainDecision: stamp, override: true,
+          });
+        }
+      } else {
+        throw new Error("Request is not pending main review.");
+      }
+      notify({
+        recipientType: "user", recipientId: req.userId,
+        type: decision === "approved" ? "LOCATION_APPROVED" : "LOCATION_REJECTED",
+        title: decision === "approved" ? "Location change approved" : "Location change rejected",
+        body: stamp.note,
+        data: { requestId: id, by: "main", fromSubCity: req.fromSubCity, toSubCity: req.toSubCity },
+      });
+      audit(u.id, "LOCATION_MAIN_DECIDED", "locationChange", id, { decision });
+    }
+    return DB.byId("locationChangeRequests", id);
   },
 };
 

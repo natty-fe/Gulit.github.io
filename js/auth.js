@@ -170,7 +170,18 @@ export const Auth = {
       if (dup) throw new Error("That phone is already in use.");
     }
 
-    const patch = { name: name || fullUser.name, email: email || null, phone: phone || null, subCity: subCity || fullUser.subCity };
+    // Sub-city changes for non-customer roles must go through committee
+    // approval (LocationChanges API). Customers can edit theirs freely.
+    let nextSubCity = fullUser.subCity;
+    if (subCity && subCity !== fullUser.subCity) {
+      if (fullUser.role === "customer") {
+        nextSubCity = subCity;
+      } else {
+        throw new Error("Sub-city changes require committee approval. Use “Request location change”.");
+      }
+    }
+
+    const patch = { name: name || fullUser.name, email: email || null, phone: phone || null, subCity: nextSubCity };
     if (wantsPasswordChange) patch.passwordHash = await hashPassword(newPassword);
 
     // Fayda FAN is editable post-signup but only for staff accounts (customer

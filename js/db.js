@@ -18,6 +18,7 @@ const TABLES = [
   "complaints",
   "refunds",
   "notifications",
+  "locationChangeRequests",
   "auditLogs",
   "sessions",
   "meta",

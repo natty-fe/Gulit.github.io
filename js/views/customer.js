@@ -1,7 +1,7 @@
 // js/views/customer.js
 // Customer-facing screens (also hosts the auth screen).
 
-import { Deliveries, Inventory, Orders, Products, Shops, Complaints, Users } from "../api.js";
+import { Deliveries, Inventory, LocationChanges, Orders, Products, Shops, Complaints, Users } from "../api.js";
 import { Auth, WORK_ID_PATTERNS, ALLOWED_EMAIL_DOMAINS, isAcceptedEmail } from "../auth.js";
 import { state } from "../state.js";
 import {
@@ -859,18 +859,41 @@ export async function renderAccount() {
   });
 }
 
-function openProfileEditor() {
+async function openProfileEditor() {
   const u = state.user;
   if (!u) return;
   const isStaff = u.role !== "customer";
+  const subCityLocked = isStaff;
+  let pending = null;
+  if (subCityLocked && u.role !== "main") {
+    try { pending = await LocationChanges.myPending(); } catch { pending = null; }
+  }
+
+  const subCityField = subCityLocked
+    ? `
+      <div class="fieldlabel">${t("auth.subcity")}</div>
+      <div class="readonly-field">${subCityLabel(u.subCity) || "—"}</div>
+      <div class="muted" style="font-size:12px;margin-top:4px;">${t("acc.subcity_locked")}</div>
+      ${pending
+        ? `<div class="comment unread mt8" style="background:var(--surface);">
+            <div style="font-weight:900;font-size:13px;">${t("acc.location_pending_title")}</div>
+            <div class="muted mt8" style="font-size:12px;">${t(`acc.location_status_${pending.status}`, { from: subCityLabel(pending.fromSubCity), to: subCityLabel(pending.toSubCity) })}</div>
+          </div>`
+        : (u.role === "main"
+            ? ""
+            : `<div class="btnrow mt8" style="margin:0;"><button class="viewbtn" id="reqLocBtn">${t("acc.request_location")}</button></div>`)
+      }
+    `
+    : formField({ label: t("auth.subcity"), name: "subCity", type: "select", value: u.subCity || "Bole",
+        options: SUB_CITIES.map(s => ({ value: s, label: subCityLabel(s) })) });
+
   openModal(t("acc.edit_modal"), `
     ${formField({ label: t("auth.fullname"), name: "name", value: u.name || "", required: true })}
     ${formField({ label: t("auth.email"), name: "email", value: u.email || "" })}
     <div class="muted" style="font-size:12px;margin-top:6px;">${t("auth.email_accepted_hint", { list: ALLOWED_EMAIL_DOMAINS.join(", ") })}</div>
     <div id="profEmailStatus" class="field-status" style="font-size:12px;margin-top:4px;"></div>
     ${formField({ label: t("auth.phone"), name: "phone", value: u.phone || "" })}
-    ${formField({ label: t("auth.subcity"), name: "subCity", type: "select", value: u.subCity || "Bole",
-      options: SUB_CITIES.map(s => ({ value: s, label: subCityLabel(s) })) })}
+    ${subCityField}
     ${isStaff ? `
       <hr/>
       <div class="muted" style="font-size:12px;">${t("acc.workid_readonly")}: <b>${u.workId || "—"}</b></div>
@@ -888,6 +911,8 @@ function openProfileEditor() {
     </div>
   `);
   document.getElementById("profCancel").onclick = () => closeModal();
+
+  document.getElementById("reqLocBtn")?.addEventListener("click", () => openLocationRequest(u));
 
   // Live email-suffix check.
   {
@@ -955,7 +980,7 @@ function openProfileEditor() {
         name: f("name").trim(),
         email: f("email").trim(),
         phone: f("phone").trim(),
-        subCity: f("subCity"),
+        subCity: subCityLocked ? undefined : f("subCity"),
         currentPassword: f("currentPassword"),
         newPassword: newPw,
         faydaFan: isStaff ? f("faydaFan").trim() : undefined,
@@ -964,6 +989,32 @@ function openProfileEditor() {
       toast(t("acc.profile_saved"), "success");
       closeModal();
       renderAccount();
+    } catch (e) { toast(e.message, "danger"); }
+  };
+}
+
+function openLocationRequest(u) {
+  const targets = SUB_CITIES.filter(s => s !== u.subCity);
+  openModal(t("acc.request_location"), `
+    <div class="muted">${t("acc.request_location_subtitle")}</div>
+    <div class="muted mt8" style="font-size:12px;">${t("acc.request_location_current", { city: subCityLabel(u.subCity) })}</div>
+    ${formField({ label: t("acc.request_location_target"), name: "toSubCity", type: "select",
+      options: targets.map(s => ({ value: s, label: subCityLabel(s) })) })}
+    ${formField({ label: t("acc.request_location_reason"), name: "reason", type: "textarea", placeholder: t("acc.request_location_reason_ph") })}
+    <div class="btnrow mt12">
+      <button class="primary" id="locReqSubmit">${t("acc.request_location_submit")}</button>
+      <button class="ghost" id="locReqCancel">${t("cancel")}</button>
+    </div>
+  `);
+  document.getElementById("locReqCancel").onclick = () => closeModal();
+  document.getElementById("locReqSubmit").onclick = async () => {
+    const toSubCity = document.querySelector("#modalBody [name=toSubCity]").value;
+    const reason = document.querySelector("#modalBody [name=reason]").value.trim();
+    try {
+      await LocationChanges.create({ toSubCity, reason });
+      toast(t("acc.request_location_sent"), "success");
+      closeModal();
+      openProfileEditor();
     } catch (e) { toast(e.message, "danger"); }
   };
 }

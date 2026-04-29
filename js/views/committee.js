@@ -1,7 +1,7 @@
 // js/views/committee.js
 // Branch and Main committee dashboards.
 
-import { Audit, Complaints, Inventory, Notifications, PriceRanges, Products, ProductProposals, Shops, Users } from "../api.js";
+import { Audit, Complaints, Inventory, LocationChanges, Notifications, PriceRanges, Products, ProductProposals, Shops, Users } from "../api.js";
 import { state } from "../state.js";
 import {
   toast, openModal, closeModal, etb, dateShort, timeShort, statusBadge, iconSvg, formField, t,
@@ -45,6 +45,11 @@ export async function renderBranchCommittee() {
           </div>
 
           <div class="card mt12" style="box-shadow:none;border:1px solid var(--border);">
+            <div class="hd"><h2>${t("br.locations_title")}</h2><div class="muted">${t("br.locations_subtitle")}</div></div>
+            <div class="bd" id="brLocations">${t("loading")}</div>
+          </div>
+
+          <div class="card mt12" style="box-shadow:none;border:1px solid var(--border);">
             <div class="hd"><h2>${t("br.notifs_title")}</h2><div class="muted">${t("br.notifs_subtitle")}</div></div>
             <div class="bd" id="brNotifs">${t("loading")}</div>
           </div>
@@ -59,6 +64,7 @@ export async function renderBranchCommittee() {
   await drawProposalsForBranch();
   await drawComplaintsForBranch();
   await drawShopsForBranch();
+  await drawLocationsForBranch();
   await drawBranchNotifs();
 }
 
@@ -292,8 +298,61 @@ function notifTitleCommittee(n) {
       branch: d.branchName || "",
       min: etb(d.minPrice ?? 0), max: etb(d.maxPrice ?? 0),
     });
+    case "LOCATION_REQUEST":         return t("notif.location_request", {
+      name: d.userName || "", role: t(`role.${d.userRole}`),
+      from: subCityLabel(d.fromSubCity || ""), to: subCityLabel(d.toSubCity || ""),
+    });
+    case "LOCATION_BRANCH_APPROVED": return t("notif.location_branch_approved", {
+      name: d.userName || "", from: subCityLabel(d.fromSubCity || ""), to: subCityLabel(d.toSubCity || ""),
+    });
     default: return n.title || n.type;
   }
+}
+
+async function drawLocationsForBranch() {
+  const el = document.getElementById("brLocations");
+  if (!el) return;
+  const { committeeId } = await branchScope();
+  let rows = [];
+  if (committeeId) {
+    rows = await LocationChanges.list({ branchCommitteeId: committeeId, status: "pending_branch" });
+  } else {
+    const all = await LocationChanges.list({ status: "pending_branch" });
+    const u = state.user;
+    rows = all.filter(r => r.fromSubCity === u.subCity);
+  }
+  if (!rows.length) { el.innerHTML = `<div class="empty">${t("br.no_locations")}</div>`; return; }
+  el.innerHTML = rows.map(r => `
+    <div class="case">
+      <div class="row">
+        <div>
+          <div class="title">${escapeHtml(r.userName)} <span class="tag-chip">${t(`role.${r.userRole}`)}</span></div>
+          <div class="meta">${subCityLabel(r.fromSubCity)} → <b>${subCityLabel(r.toSubCity)}</b></div>
+          <div class="meta">${t("br.submitted", { date: dateShort(r.createdAt) })}</div>
+          ${r.reason ? `<div class="muted mt8">"${escapeHtml(r.reason)}"</div>` : ""}
+        </div>
+      </div>
+      <div class="actions">
+        <button class="addbtn" data-loc="${r.id}" data-decision="approved">${t("br.approve")}</button>
+        <button class="ghost" data-loc="${r.id}" data-decision="rejected">${t("br.reject")}</button>
+      </div>
+    </div>
+  `).join("");
+  el.querySelectorAll("[data-loc]").forEach(b => b.addEventListener("click", () =>
+    decideLocation(b.dataset.loc, b.dataset.decision, drawLocationsForBranch)));
+}
+
+async function decideLocation(id, decision, refresh) {
+  let note = "";
+  if (decision === "rejected") {
+    note = prompt(t("br.decision_note")) || "";
+    if (!note) return;
+  }
+  try {
+    await LocationChanges.decide(id, decision, note);
+    toast(t("br.location_decided", { decision: t(`status.${decision}`) }), "success");
+    refresh?.();
+  } catch (e) { toast(e.message, "danger"); }
 }
 
 // ------------------ MAIN COMMITTEE ------------------
@@ -331,6 +390,11 @@ export async function renderMainCommittee() {
           </div>
 
           <div class="card mt12" style="box-shadow:none;border:1px solid var(--border);">
+            <div class="hd"><h2>${t("mc.locations_title")}</h2><div class="muted">${t("mc.locations_subtitle")}</div></div>
+            <div class="bd" id="mcLocations">${t("loading")}</div>
+          </div>
+
+          <div class="card mt12" style="box-shadow:none;border:1px solid var(--border);">
             <div class="hd"><h2>${t("mc.accounts_title")}</h2><div class="muted">${t("mc.accounts_subtitle")}</div></div>
             <div class="bd" id="mcAccounts">${t("loading")}</div>
           </div>
@@ -344,6 +408,7 @@ export async function renderMainCommittee() {
   await drawEscalations();
   await drawMainOverview();
   await drawMainNotifs();
+  await drawLocationsForMain();
   await drawMainAccounts();
 }
 
@@ -504,6 +569,37 @@ async function drawMainNotifs() {
     await Notifications.markRead(b.dataset.mark);
     drawMainNotifs();
   }));
+}
+
+async function drawLocationsForMain() {
+  const el = document.getElementById("mcLocations");
+  if (!el) return;
+  const rows = await LocationChanges.list({ forMain: true });
+  if (!rows.length) { el.innerHTML = `<div class="empty">${t("mc.no_locations")}</div>`; return; }
+  el.innerHTML = rows.map(r => {
+    const isBranchApproved = r.status === "branch_approved";
+    const approveLabel = isBranchApproved ? t("mc.confirm_branch") : t("br.approve");
+    const rejectLabel  = isBranchApproved ? t("mc.override_branch") : t("br.reject");
+    return `
+      <div class="case">
+        <div class="row">
+          <div>
+            <div class="title">${escapeHtml(r.userName)} <span class="tag-chip">${t(`role.${r.userRole}`)}</span></div>
+            <div class="meta">${subCityLabel(r.fromSubCity)} → <b>${subCityLabel(r.toSubCity)}</b> · ${statusBadge(r.status)}</div>
+            <div class="meta">${t("br.submitted", { date: dateShort(r.createdAt) })}</div>
+            ${r.reason ? `<div class="muted mt8">"${escapeHtml(r.reason)}"</div>` : ""}
+            ${r.branchDecision ? `<div class="muted mt8" style="font-size:12px;">${t("mc.branch_note", { note: r.branchDecision.note || "—" })}</div>` : ""}
+          </div>
+        </div>
+        <div class="actions">
+          <button class="addbtn" data-mloc="${r.id}" data-decision="approved">${approveLabel}</button>
+          <button class="ghost" data-mloc="${r.id}" data-decision="rejected">${rejectLabel}</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+  el.querySelectorAll("[data-mloc]").forEach(b => b.addEventListener("click", () =>
+    decideLocation(b.dataset.mloc, b.dataset.decision, drawLocationsForMain)));
 }
 
 // Look up the (single) main committee record. We use the public Committees
