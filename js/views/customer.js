@@ -6,7 +6,7 @@ import { Auth } from "../auth.js";
 import { state } from "../state.js";
 import {
   toast, openModal, closeModal, etb, dateShort, statusBadge,
-  iconSvg, avatarSvg, stars, formField,
+  iconSvg, avatarSvg, stars, formField, openThemePicker, getTheme, THEMES,
 } from "./shared.js";
 import { SUB_CITIES, CATEGORIES } from "../seed.js";
 
@@ -631,6 +631,16 @@ export async function renderAccount() {
         </div>
       </div>
       <hr/>
+      <div style="font-weight:900;">Preferences</div>
+      <div class="row mt8">
+        <div>
+          <div class="muted" style="font-size:13px;">Theme</div>
+          <div style="font-weight:800;">${THEMES.find(t => t.id === getTheme())?.name || "Sunset Market"}</div>
+        </div>
+        <button class="viewbtn" id="themePickBtn">Change theme</button>
+      </div>
+
+      <hr/>
       <div class="muted">Demo controls</div>
       <div class="btnrow">
         <button class="ghost" id="resetBtn">Reset demo data</button>
@@ -640,6 +650,8 @@ export async function renderAccount() {
       </div>
     </div>
   </div></section>`;
+
+  document.getElementById("themePickBtn").addEventListener("click", () => openThemePicker());
 
   document.getElementById("logoutBtn").addEventListener("click", () => {
     Auth.logout(); state.setUser(null); toast("Signed out"); location.hash = "#/auth";
