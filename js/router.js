@@ -26,7 +26,7 @@ export function start() {
   route();
 }
 
-function route() {
+export function route() {
   const hash = location.hash || "";
   const r = ROUTES[hash];
   const u = state.user;

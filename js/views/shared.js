@@ -49,44 +49,57 @@ export function timeShort(iso) {
   return new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
 
-export const ROLE_LABELS = {
-  customer: "Customer",
-  owner: "Shop Owner",
-  delivery: "Delivery",
-  branch: "Branch Committee",
-  main: "Main Committee",
-};
+// Roles and statuses are translated lazily via t() so a language toggle
+// updates them on the next render.
+export const ROLE_LABELS = new Proxy({}, {
+  get(_t, role) { return t(`role.${role}`); },
+});
 
+const STATUS_TONES = {
+  created: "muted", paid: "ok", accepted: "ok", preparing: "warn",
+  dispatched: "warn", delivered: "ok", completed: "ok",
+  cancelled: "danger", refunded: "danger",
+  open: "warn", escalated: "danger", resolved: "ok", rejected: "danger",
+  pending: "warn", approved: "ok", suspended: "danger",
+  assigned: "warn", picked_up: "warn", en_route: "warn",
+};
 export function statusBadge(status) {
-  const map = {
-    created: ["muted", "Created"],
-    paid: ["ok", "Paid"],
-    accepted: ["ok", "Accepted"],
-    preparing: ["warn", "Preparing"],
-    dispatched: ["warn", "Dispatched"],
-    delivered: ["ok", "Delivered"],
-    completed: ["ok", "Completed"],
-    cancelled: ["danger", "Cancelled"],
-    refunded: ["danger", "Refunded"],
-    open: ["warn", "Open"],
-    escalated: ["danger", "Escalated"],
-    resolved: ["ok", "Resolved"],
-    rejected: ["danger", "Rejected"],
-    pending: ["warn", "Pending"],
-    approved: ["ok", "Approved"],
-    suspended: ["danger", "Suspended"],
-    assigned: ["warn", "Assigned"],
-    picked_up: ["warn", "Picked up"],
-    en_route: ["warn", "En route"],
-  };
-  const [tone, label] = map[status] || ["muted", status || "—"];
+  const tone = STATUS_TONES[status] || "muted";
+  const label = t(`status.${status}`, status || "—");
   return `<span class="badge-status ${tone}">${label}</span>`;
 }
 
-// Simple ES/AM dictionary (extend as needed).
+// Translate a category id (used in the category chips).
+export function catLabel(c) { return t(`cat.${c}`, c); }
+
+// Comprehensive EN/AM dictionary. Any view string used by the user-visible
+// UI should live here so the language toggle translates everything.
 const STR = {
   en: {
+    // ---- common ----
     "tagline": "Bilingual Market Price Management",
+    "loading": "Loading…",
+    "back": "Back",
+    "close": "Close",
+    "cancel": "Cancel",
+    "save": "Save",
+    "submit": "Submit",
+    "update": "Update",
+    "add": "Add",
+    "details": "Details",
+    "view": "View",
+    "all": "All",
+    "total": "Total",
+    "items": "Items",
+    "items_count": "{n} item(s)",
+    "yes": "Yes",
+    "no": "No",
+    "optional": "optional",
+    "required": "required",
+    "profile": "Profile",
+    "preferences": "Preferences",
+
+    // ---- topbar / nav ----
     "signin": "Sign in",
     "signout": "Sign out",
     "browse": "Browse",
@@ -99,48 +112,675 @@ const STR = {
     "deliveries": "Deliveries",
     "cases": "Cases",
     "ranges": "Price ranges",
-    "audit": "Audit",
+    "audit": "Audit log",
+
+    // ---- roles ----
+    "role.customer": "Customer",
+    "role.owner": "Shop Owner",
+    "role.delivery": "Delivery",
+    "role.branch": "Branch Committee",
+    "role.main": "Main Committee",
+
+    // ---- categories ----
+    "cat.All": "All",
+    "cat.Vegetables": "Vegetables",
+    "cat.Grains": "Grains",
+    "cat.Cereals": "Cereals",
+    "cat.Fruits": "Fruits",
+    "cat.Protein": "Protein",
+    "cat.Spices": "Spices",
+
+    // ---- auth ----
+    "auth.welcome": "Welcome to GULIT",
+    "auth.subtitle": "The digital gulit market: regulated prices, trusted shops, and traceable deliveries.",
+    "auth.tab_signin": "Sign in",
+    "auth.tab_signup": "Create account",
+    "auth.identifier": "Email or phone",
+    "auth.password": "Password",
+    "auth.signin_btn": "Sign in",
+    "auth.fullname": "Full name",
+    "auth.fullname_ph": "e.g., Hana Tesfaye",
+    "auth.email": "Email",
+    "auth.email_ph": "you@example.com",
+    "auth.phone": "Phone",
+    "auth.phone_ph": "+251 9xx xxx xxx",
+    "auth.role": "Role",
+    "auth.subcity": "Sub-city",
+    "auth.signup_btn": "Create account",
+    "auth.committee_note": "Branch and Main Committee accounts are provisioned by administrators.",
+    "auth.demo_logins": "Demo logins (password demo1234):",
+    "auth.enter_creds": "Enter your credentials",
+    "auth.welcome_user": "Welcome, {name}",
+    "auth.account_created": "Account created · welcome, {name}",
+
+    // ---- home / browse ----
+    "home.title": "Browse regulated prices",
+    "home.subtitle": "Search items, filter categories, add to cart.",
+    "home.search_ph": "Search vegetables, grains, eggs…",
+    "home.shops_nearby": "Shops nearby",
+    "home.shops_in": "In {city} sub-city.",
+    "home.no_products": "No products in {city} match your filters.",
+    "home.no_shops": "No approved shops yet in {city}.",
+    "home.range": "Range {min}–{max}",
+    "home.sold_by": "Sold by",
+    "home.unit": "per",
+    "home.added": "Added to cart",
+
+    // ---- shops ----
+    "shops.title": "Shops in {city}",
+    "shops.subtitle": "Tap a shop for profile, sellers, and reviews.",
+    "shops.no_approved": "No approved shops in {city}.",
+    "shops.popular_items": "Popular items",
+    "shops.regulated_note": "Prices respect committee-set ranges.",
+    "shops.no_listed": "No items listed yet.",
+    "shops.reviews": "Reviews",
+    "shops.feedback_note": "Customers can leave feedback after delivery.",
+    "shops.add_review": "Add review",
+    "shops.no_reviews": "No reviews yet.",
+    "shops.review_title": "Add review",
+    "shops.review_stars": "Stars (1–5)",
+    "shops.review_text": "Your comment",
+    "shops.review_text_ph": "Share your experience…",
+    "shops.write_comment": "Please write a comment",
+    "shops.review_posted": "Review posted",
+
+    // ---- cart ----
+    "cart.title": "Cart",
+    "cart.subtitle": "Review items, then checkout.",
+    "cart.empty": "Cart is empty.",
+    "cart.empty_browse": "Browse items",
+    "cart.delivery_note": "Delivery fees added at checkout.",
+    "cart.proceed": "Proceed to checkout",
+    "cart.empty_toast": "Cart is empty",
+
+    // ---- checkout ----
+    "checkout.title": "Checkout",
+    "checkout.subtitle": "Choose payment option and confirm.",
+    "checkout.summary": "Order summary",
+    "checkout.lines_total": "{lines} item line(s) · Total {total}",
+    "checkout.address": "Delivery address (sub-city)",
+    "checkout.pay_now": "Pay now",
+    "checkout.pay_cod": "Pay on delivery",
+    "checkout.note": "Pay-now uses a third-party gateway (mocked). Refunds are issued via the same gateway when committee approves.",
+    "checkout.placed": "Order placed · {n} shop(s)",
+
+    // ---- tracking ----
+    "track.title": "Order tracking",
+    "track.subtitle": "Latest orders and live status.",
+    "track.no_orders": "No orders yet.",
+    "track.start_browsing": "Start browsing",
+    "track.home": "Home",
+    "track.placed": "Placed {date}",
+    "track.payment": "Payment",
+    "track.pay_now_label": "Pay now",
+    "track.pay_cod_label": "Cash on delivery",
+    "track.complain": "Submit complaint",
+    "track.order_label": "Order",
+    "track.delivery": "Delivery",
+    "track.eta": "ETA",
+    "track.confirmed_at": "Confirmed at {date}.",
+    "track.share_otp": "Share this OTP with the courier on arrival",
+
+    // ---- complaint ----
+    "cmp.modal_title": "Submit complaint",
+    "cmp.type": "Complaint type",
+    "cmp.type.missing": "Missing item",
+    "cmp.type.late": "Late delivery",
+    "cmp.type.wrong": "Wrong item",
+    "cmp.type.refund": "Refund request",
+    "cmp.type.other": "Other",
+    "cmp.detail": "Details",
+    "cmp.detail_ph": "Explain what happened…",
+    "cmp.submit": "Submit",
+    "cmp.describe": "Please describe the issue",
+    "cmp.sent": "Complaint submitted to branch committee",
+
+    // ---- account ----
+    "acc.title": "Account",
+    "acc.subtitle": "Profile and demo controls.",
+    "acc.role": "Role",
+    "acc.subcity": "Sub-city",
+    "acc.email": "Email",
+    "acc.phone": "Phone",
+    "acc.signout": "Sign out",
+    "acc.theme": "Theme",
+    "acc.change_theme": "Change theme",
+    "acc.demo": "Demo controls",
+    "acc.reset": "Reset demo data",
+    "acc.reset_note": "Resetting wipes local data and reloads the seed (products, shops, demo accounts, regulated price ranges).",
+    "acc.reset_confirm": "Reset all local demo data? This signs you out.",
+    "acc.reset_done": "Demo data reset",
+    "acc.signed_out": "Signed out",
+
+    // ---- owner ----
+    "own.title": "Shop Owner Dashboard",
+    "own.subtitle": "Manage shops, inventory, and incoming orders.",
+    "own.register_shop": "+ Register shop",
+    "own.stat_shops": "Shops",
+    "own.stat_approved": "Approved",
+    "own.stat_pending": "Pending",
+    "own.stat_orders": "Orders received",
+    "own.stat_rating": "Avg. rating",
+    "own.queue": "Orders queue",
+    "own.queue_subtitle": "Accept, prepare, and assign delivery",
+    "own.no_shops": "Register a shop to receive orders.",
+    "own.no_orders": "No orders yet. They will appear here as soon as customers buy from your shop.",
+    "own.inv_no_shops": "Register a shop above to manage inventory. Once your local branch committee approves it, you can list items.",
+    "own.accept": "Accept",
+    "own.reject": "Reject",
+    "own.mark_prep": "Mark preparing",
+    "own.assign_delivery": "Assign delivery",
+    "own.awaiting": "Awaiting delivery",
+    "own.no_action": "No action",
+    "own.assign_title": "Assign delivery",
+    "own.courier": "Courier",
+    "own.eta": "ETA",
+    "own.otp_note": "Customer receives a 4-digit OTP. Courier confirms with OTP at delivery.",
+    "own.assign_btn": "Assign",
+    "own.no_couriers": "No delivery personnel available",
+    "own.assigned_otp": "Delivery assigned · OTP {otp}",
+    "own.order_updated": "Order updated · {status}",
+    "own.customer": "Customer",
+    "own.subcity": "Sub-city",
+    "own.inv_note": "Listing prices must fall within committee-set ranges.",
+    "own.range_label": "Range {min}–{max}",
+    "own.no_range": "No regulated range",
+    "own.qty": "Qty",
+    "own.update": "Update",
+    "own.add": "Add",
+    "own.inv_update": "Update inventory",
+    "own.inv_add": "Add to inventory",
+    "own.allowed_range": "Allowed range: {min} to {max}",
+    "own.qty_label": "Quantity",
+    "own.unit_price": "Unit price (ETB)",
+    "own.inv_saved": "Inventory saved",
+    "own.shop_modal": "Register a new shop",
+    "own.shop_name": "Shop name",
+    "own.shop_name_ph": "e.g., Bole Fresh Veggies",
+    "own.shop_note": "After submission, the local branch committee reviews and approves your shop before you can sell.",
+    "own.shop_submitted": "Submitted for branch committee review",
+
+    // ---- delivery ----
+    "dlv.title": "Delivery dashboard",
+    "dlv.subtitle": "Update task status and confirm with customer OTP.",
+    "dlv.no_tasks": "No assigned deliveries yet.",
+    "dlv.drop": "Drop",
+    "dlv.eta": "ETA",
+    "dlv.completed": "Completed",
+    "dlv.confirm_btn": "Confirm with OTP",
+    "dlv.mark": "Mark {label}",
+    "dlv.items_modal": "Items · Order {id}",
+    "dlv.confirm_title": "Confirm delivery with OTP",
+    "dlv.otp_note": "Ask the customer for the 4-digit OTP shown on their tracking screen.",
+    "dlv.otp": "OTP",
+    "dlv.confirm": "Confirm",
+    "dlv.confirmed": "Delivery confirmed",
+    "dlv.label.accepted": "accepted",
+    "dlv.label.picked_up": "picked up",
+    "dlv.label.en_route": "en route",
+    "dlv.label.delivered": "delivered",
+
+    // ---- committee (branch) ----
+    "br.title": "Branch Committee · {city}",
+    "br.subtitle": "Approve shops and review complaints in your jurisdiction.",
+    "br.audit_btn": "Audit log",
+    "br.pending_title": "Pending shop registrations",
+    "br.pending_subtitle": "Verify and approve before sellers go live.",
+    "br.no_pending": "No pending registrations.",
+    "br.submitted": "Submitted {date}",
+    "br.approve": "Approve",
+    "br.reject": "Reject",
+    "br.reject_reason": "Reason for rejection (visible to owner):",
+    "br.shop_status": "Shop {status}",
+    "br.queue_title": "Complaints queue",
+    "br.queue_subtitle": "Approve refunds, reject, or escalate to main committee.",
+    "br.no_open": "No open cases. ✨",
+    "br.from": "From",
+    "br.shop_label": "Shop",
+    "br.order_label": "Order",
+    "br.approve_refund": "Approve refund",
+    "br.escalate": "Escalate",
+    "br.decision_note": "Decision note:",
+    "br.case_updated": "Case {decision}",
+
+    // ---- committee (main) ----
+    "mc.title": "City Main Committee",
+    "mc.subtitle": "Set price ranges, review escalations, monitor compliance.",
+    "mc.ranges_title": "Regulated price ranges",
+    "mc.ranges_subtitle": "Min/max ETB values enforced at listing and checkout.",
+    "mc.ranges_note": "Newer entries supersede older ones via effective date.",
+    "mc.effective": "Effective {date}",
+    "mc.no_range": "No range set yet",
+    "mc.set": "Set",
+    "mc.update": "Update",
+    "mc.set_modal": "Set price range · {name}",
+    "mc.min_price": "Minimum price (ETB)",
+    "mc.max_price": "Maximum price (ETB)",
+    "mc.set_note": "New range takes effect immediately. Existing inventory exceeding the band will be flagged for owner attention.",
+    "mc.range_updated": "Price range updated",
+    "mc.escalations_title": "Escalated cases",
+    "mc.escalations_subtitle": "Branch committees forward unresolved disputes here.",
+    "mc.no_escalations": "No escalated cases.",
+    "mc.mark_resolved": "Mark resolved",
+    "mc.final_note": "Final decision note:",
+
+    // ---- audit ----
+    "audit.title": "Audit log (last 100 events)",
+    "audit.subtitle": "Append-only log of governance and lifecycle events.",
+    "audit.empty": "No events yet.",
+
+    // ---- theme ----
+    "theme.title": "Choose a theme",
+    "theme.subtitle": "Pick the look that suits you. Saved across sessions.",
+    "theme.toast": "Theme: {name}",
+    "theme.garden": "Garden Cream",
+    "theme.garden.desc": "Sage and warm cream",
+    "theme.terracotta": "Terracotta Earth",
+    "theme.terracotta.desc": "Clay and peach",
+    "theme.sage": "Sage Garden",
+    "theme.sage.desc": "Soft sage and beige",
+    "theme.rose": "Dusty Rose",
+    "theme.rose.desc": "Rose and warm tan",
+    "theme.mustard": "Mustard Field",
+    "theme.mustard.desc": "Mustard and gold",
+    "theme.plum": "Plum Bloom",
+    "theme.plum.desc": "Dusty plum and rose",
+    "theme.midnight": "Midnight",
+    "theme.midnight.desc": "Warm dark with gold accent",
+
+    // ---- status badges ----
+    "status.created": "Created",
+    "status.paid": "Paid",
+    "status.accepted": "Accepted",
+    "status.preparing": "Preparing",
+    "status.dispatched": "Dispatched",
+    "status.delivered": "Delivered",
+    "status.completed": "Completed",
+    "status.cancelled": "Cancelled",
+    "status.refunded": "Refunded",
+    "status.open": "Open",
+    "status.escalated": "Escalated",
+    "status.resolved": "Resolved",
+    "status.rejected": "Rejected",
+    "status.pending": "Pending",
+    "status.approved": "Approved",
+    "status.suspended": "Suspended",
+    "status.assigned": "Assigned",
+    "status.picked_up": "Picked up",
+    "status.en_route": "En route",
   },
+
   am: {
-    "tagline": "የገበያ ዋጋ አስተዳደር",
+    // ---- common ----
+    "tagline": "የጉሊት ገበያ ዋጋ አስተዳደር",
+    "loading": "በመጫን ላይ…",
+    "back": "ተመለስ",
+    "close": "ዝጋ",
+    "cancel": "ሰርዝ",
+    "save": "አስቀምጥ",
+    "submit": "አስገባ",
+    "update": "አስተካክል",
+    "add": "ጨምር",
+    "details": "ዝርዝር",
+    "view": "እይ",
+    "all": "ሁሉም",
+    "total": "ድምር",
+    "items": "ዕቃዎች",
+    "items_count": "{n} ዕቃዎች",
+    "yes": "አዎ",
+    "no": "አይ",
+    "optional": "አማራጭ",
+    "required": "ግዴታ",
+    "profile": "መግለጫ",
+    "preferences": "ምርጫዎች",
+
+    // ---- topbar / nav ----
     "signin": "ግባ",
     "signout": "ውጣ",
     "browse": "ይመልከቱ",
     "cart": "ጋሪ",
     "track": "ይከታተሉ",
     "account": "መለያ",
-    "shops": "መሸጫዎች",
+    "shops": "ሱቆች",
     "orders": "ትዕዛዞች",
     "inventory": "ክምችት",
     "deliveries": "አመጣጥ",
     "cases": "ጉዳዮች",
     "ranges": "የዋጋ ክልሎች",
-    "audit": "ማረጋገጫ",
+    "audit": "የቁጥጥር ምዝገባ",
+
+    // ---- roles ----
+    "role.customer": "ደንበኛ",
+    "role.owner": "የሱቅ ባለቤት",
+    "role.delivery": "አስረካቢ",
+    "role.branch": "የቅርንጫፍ ኮሚቴ",
+    "role.main": "ዋና ኮሚቴ",
+
+    // ---- categories ----
+    "cat.All": "ሁሉም",
+    "cat.Vegetables": "አትክልት",
+    "cat.Grains": "ጥራጥሬ",
+    "cat.Cereals": "እህል",
+    "cat.Fruits": "ፍራፍሬ",
+    "cat.Protein": "ፕሮቲን",
+    "cat.Spices": "ቅመማ ቅመም",
+
+    // ---- auth ----
+    "auth.welcome": "ወደ GULIT እንኳን በደህና መጡ",
+    "auth.subtitle": "ዲጂታል የጉሊት ገበያ፡ የተወሰኑ ዋጋዎች፣ የታመኑ ሱቆች እና ሊከታተል የሚችል አመጣጥ።",
+    "auth.tab_signin": "ግባ",
+    "auth.tab_signup": "መለያ ይክፈቱ",
+    "auth.identifier": "ኢሜይል ወይም ስልክ ቁጥር",
+    "auth.password": "የይለፍ ቃል",
+    "auth.signin_btn": "ግባ",
+    "auth.fullname": "ሙሉ ስም",
+    "auth.fullname_ph": "ለምሳሌ፣ ሃና ተስፋዬ",
+    "auth.email": "ኢሜይል",
+    "auth.email_ph": "you@example.com",
+    "auth.phone": "ስልክ ቁጥር",
+    "auth.phone_ph": "+251 9xx xxx xxx",
+    "auth.role": "ሚና",
+    "auth.subcity": "ክፍለ ከተማ",
+    "auth.signup_btn": "መለያ ይክፈቱ",
+    "auth.committee_note": "የቅርንጫፍ እና ዋና ኮሚቴ መለያዎች በአስተዳዳሪዎች ይሰጣሉ።",
+    "auth.demo_logins": "የናሙና መለያዎች (የይለፍ ቃል፡ demo1234):",
+    "auth.enter_creds": "የመለያ መረጃዎን ያስገቡ",
+    "auth.welcome_user": "እንኳን ደህና መጡ፣ {name}",
+    "auth.account_created": "መለያ ተፈጥሯል · እንኳን ደህና መጡ፣ {name}",
+
+    // ---- home / browse ----
+    "home.title": "የተወሰኑ ዋጋዎችን ይመልከቱ",
+    "home.subtitle": "ዕቃዎችን ይፈልጉ፣ ምድቦችን ይምረጡ፣ ወደ ጋሪ ይጨምሩ።",
+    "home.search_ph": "አትክልት፣ ጥራጥሬ፣ እንቁላል ይፈልጉ…",
+    "home.shops_nearby": "በአቅራቢያ ያሉ ሱቆች",
+    "home.shops_in": "በ{city} ክፍለ ከተማ ውስጥ።",
+    "home.no_products": "በ{city} ውስጥ ከማጣሪያዎ ጋር የሚስማማ ዕቃ የለም።",
+    "home.no_shops": "በ{city} ውስጥ የተፈቀደ ሱቅ የለም።",
+    "home.range": "ክልል {min}–{max}",
+    "home.sold_by": "ሻጭ",
+    "home.unit": "በ",
+    "home.added": "ወደ ጋሪ ታክሏል",
+
+    // ---- shops ----
+    "shops.title": "በ{city} ውስጥ ያሉ ሱቆች",
+    "shops.subtitle": "ሱቁን ይንኩ መግለጫ፣ ሻጮችን እና አስተያየቶችን ለመመልከት።",
+    "shops.no_approved": "በ{city} ውስጥ የተፈቀደ ሱቅ የለም።",
+    "shops.popular_items": "ተመራጭ ዕቃዎች",
+    "shops.regulated_note": "ዋጋዎች በኮሚቴ የተወሰኑ ክልሎችን ያከብራሉ።",
+    "shops.no_listed": "ገና ምንም ዕቃ አልተዘረዘረም።",
+    "shops.reviews": "አስተያየቶች",
+    "shops.feedback_note": "ደንበኞች ከአመጣጥ በኋላ አስተያየት መስጠት ይችላሉ።",
+    "shops.add_review": "አስተያየት ጨምር",
+    "shops.no_reviews": "ገና ምንም አስተያየት የለም።",
+    "shops.review_title": "አስተያየት ጨምር",
+    "shops.review_stars": "ደረጃ (1–5)",
+    "shops.review_text": "የእርስዎ አስተያየት",
+    "shops.review_text_ph": "ልምድዎን ያካፍሉ…",
+    "shops.write_comment": "እባኮት አስተያየት ይጻፉ",
+    "shops.review_posted": "አስተያየት ተለጥፏል",
+
+    // ---- cart ----
+    "cart.title": "ጋሪ",
+    "cart.subtitle": "ዕቃዎቹን ይከልሱ፣ ከዚያ ይክፈሉ።",
+    "cart.empty": "ጋሪው ባዶ ነው።",
+    "cart.empty_browse": "ዕቃዎችን ይመልከቱ",
+    "cart.delivery_note": "የማድረሻ ክፍያ በክፍያ ላይ ይታከላል።",
+    "cart.proceed": "ወደ ክፍያ ይቀጥሉ",
+    "cart.empty_toast": "ጋሪው ባዶ ነው",
+
+    // ---- checkout ----
+    "checkout.title": "ክፍያ",
+    "checkout.subtitle": "የክፍያ አማራጭ ይምረጡና ያረጋግጡ።",
+    "checkout.summary": "የትዕዛዝ ማጠቃለያ",
+    "checkout.lines_total": "{lines} የዕቃ መስመር · ድምር {total}",
+    "checkout.address": "የማድረሻ አድራሻ (ክፍለ ከተማ)",
+    "checkout.pay_now": "አሁን ይክፈሉ",
+    "checkout.pay_cod": "በሚደርስ ጊዜ ይክፈሉ",
+    "checkout.note": "አሁን ይክፈሉ የሶስተኛ ወገን ጌትዌይ ይጠቀማል (ለሙከራ የተዘጋጀ)። ኮሚቴ ሲፈቅድ ገንዘቦች በተመሳሳይ ጌትዌይ ይመለሳሉ።",
+    "checkout.placed": "ትዕዛዝ ተሰጥቷል · {n} ሱቅ(ዎች)",
+
+    // ---- tracking ----
+    "track.title": "ትዕዛዝ መከታተያ",
+    "track.subtitle": "የቅርብ ጊዜ ትዕዛዞች እና ቀጥታ ሁኔታ።",
+    "track.no_orders": "ገና ትዕዛዝ የለም።",
+    "track.start_browsing": "ይመልከቱ",
+    "track.home": "መነሻ",
+    "track.placed": "የተሰጠው {date}",
+    "track.payment": "ክፍያ",
+    "track.pay_now_label": "አሁን ተከፍሏል",
+    "track.pay_cod_label": "በሚደርስ ጊዜ",
+    "track.complain": "ቅሬታ ያስገቡ",
+    "track.order_label": "ትዕዛዝ",
+    "track.delivery": "አመጣጥ",
+    "track.eta": "የሚደርስበት ጊዜ",
+    "track.confirmed_at": "የተረጋገጠው {date}።",
+    "track.share_otp": "ይህን ኮድ ሲደርስ ለአስረካቢው ያካፍሉ",
+
+    // ---- complaint ----
+    "cmp.modal_title": "ቅሬታ ያስገቡ",
+    "cmp.type": "የቅሬታ ዓይነት",
+    "cmp.type.missing": "የጎደለ ዕቃ",
+    "cmp.type.late": "የዘገየ አመጣጥ",
+    "cmp.type.wrong": "የተሳሳተ ዕቃ",
+    "cmp.type.refund": "ገንዘብ መመለስ",
+    "cmp.type.other": "ሌላ",
+    "cmp.detail": "ዝርዝር",
+    "cmp.detail_ph": "የተፈጠረውን ያስረዱ…",
+    "cmp.submit": "አስገባ",
+    "cmp.describe": "እባኮት ችግሩን ያስረዱ",
+    "cmp.sent": "ቅሬታ ለቅርንጫፍ ኮሚቴ ቀርቧል",
+
+    // ---- account ----
+    "acc.title": "መለያ",
+    "acc.subtitle": "መግለጫ እና የናሙና መቆጣጠሪያዎች።",
+    "acc.role": "ሚና",
+    "acc.subcity": "ክፍለ ከተማ",
+    "acc.email": "ኢሜይል",
+    "acc.phone": "ስልክ",
+    "acc.signout": "ውጣ",
+    "acc.theme": "ገጽታ",
+    "acc.change_theme": "ገጽታ ቀይር",
+    "acc.demo": "የናሙና መቆጣጠሪያዎች",
+    "acc.reset": "ናሙና መረጃ እንደ አዲስ ጀምር",
+    "acc.reset_note": "እንደ አዲስ መጀመር በዚህ መሳሪያ ላይ ያለውን መረጃ ያጠፋና የናሙና መረጃውን (ዕቃዎች፣ ሱቆች፣ የናሙና መለያዎች፣ የተወሰኑ የዋጋ ክልሎች) እንደገና ይጭነዋል።",
+    "acc.reset_confirm": "ሁሉንም በዚህ መሳሪያ ያለ የናሙና መረጃ እንደ አዲስ ይጀምር? ይህ ከመለያው ያስወጣዎታል።",
+    "acc.reset_done": "የናሙና መረጃ እንደ አዲስ ተጀምሯል",
+    "acc.signed_out": "ወጥተዋል",
+
+    // ---- owner ----
+    "own.title": "የሱቅ ባለቤት ዳሽቦርድ",
+    "own.subtitle": "ሱቆችን፣ ክምችትንና የሚገቡ ትዕዛዞችን ያስተዳድሩ።",
+    "own.register_shop": "+ ሱቅ ይመዝግቡ",
+    "own.stat_shops": "ሱቆች",
+    "own.stat_approved": "የተፈቀዱ",
+    "own.stat_pending": "በመጠባበቅ ላይ",
+    "own.stat_orders": "የመጡ ትዕዛዞች",
+    "own.stat_rating": "አማካይ ደረጃ",
+    "own.queue": "የትዕዛዞች ሰልፍ",
+    "own.queue_subtitle": "ይቀበሉ፣ ያዘጋጁ፣ አስረካቢ ይመድቡ",
+    "own.no_shops": "ትዕዛዝ ለመቀበል ሱቅ ይመዝግቡ።",
+    "own.no_orders": "ገና ትዕዛዝ የለም። ደንበኞች ከሱቅዎ ሲገዙ እዚህ ይታያሉ።",
+    "own.inv_no_shops": "ክምችትን ለማስተዳደር ከላይ ሱቅ ይመዝግቡ። የአካባቢው የቅርንጫፍ ኮሚቴ ሲፈቅድ ዕቃዎች መዘርዘር ይችላሉ።",
+    "own.accept": "ተቀበል",
+    "own.reject": "አትቀበል",
+    "own.mark_prep": "በማዘጋጀት ላይ",
+    "own.assign_delivery": "አስረካቢ መድብ",
+    "own.awaiting": "አስረካቢ በመጠበቅ ላይ",
+    "own.no_action": "እርምጃ የለም",
+    "own.assign_title": "አስረካቢ መድብ",
+    "own.courier": "አስረካቢ",
+    "own.eta": "የሚደርስበት ጊዜ",
+    "own.otp_note": "ደንበኛው 4-አሃዝ ኮድ ይቀበላል። አስረካቢው ሲደርስ በኮዱ ያረጋግጣል።",
+    "own.assign_btn": "መድብ",
+    "own.no_couriers": "የሚገኝ አስረካቢ የለም",
+    "own.assigned_otp": "አስረካቢ ተመድቧል · ኮድ {otp}",
+    "own.order_updated": "ትዕዛዝ ተስተካክሏል · {status}",
+    "own.customer": "ደንበኛ",
+    "own.subcity": "ክፍለ ከተማ",
+    "own.inv_note": "የመዘርዘሪያ ዋጋዎች በኮሚቴ የተወሰኑ ክልሎችን ማክበር አለባቸው።",
+    "own.range_label": "ክልል {min}–{max}",
+    "own.no_range": "የተወሰነ ክልል የለም",
+    "own.qty": "ብዛት",
+    "own.update": "አስተካክል",
+    "own.add": "ጨምር",
+    "own.inv_update": "ክምችት አስተካክል",
+    "own.inv_add": "ወደ ክምችት ጨምር",
+    "own.allowed_range": "የተፈቀደ ክልል፡ {min} እስከ {max}",
+    "own.qty_label": "ብዛት",
+    "own.unit_price": "የነጠላ ዋጋ (ብር)",
+    "own.inv_saved": "ክምችት ተቀምጧል",
+    "own.shop_modal": "አዲስ ሱቅ ይመዝግቡ",
+    "own.shop_name": "የሱቅ ስም",
+    "own.shop_name_ph": "ለምሳሌ፣ ቦሌ ፍሬሽ ቬጂስ",
+    "own.shop_note": "ካስገቡ በኋላ የአካባቢው የቅርንጫፍ ኮሚቴ ሱቅዎን ይገመግማል፣ ካፀደቀ በኋላ መሸጥ ይጀምራሉ።",
+    "own.shop_submitted": "ለቅርንጫፍ ኮሚቴ ግምገማ ቀርቧል",
+
+    // ---- delivery ----
+    "dlv.title": "የአስረካቢ ዳሽቦርድ",
+    "dlv.subtitle": "የተግባር ሁኔታ ያስተካክሉና በደንበኛ ኮድ ያረጋግጡ።",
+    "dlv.no_tasks": "ገና የተመደበ አመጣጥ የለም።",
+    "dlv.drop": "የሚደርስበት",
+    "dlv.eta": "የሚደርስበት ጊዜ",
+    "dlv.completed": "ተጠናቋል",
+    "dlv.confirm_btn": "በኮድ አረጋግጥ",
+    "dlv.mark": "ምልክት፡ {label}",
+    "dlv.items_modal": "ዕቃዎች · ትዕዛዝ {id}",
+    "dlv.confirm_title": "በኮድ አመጣጥ ያረጋግጡ",
+    "dlv.otp_note": "በመከታተያ ስክሪኑ ላይ የሚታየውን 4-አሃዝ ኮድ ከደንበኛው ይጠይቁ።",
+    "dlv.otp": "ኮድ",
+    "dlv.confirm": "አረጋግጥ",
+    "dlv.confirmed": "አመጣጥ ተረጋግጧል",
+    "dlv.label.accepted": "ተቀብሏል",
+    "dlv.label.picked_up": "ተወሰዷል",
+    "dlv.label.en_route": "በጉዞ ላይ",
+    "dlv.label.delivered": "ደርሷል",
+
+    // ---- committee (branch) ----
+    "br.title": "የቅርንጫፍ ኮሚቴ · {city}",
+    "br.subtitle": "በሥልጣንዎ ስር ያሉ ሱቆችን ያፅድቁና ቅሬታዎችን ይገምግሙ።",
+    "br.audit_btn": "የቁጥጥር ምዝገባ",
+    "br.pending_title": "በመጠባበቅ ላይ ያሉ የሱቅ ምዝገባዎች",
+    "br.pending_subtitle": "ሻጮች ከመጀመራቸው በፊት ያረጋግጡ እና ያፅድቁ።",
+    "br.no_pending": "በመጠባበቅ ላይ ያለ ምዝገባ የለም።",
+    "br.submitted": "የቀረበው {date}",
+    "br.approve": "አፅድቅ",
+    "br.reject": "አትቀበል",
+    "br.reject_reason": "ያላፀደቁበት ምክንያት (ለባለቤቱ ይታያል):",
+    "br.shop_status": "ሱቅ {status}",
+    "br.queue_title": "የቅሬታዎች ሰልፍ",
+    "br.queue_subtitle": "የገንዘብ መመለስን ያፅድቁ፣ ያትቀበሉ፣ ወይም ለዋና ኮሚቴ ያስተላልፉ።",
+    "br.no_open": "ክፍት ጉዳይ የለም። ✨",
+    "br.from": "ከ",
+    "br.shop_label": "ሱቅ",
+    "br.order_label": "ትዕዛዝ",
+    "br.approve_refund": "ገንዘብ መመለስ ያፅድቁ",
+    "br.escalate": "ለዋና ያስተላልፉ",
+    "br.decision_note": "የውሳኔ ማስታወሻ:",
+    "br.case_updated": "ጉዳይ {decision}",
+
+    // ---- committee (main) ----
+    "mc.title": "የከተማ ዋና ኮሚቴ",
+    "mc.subtitle": "የዋጋ ክልሎችን ያቀናብሩ፣ የተላለፉ ጉዳዮችን ይገምግሙ፣ ተገዢነትን ይከታተሉ።",
+    "mc.ranges_title": "የተወሰኑ የዋጋ ክልሎች",
+    "mc.ranges_subtitle": "በመዘርዘርና በክፍያ ጊዜ የሚተገበሩ ዝቅተኛ/ከፍተኛ ዋጋዎች (ብር)።",
+    "mc.ranges_note": "አዲስ ግቤቶች በተግባር ቀን ቀደምትዎቹን ይተካሉ።",
+    "mc.effective": "ከ{date} ጀምሮ",
+    "mc.no_range": "ገና ክልል አልተቀመጠም",
+    "mc.set": "አዘጋጅ",
+    "mc.update": "አስተካክል",
+    "mc.set_modal": "የዋጋ ክልል አዘጋጅ · {name}",
+    "mc.min_price": "ዝቅተኛ ዋጋ (ብር)",
+    "mc.max_price": "ከፍተኛ ዋጋ (ብር)",
+    "mc.set_note": "አዲሱ ክልል ወዲያው ይተገበራል። ከክልሉ ውጭ ያሉ ነባር ዕቃዎች ለባለቤቶች ምልክት ይደረግባቸዋል።",
+    "mc.range_updated": "የዋጋ ክልል ተስተካክሏል",
+    "mc.escalations_title": "የተላለፉ ጉዳዮች",
+    "mc.escalations_subtitle": "የቅርንጫፍ ኮሚቴዎች ያልተፈቱ ክርክሮችን ወደዚህ ይልካሉ።",
+    "mc.no_escalations": "የተላለፈ ጉዳይ የለም።",
+    "mc.mark_resolved": "እንደ ተፈታ ምልክት",
+    "mc.final_note": "የመጨረሻ ውሳኔ ማስታወሻ:",
+
+    // ---- audit ----
+    "audit.title": "የቁጥጥር ምዝገባ (የመጨረሻ 100 ክስተቶች)",
+    "audit.subtitle": "የሥልጣንና የሕይወት-ዑደት ክስተቶች ብቻ-መጨመር ምዝገባ።",
+    "audit.empty": "ገና ክስተት የለም።",
+
+    // ---- theme ----
+    "theme.title": "ገጽታ ይምረጡ",
+    "theme.subtitle": "የሚስማማዎትን መልክ ይምረጡ። በመለያው ይቀመጣል።",
+    "theme.toast": "ገጽታ፡ {name}",
+    "theme.garden": "የአትክልት ስፍራ",
+    "theme.garden.desc": "ሳጅ እና ሙቅ ክሬም",
+    "theme.terracotta": "ቴራኮታ",
+    "theme.terracotta.desc": "ሸክላና ፔች",
+    "theme.sage": "ሳጅ ጋርደን",
+    "theme.sage.desc": "ለስላሳ ሳጅና ቤጅ",
+    "theme.rose": "ዱስቲ ሮዝ",
+    "theme.rose.desc": "ሮዝና ሙቅ ቡኒ",
+    "theme.mustard": "ሙስታርድ ሜዳ",
+    "theme.mustard.desc": "ሙስታርድና ወርቅ",
+    "theme.plum": "ፕለም",
+    "theme.plum.desc": "ዱስቲ ፕለምና ሮዝ",
+    "theme.midnight": "ሌሊት",
+    "theme.midnight.desc": "ሙቅ ጨለማ ከወርቅ ጋር",
+
+    // ---- status badges ----
+    "status.created": "ተፈጥሯል",
+    "status.paid": "ተከፍሏል",
+    "status.accepted": "ተቀብሏል",
+    "status.preparing": "በዝግጅት ላይ",
+    "status.dispatched": "ተልኳል",
+    "status.delivered": "ደርሷል",
+    "status.completed": "ተጠናቋል",
+    "status.cancelled": "ተሰርዟል",
+    "status.refunded": "ገንዘብ ተመልሷል",
+    "status.open": "ክፍት",
+    "status.escalated": "ተላልፏል",
+    "status.resolved": "ተፈትቷል",
+    "status.rejected": "አልተፈቀደም",
+    "status.pending": "በመጠባበቅ ላይ",
+    "status.approved": "ተፈቅዷል",
+    "status.suspended": "ታግዷል",
+    "status.assigned": "ተመድቧል",
+    "status.picked_up": "ተወሰዷል",
+    "status.en_route": "በጉዞ ላይ",
   },
 };
 
 export function getLang() { return localStorage.getItem("gulit:v1:lang") || "en"; }
 export function setLang(l) { localStorage.setItem("gulit:v1:lang", l); }
-export function t(key) {
+
+// t(key, fallback?, params?)  OR  t(key, params)
+//   Examples: t("auth.welcome")
+//             t("auth.welcome_user", { name: "Hana" })
+//             t("status.unknown", "—")
+export function t(key, fallbackOrParams, paramsArg) {
+  let fallback = key, params = null;
+  if (typeof fallbackOrParams === "string") fallback = fallbackOrParams;
+  else if (fallbackOrParams && typeof fallbackOrParams === "object") params = fallbackOrParams;
+  if (paramsArg && typeof paramsArg === "object") params = paramsArg;
+
   const lang = getLang();
-  return (STR[lang] && STR[lang][key]) || (STR.en[key] || key);
+  let s = (STR[lang] && STR[lang][key]) || STR.en[key] || fallback;
+  if (params) s = s.replace(/\{(\w+)\}/g, (_, k) => params[k] != null ? params[k] : "");
+  return s;
 }
 
 // ------------------ THEME ------------------
 const THEME_KEY = "gulit:v1:theme";
-export const THEMES = [
-  { id: "sunset",   name: "Sunset Market",  desc: "Warm marketplace orange" },
-  { id: "saffron",  name: "Saffron Spice",  desc: "Golden Ethiopian amber" },
-  { id: "berry",    name: "Berry Bloom",    desc: "Bold magenta energy" },
-  { id: "coral",    name: "Coral Reef",     desc: "Soft coral rose" },
-  { id: "teal",     name: "Teal Tide",      desc: "Fresh ocean cool" },
-  { id: "forest",   name: "Forest",         desc: "Classic Gulit green" },
-  { id: "midnight", name: "Midnight",       desc: "Easy on the eyes (dark)" },
-];
+const THEME_IDS = ["garden", "terracotta", "sage", "rose", "mustard", "plum", "midnight"];
 
-export function getTheme() { return localStorage.getItem(THEME_KEY) || "sunset"; }
+export const THEMES = THEME_IDS.map(id => ({
+  id,
+  get name() { return t(`theme.${id}`); },
+  get desc() { return t(`theme.${id}.desc`); },
+}));
+
+export function getTheme() {
+  const stored = localStorage.getItem(THEME_KEY);
+  return THEME_IDS.includes(stored) ? stored : "garden";
+}
 export function setTheme(id) {
-  if (!THEMES.some(t => t.id === id)) return;
+  if (!THEME_IDS.includes(id)) return;
   localStorage.setItem(THEME_KEY, id);
   applyTheme();
 }
@@ -150,8 +790,8 @@ export function applyTheme() {
 
 export function openThemePicker() {
   const cur = getTheme();
-  openModal("Choose a theme", `
-    <div class="muted">Pick the look that suits you. Saved across sessions.</div>
+  openModal(t("theme.title"), `
+    <div class="muted">${t("theme.subtitle")}</div>
     <div class="theme-grid mt12">
       ${THEMES.map(th => `
         <button class="theme-card ${th.id === cur ? "selected" : ""}" data-id="${th.id}">
@@ -167,9 +807,8 @@ export function openThemePicker() {
   document.querySelectorAll(".theme-card").forEach(btn => {
     btn.addEventListener("click", () => {
       setTheme(btn.dataset.id);
-      // Refresh the picker so the selected ring moves to the new card.
       const name = THEMES.find(x => x.id === btn.dataset.id)?.name || "";
-      toast(`Theme: ${name}`, "success");
+      toast(t("theme.toast", { name }), "success");
       openThemePicker();
     });
   });

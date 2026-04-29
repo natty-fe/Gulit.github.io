@@ -5,7 +5,7 @@
 import { Inventory, Orders, PriceRanges, Products, Shops, Users } from "../api.js";
 import { state } from "../state.js";
 import {
-  toast, openModal, closeModal, etb, dateShort, statusBadge, iconSvg, formField,
+  toast, openModal, closeModal, etb, dateShort, statusBadge, iconSvg, formField, t,
 } from "./shared.js";
 import { SUB_CITIES } from "../seed.js";
 
@@ -22,25 +22,25 @@ export async function renderOwner() {
       <div class="card">
         <div class="hd">
           <div>
-            <h2>Shop Owner Dashboard</h2>
-            <div class="muted">Manage shops, inventory, and incoming orders.</div>
+            <h2>${t("own.title")}</h2>
+            <div class="muted">${t("own.subtitle")}</div>
           </div>
-          <button class="primary" id="newShopBtn">+ Register shop</button>
+          <button class="primary" id="newShopBtn">${t("own.register_shop")}</button>
         </div>
         <div class="bd">
           <div class="statrow" id="ownerStats"></div>
 
           <div class="card mt12" style="box-shadow:none;border:1px solid var(--border);">
-            <div class="hd"><h2>Orders queue</h2><div class="muted">Accept, prepare, and assign delivery</div></div>
-            <div class="bd" id="ownerOrders">Loading…</div>
+            <div class="hd"><h2>${t("own.queue")}</h2><div class="muted">${t("own.queue_subtitle")}</div></div>
+            <div class="bd" id="ownerOrders">${t("loading")}</div>
           </div>
 
           <div class="card mt12" style="box-shadow:none;border:1px solid var(--border);">
             <div class="hd">
-              <h2>Inventory</h2>
+              <h2>${t("inventory")}</h2>
               <select id="invShopSel">${myShops.map(s => `<option value="${s.id}">${s.name} · ${s.subCity}</option>`).join("")}</select>
             </div>
-            <div class="bd" id="ownerInv">Loading…</div>
+            <div class="bd" id="ownerInv">${t("loading")}</div>
           </div>
         </div>
       </div>
@@ -53,7 +53,7 @@ export async function renderOwner() {
     drawOwnerInventory(myShops[0].id);
   } else {
     document.getElementById("ownerInv").innerHTML =
-      `<div class="empty">Register a shop above to manage inventory. Once your local branch committee approves it, you can list items.</div>`;
+      `<div class="empty">${t("own.inv_no_shops")}</div>`;
   }
 
   document.getElementById("newShopBtn").addEventListener("click", () => openShopRegistration());
@@ -71,34 +71,34 @@ async function drawOwnerStats(shops) {
   const pending = shops.filter(s => s.status === "pending").length;
   const avgRating = shops.length ? (shops.reduce((a, s) => a + (s.rating || 0), 0) / shops.length).toFixed(1) : "—";
   document.getElementById("ownerStats").innerHTML = `
-    <div class="stat"><div class="k">Shops</div><div class="v">${shops.length}</div></div>
-    <div class="stat"><div class="k">Approved</div><div class="v">${approved}</div></div>
-    <div class="stat"><div class="k">Pending</div><div class="v">${pending}</div></div>
-    <div class="stat"><div class="k">Orders received</div><div class="v">${totalOrders}</div></div>
-    <div class="stat"><div class="k">Avg. rating</div><div class="v">${avgRating}</div></div>
+    <div class="stat"><div class="k">${t("own.stat_shops")}</div><div class="v">${shops.length}</div></div>
+    <div class="stat"><div class="k">${t("own.stat_approved")}</div><div class="v">${approved}</div></div>
+    <div class="stat"><div class="k">${t("own.stat_pending")}</div><div class="v">${pending}</div></div>
+    <div class="stat"><div class="k">${t("own.stat_orders")}</div><div class="v">${totalOrders}</div></div>
+    <div class="stat"><div class="k">${t("own.stat_rating")}</div><div class="v">${avgRating}</div></div>
   `;
 }
 
 async function drawOwnerOrders(shops) {
   const el = document.getElementById("ownerOrders");
-  if (!shops.length) { el.innerHTML = `<div class="empty">Register a shop to receive orders.</div>`; return; }
+  if (!shops.length) { el.innerHTML = `<div class="empty">${t("own.no_shops")}</div>`; return; }
   const allOrders = [];
   for (const s of shops) {
     const orders = await Orders.list({ shopId: s.id });
     for (const o of orders) allOrders.push({ ...o, shopName: s.name });
   }
-  if (allOrders.length === 0) { el.innerHTML = `<div class="empty">No orders yet. They will appear here as soon as customers buy from your shop.</div>`; return; }
+  if (allOrders.length === 0) { el.innerHTML = `<div class="empty">${t("own.no_orders")}</div>`; return; }
 
   el.innerHTML = allOrders.map(o => `
     <div class="pitem" style="grid-template-columns:48px 1fr auto;">
       <div class="pimg">${iconSvg("tomato")}</div>
       <div>
-        <div class="ptitle">Order ${o.id.slice(-6).toUpperCase()} <span class="tag-chip">${o.shopName}</span></div>
-        <div class="psub">${o.items.length} item(s) · ${etb(o.total)} · Customer: ${o.customerName}</div>
+        <div class="ptitle">${t("track.order_label")} ${o.id.slice(-6).toUpperCase()} <span class="tag-chip">${o.shopName}</span></div>
+        <div class="psub">${t("items_count", { n: o.items.length })} · ${etb(o.total)} · ${t("own.customer")}: ${o.customerName}</div>
         <div class="muted mt8">${dateShort(o.createdAt)} · ${statusBadge(o.status)}</div>
       </div>
       <div class="flex" style="flex-direction:column;gap:6px;align-items:flex-end;">
-        <button class="viewbtn" data-detail="${o.id}">View</button>
+        <button class="viewbtn" data-detail="${o.id}">${t("view")}</button>
         ${nextActionBtn(o)}
       </div>
     </div>
@@ -113,37 +113,37 @@ async function drawOwnerOrders(shops) {
 
 function nextActionBtn(o) {
   if (o.status === "created" || o.status === "paid") {
-    return `<button class="addbtn" data-accept="${o.id}">Accept</button>
-            <button class="viewbtn" data-cancel="${o.id}">Reject</button>`;
+    return `<button class="addbtn" data-accept="${o.id}">${t("own.accept")}</button>
+            <button class="viewbtn" data-cancel="${o.id}">${t("own.reject")}</button>`;
   }
   if (o.status === "accepted") {
-    return `<button class="addbtn" data-prep="${o.id}">Mark preparing</button>`;
+    return `<button class="addbtn" data-prep="${o.id}">${t("own.mark_prep")}</button>`;
   }
   if (o.status === "preparing") {
-    return `<button class="addbtn" data-assign="${o.id}">Assign delivery</button>`;
+    return `<button class="addbtn" data-assign="${o.id}">${t("own.assign_delivery")}</button>`;
   }
   if (o.status === "dispatched") {
-    return `<span class="muted" style="font-size:12px;">Awaiting delivery</span>`;
+    return `<span class="muted" style="font-size:12px;">${t("own.awaiting")}</span>`;
   }
-  return `<span class="muted" style="font-size:12px;">No action</span>`;
+  return `<span class="muted" style="font-size:12px;">${t("own.no_action")}</span>`;
 }
 
 async function updateStatus(orderId, status) {
   try {
     await Orders.updateStatus(orderId, status);
-    toast(`Order updated · ${status}`, "success");
+    toast(t("own.order_updated", { status: t(`status.${status}`) }), "success");
     renderOwner();
   } catch (e) { toast(e.message, "danger"); }
 }
 
 async function openAssignDelivery(orderId) {
   const couriers = await Users.listByRole("delivery");
-  if (couriers.length === 0) { toast("No delivery personnel available", "danger"); return; }
-  openModal("Assign delivery", `
-    ${formField({ label: "Courier", name: "courier", type: "select", options: couriers.map(c => ({ value: c.id, label: `${c.name} · ${c.phone || ""}` })) })}
-    ${formField({ label: "ETA", name: "eta", value: "30–45 min" })}
-    <div class="muted mt8" style="font-size:12px;">Customer receives a 4-digit OTP. Courier confirms with OTP at delivery.</div>
-    <div class="btnrow"><button class="primary" id="assignSubmit">Assign</button><button class="ghost" id="assignCancel">Cancel</button></div>
+  if (couriers.length === 0) { toast(t("own.no_couriers"), "danger"); return; }
+  openModal(t("own.assign_title"), `
+    ${formField({ label: t("own.courier"), name: "courier", type: "select", options: couriers.map(c => ({ value: c.id, label: `${c.name} · ${c.phone || ""}` })) })}
+    ${formField({ label: t("own.eta"), name: "eta", value: "30–45 min" })}
+    <div class="muted mt8" style="font-size:12px;">${t("own.otp_note")}</div>
+    <div class="btnrow"><button class="primary" id="assignSubmit">${t("own.assign_btn")}</button><button class="ghost" id="assignCancel">${t("cancel")}</button></div>
   `);
   document.getElementById("assignCancel").onclick = () => closeModal();
   document.getElementById("assignSubmit").onclick = async () => {
@@ -151,7 +151,7 @@ async function openAssignDelivery(orderId) {
     const eta = document.querySelector("#modalBody [name=eta]").value.trim();
     try {
       const d = await Orders.assignDelivery(orderId, { courierId, eta });
-      toast(`Delivery assigned · OTP ${d.otp}`, "success");
+      toast(t("own.assigned_otp", { otp: d.otp }), "success");
       closeModal();
       renderOwner();
     } catch (e) { toast(e.message, "danger"); }
@@ -161,16 +161,16 @@ async function openAssignDelivery(orderId) {
 async function openOrderDetail(orderId) {
   const o = await Orders.byId(orderId);
   if (!o) return;
-  openModal(`Order ${o.id.slice(-6).toUpperCase()}`, `
+  openModal(`${t("track.order_label")} ${o.id.slice(-6).toUpperCase()}`, `
     <div class="row">
-      <div><div style="font-weight:900;">Customer: ${o.customerName}</div><div class="muted">Sub-city: ${o.customerSubCity || "—"}</div></div>
+      <div><div style="font-weight:900;">${t("own.customer")}: ${o.customerName}</div><div class="muted">${t("own.subcity")}: ${o.customerSubCity || "—"}</div></div>
       <div>${statusBadge(o.status)}</div>
     </div>
     <hr/>
     ${o.items.map(i => `<div class="row mt8"><div class="muted"><b>${i.name}</b> × ${i.qty}</div><div style="font-weight:900;">${etb(i.lineTotal)}</div></div>`).join("")}
     <hr/>
-    <div class="row"><div style="font-weight:900;">Total</div><div style="font-weight:900;color:var(--primary);">${etb(o.total)}</div></div>
-    <div class="muted mt8">Payment: <b>${o.paymentType === "prepay" ? "Pay now" : "Cash on delivery"}</b></div>
+    <div class="row"><div style="font-weight:900;">${t("total")}</div><div style="font-weight:900;color:var(--primary);">${etb(o.total)}</div></div>
+    <div class="muted mt8">${t("track.payment")}: <b>${o.paymentType === "prepay" ? t("track.pay_now_label") : t("track.pay_cod_label")}</b></div>
   `);
 }
 
@@ -184,25 +184,25 @@ async function drawOwnerInventory(shopId) {
   const inMap = new Map(items.map(i => [i.productId, i]));
 
   el.innerHTML = `
-    <div class="muted">Listing prices must fall within committee-set ranges.</div>
+    <div class="muted">${t("own.inv_note")}</div>
     <div class="mt12" style="display:grid;gap:10px;">
       ${products.map(p => {
         const inv = inMap.get(p.id);
         const r = ranges.find(x => x.productId === p.id);
-        const rangeText = r ? `Range ${etb(r.minPrice)}–${etb(r.maxPrice)}` : "No regulated range";
+        const rangeText = r ? t("own.range_label", { min: etb(r.minPrice), max: etb(r.maxPrice) }) : t("own.no_range");
         const priceField = inv ? etb(inv.price) : "—";
         return `
           <div class="pitem">
             <div class="pimg">${iconSvg(p.icon)}</div>
             <div>
               <div class="ptitle">${p.name}</div>
-              <div class="psub">${p.category} · ${p.unit}</div>
+              <div class="psub">${t(`cat.${p.category}`, p.category)} · ${p.unit}</div>
               <div class="muted mt8">${rangeText}</div>
             </div>
             <div class="pricebox">
               <div class="now">${priceField}</div>
-              <div class="muted">Qty: ${inv ? inv.qty : 0}</div>
-              <button class="addbtn" data-edit="${p.id}">${inv ? "Update" : "Add"}</button>
+              <div class="muted">${t("own.qty")}: ${inv ? inv.qty : 0}</div>
+              <button class="addbtn" data-edit="${p.id}">${inv ? t("own.update") : t("own.add")}</button>
             </div>
           </div>
         `;
@@ -216,11 +216,11 @@ async function drawOwnerInventory(shopId) {
 
 function openInventoryEditor(shopId, productId, existing, ranges) {
   const range = ranges.find(r => r.productId === productId);
-  openModal(existing ? "Update inventory" : "Add to inventory", `
-    ${range ? `<div class="muted">Allowed range: <b>${etb(range.minPrice)}</b> to <b>${etb(range.maxPrice)}</b></div>` : ""}
-    ${formField({ label: "Quantity", name: "qty", type: "number", value: String(existing?.qty || 10) })}
-    ${formField({ label: "Unit price (ETB)", name: "price", type: "number", value: String(existing?.price || (range ? ((range.minPrice + range.maxPrice) / 2).toFixed(2) : "")) })}
-    <div class="btnrow"><button class="primary" id="invSave">Save</button><button class="ghost" id="invCancel">Cancel</button></div>
+  openModal(existing ? t("own.inv_update") : t("own.inv_add"), `
+    ${range ? `<div class="muted">${t("own.allowed_range", { min: etb(range.minPrice), max: etb(range.maxPrice) })}</div>` : ""}
+    ${formField({ label: t("own.qty_label"), name: "qty", type: "number", value: String(existing?.qty || 10) })}
+    ${formField({ label: t("own.unit_price"), name: "price", type: "number", value: String(existing?.price || (range ? ((range.minPrice + range.maxPrice) / 2).toFixed(2) : "")) })}
+    <div class="btnrow"><button class="primary" id="invSave">${t("save")}</button><button class="ghost" id="invCancel">${t("cancel")}</button></div>
   `);
   document.getElementById("invCancel").onclick = () => closeModal();
   document.getElementById("invSave").onclick = async () => {
@@ -228,7 +228,7 @@ function openInventoryEditor(shopId, productId, existing, ranges) {
     const price = Number(document.querySelector("#modalBody [name=price]").value);
     try {
       await Inventory.upsert({ id: existing?.id, shopId, productId, qty, price });
-      toast("Inventory saved", "success");
+      toast(t("own.inv_saved"), "success");
       closeModal();
       renderOwner();
     } catch (e) { toast(e.message, "danger"); }
@@ -237,12 +237,12 @@ function openInventoryEditor(shopId, productId, existing, ranges) {
 
 // ------------------ SHOP REGISTRATION ------------------
 function openShopRegistration() {
-  openModal("Register a new shop", `
-    ${formField({ label: "Shop name", name: "name", required: true, placeholder: "e.g., Bole Fresh Veggies" })}
-    ${formField({ label: "Sub-city", name: "subCity", type: "select", value: "Bole",
+  openModal(t("own.shop_modal"), `
+    ${formField({ label: t("own.shop_name"), name: "name", required: true, placeholder: t("own.shop_name_ph") })}
+    ${formField({ label: t("auth.subcity"), name: "subCity", type: "select", value: "Bole",
       options: SUB_CITIES.map(s => ({ value: s, label: s })) })}
-    <div class="muted mt8" style="font-size:12px;">After submission, the local branch committee reviews and approves your shop before you can sell.</div>
-    <div class="btnrow"><button class="primary" id="shopSave">Submit</button><button class="ghost" id="shopCancel">Cancel</button></div>
+    <div class="muted mt8" style="font-size:12px;">${t("own.shop_note")}</div>
+    <div class="btnrow"><button class="primary" id="shopSave">${t("submit")}</button><button class="ghost" id="shopCancel">${t("cancel")}</button></div>
   `);
   document.getElementById("shopCancel").onclick = () => closeModal();
   document.getElementById("shopSave").onclick = async () => {
@@ -250,7 +250,7 @@ function openShopRegistration() {
     const subCity = document.querySelector("#modalBody [name=subCity]").value;
     try {
       await Shops.register({ name, subCity });
-      toast("Submitted for branch committee review", "success");
+      toast(t("own.shop_submitted"), "success");
       closeModal();
       renderOwner();
     } catch (e) { toast(e.message, "danger"); }

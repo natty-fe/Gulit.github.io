@@ -4,7 +4,7 @@
 import { Audit, Complaints, PriceRanges, Products, Shops } from "../api.js";
 import { state } from "../state.js";
 import {
-  toast, openModal, closeModal, etb, dateShort, timeShort, statusBadge, formField,
+  toast, openModal, closeModal, etb, dateShort, timeShort, statusBadge, formField, t,
 } from "./shared.js";
 
 const view = () => document.getElementById("view");
@@ -19,18 +19,18 @@ export async function renderBranchCommittee() {
     <section class="page">
       <div class="card">
         <div class="hd">
-          <div><h2>Branch Committee · ${u.subCity}</h2><div class="muted">Approve shops and review complaints in your jurisdiction.</div></div>
-          <div class="flex"><button class="viewbtn" id="auditBtn">Audit log</button></div>
+          <div><h2>${t("br.title", { city: u.subCity })}</h2><div class="muted">${t("br.subtitle")}</div></div>
+          <div class="flex"><button class="viewbtn" id="auditBtn">${t("br.audit_btn")}</button></div>
         </div>
         <div class="bd">
           <div class="card mt8" style="box-shadow:none;border:1px solid var(--border);">
-            <div class="hd"><h2>Pending shop registrations</h2><div class="muted">Verify and approve before sellers go live.</div></div>
-            <div class="bd" id="pendShops">Loading…</div>
+            <div class="hd"><h2>${t("br.pending_title")}</h2><div class="muted">${t("br.pending_subtitle")}</div></div>
+            <div class="bd" id="pendShops">${t("loading")}</div>
           </div>
 
           <div class="card mt12" style="box-shadow:none;border:1px solid var(--border);">
-            <div class="hd"><h2>Complaints queue</h2><div class="muted">Approve refunds, reject, or escalate to main committee.</div></div>
-            <div class="bd" id="cmpQueue">Loading…</div>
+            <div class="hd"><h2>${t("br.queue_title")}</h2><div class="muted">${t("br.queue_subtitle")}</div></div>
+            <div class="bd" id="cmpQueue">${t("loading")}</div>
           </div>
         </div>
       </div>
@@ -47,18 +47,18 @@ async function drawPendingShops() {
   const u = state.user;
   const allPending = await Shops.list({ subCity: u.subCity, status: "pending" });
   const el = document.getElementById("pendShops");
-  if (!allPending.length) { el.innerHTML = `<div class="empty">No pending registrations.</div>`; return; }
+  if (!allPending.length) { el.innerHTML = `<div class="empty">${t("br.no_pending")}</div>`; return; }
   el.innerHTML = allPending.map(s => `
     <div class="case">
       <div class="row">
         <div>
           <div class="title">${s.name}</div>
-          <div class="meta">Sub-city: <b>${s.subCity}</b> · Submitted ${dateShort(s.createdAt)} · ${statusBadge(s.status)}</div>
+          <div class="meta">${t("auth.subcity")}: <b>${s.subCity}</b> · ${t("br.submitted", { date: dateShort(s.createdAt) })} · ${statusBadge(s.status)}</div>
         </div>
       </div>
       <div class="actions">
-        <button class="addbtn" data-approve="${s.id}">Approve</button>
-        <button class="ghost" data-reject="${s.id}">Reject</button>
+        <button class="addbtn" data-approve="${s.id}">${t("br.approve")}</button>
+        <button class="ghost" data-reject="${s.id}">${t("br.reject")}</button>
       </div>
     </div>
   `).join("");
@@ -70,12 +70,12 @@ async function drawPendingShops() {
 async function decideShop(shopId, status) {
   let reason = "";
   if (status === "rejected") {
-    reason = prompt("Reason for rejection (visible to owner):") || "";
+    reason = prompt(t("br.reject_reason")) || "";
     if (!reason) return;
   }
   try {
     await Shops.setStatus(shopId, status, reason);
-    toast(`Shop ${status}`, "success");
+    toast(t("br.shop_status", { status: t(`status.${status}`) }), "success");
     drawPendingShops();
   } catch (e) { toast(e.message, "danger"); }
 }
@@ -94,21 +94,21 @@ async function drawComplaintsForBranch() {
     cases = all.filter(c => ids.has(c.shopId));
   }
   const el = document.getElementById("cmpQueue");
-  if (!cases.length) { el.innerHTML = `<div class="empty">No open cases. ✨</div>`; return; }
+  if (!cases.length) { el.innerHTML = `<div class="empty">${t("br.no_open")}</div>`; return; }
   el.innerHTML = cases.map(c => `
     <div class="case">
       <div class="row">
         <div>
           <div class="title">${c.id.slice(-6).toUpperCase()} · ${c.type}</div>
-          <div class="meta">From: <b>${c.fromName}</b> · Order: <b>${c.orderId.slice(-6).toUpperCase()}</b> · Shop: <b>${c.shopName}</b></div>
-          <div class="meta">Submitted ${dateShort(c.createdAt)} · ${statusBadge(c.status)}</div>
+          <div class="meta">${t("br.from")}: <b>${c.fromName}</b> · ${t("br.order_label")}: <b>${c.orderId.slice(-6).toUpperCase()}</b> · ${t("br.shop_label")}: <b>${c.shopName}</b></div>
+          <div class="meta">${t("br.submitted", { date: dateShort(c.createdAt) })} · ${statusBadge(c.status)}</div>
         </div>
       </div>
       <div class="muted mt8">${c.detail}</div>
       <div class="actions">
-        <button class="addbtn" data-decide="${c.id}" data-decision="approved">Approve refund</button>
-        <button class="ghost" data-decide="${c.id}" data-decision="rejected">Reject</button>
-        <button class="ghost" data-decide="${c.id}" data-decision="escalated">Escalate</button>
+        <button class="addbtn" data-decide="${c.id}" data-decision="approved">${t("br.approve_refund")}</button>
+        <button class="ghost" data-decide="${c.id}" data-decision="rejected">${t("br.reject")}</button>
+        <button class="ghost" data-decide="${c.id}" data-decision="escalated">${t("br.escalate")}</button>
       </div>
     </div>
   `).join("");
@@ -117,10 +117,10 @@ async function drawComplaintsForBranch() {
 }
 
 async function decideCase(caseId, decision) {
-  const note = prompt("Decision note:") || "";
+  const note = prompt(t("br.decision_note")) || "";
   try {
     await Complaints.decide(caseId, decision, note);
-    toast(`Case ${decision}`, "success");
+    toast(t("br.case_updated", { decision: t(`status.${decision}`, decision) }), "success");
     drawComplaintsForBranch();
   } catch (e) { toast(e.message, "danger"); }
 }
@@ -135,18 +135,18 @@ export async function renderMainCommittee() {
     <section class="page">
       <div class="card">
         <div class="hd">
-          <div><h2>City Main Committee</h2><div class="muted">Set price ranges, review escalations, monitor compliance.</div></div>
-          <div class="flex"><button class="viewbtn" id="auditBtn">Audit log</button></div>
+          <div><h2>${t("mc.title")}</h2><div class="muted">${t("mc.subtitle")}</div></div>
+          <div class="flex"><button class="viewbtn" id="auditBtn">${t("br.audit_btn")}</button></div>
         </div>
         <div class="bd">
           <div class="card mt8" style="box-shadow:none;border:1px solid var(--border);">
-            <div class="hd"><h2>Regulated price ranges</h2><div class="muted">Min/max ETB values enforced at listing and checkout.</div></div>
-            <div class="bd" id="prList">Loading…</div>
+            <div class="hd"><h2>${t("mc.ranges_title")}</h2><div class="muted">${t("mc.ranges_subtitle")}</div></div>
+            <div class="bd" id="prList">${t("loading")}</div>
           </div>
 
           <div class="card mt12" style="box-shadow:none;border:1px solid var(--border);">
-            <div class="hd"><h2>Escalated cases</h2><div class="muted">Branch committees forward unresolved disputes here.</div></div>
-            <div class="bd" id="escList">Loading…</div>
+            <div class="hd"><h2>${t("mc.escalations_title")}</h2><div class="muted">${t("mc.escalations_subtitle")}</div></div>
+            <div class="bd" id="escList">${t("loading")}</div>
           </div>
         </div>
       </div>
@@ -163,21 +163,21 @@ async function drawPriceRanges() {
   const products = await Products.list();
   const el = document.getElementById("prList");
   el.innerHTML = `
-    <div class="muted">Newer entries supersede older ones via effective date.</div>
+    <div class="muted">${t("mc.ranges_note")}</div>
     <div class="mt12" style="display:grid;gap:10px;">
       ${products.map(p => {
         const r = ranges.find(x => x.productId === p.id);
         return `
           <div class="pitem">
-            <div class="pimg"><svg viewBox="0 0 24 24" width="32" height="32" fill="none"><path d="M3 12h18M12 3v18" stroke="#2e7d32" stroke-width="2" stroke-linecap="round"/></svg></div>
+            <div class="pimg"><svg viewBox="0 0 24 24" width="32" height="32" fill="none"><path d="M3 12h18M12 3v18" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="color:var(--primary)"/></svg></div>
             <div>
               <div class="ptitle">${p.name}</div>
-              <div class="psub">${p.category} · ${p.unit}</div>
-              <div class="muted mt8">${r ? `Effective ${dateShort(r.effectiveDate)}` : "No range set yet"}</div>
+              <div class="psub">${t(`cat.${p.category}`, p.category)} · ${p.unit}</div>
+              <div class="muted mt8">${r ? t("mc.effective", { date: dateShort(r.effectiveDate) }) : t("mc.no_range")}</div>
             </div>
             <div class="pricebox">
               <div class="now">${r ? `${etb(r.minPrice)} – ${etb(r.maxPrice)}` : "—"}</div>
-              <button class="addbtn" data-edit="${p.id}">${r ? "Update" : "Set"}</button>
+              <button class="addbtn" data-edit="${p.id}">${r ? t("mc.update") : t("mc.set")}</button>
             </div>
           </div>
         `;
@@ -191,11 +191,11 @@ async function drawPriceRanges() {
 function openSetRange(productId, ranges, products) {
   const product = products.find(p => p.id === productId);
   const range = ranges.find(r => r.productId === productId);
-  openModal(`Set price range · ${product.name}`, `
-    ${formField({ label: "Minimum price (ETB)", name: "min", type: "number", value: range?.minPrice || 0 })}
-    ${formField({ label: "Maximum price (ETB)", name: "max", type: "number", value: range?.maxPrice || 0 })}
-    <div class="muted mt8" style="font-size:12px;">New range takes effect immediately. Existing inventory exceeding the band will be flagged for owner attention.</div>
-    <div class="btnrow"><button class="primary" id="rngSave">Save</button><button class="ghost" id="rngCancel">Cancel</button></div>
+  openModal(t("mc.set_modal", { name: product.name }), `
+    ${formField({ label: t("mc.min_price"), name: "min", type: "number", value: range?.minPrice || 0 })}
+    ${formField({ label: t("mc.max_price"), name: "max", type: "number", value: range?.maxPrice || 0 })}
+    <div class="muted mt8" style="font-size:12px;">${t("mc.set_note")}</div>
+    <div class="btnrow"><button class="primary" id="rngSave">${t("save")}</button><button class="ghost" id="rngCancel">${t("cancel")}</button></div>
   `);
   document.getElementById("rngCancel").onclick = () => closeModal();
   document.getElementById("rngSave").onclick = async () => {
@@ -203,7 +203,7 @@ function openSetRange(productId, ranges, products) {
     const max = Number(document.querySelector("#modalBody [name=max]").value);
     try {
       await PriceRanges.set({ productId, minPrice: min, maxPrice: max });
-      toast("Price range updated", "success");
+      toast(t("mc.range_updated"), "success");
       closeModal();
       drawPriceRanges();
     } catch (e) { toast(e.message, "danger"); }
@@ -213,29 +213,29 @@ function openSetRange(productId, ranges, products) {
 async function drawEscalations() {
   const cases = await Complaints.list({ mainOnly: true });
   const el = document.getElementById("escList");
-  if (!cases.length) { el.innerHTML = `<div class="empty">No escalated cases.</div>`; return; }
+  if (!cases.length) { el.innerHTML = `<div class="empty">${t("mc.no_escalations")}</div>`; return; }
   el.innerHTML = cases.map(c => `
     <div class="case">
       <div class="row">
         <div>
           <div class="title">${c.id.slice(-6).toUpperCase()} · ${c.type}</div>
-          <div class="meta">From: <b>${c.fromName}</b> · Shop: <b>${c.shopName}</b> · ${statusBadge(c.status)}</div>
+          <div class="meta">${t("br.from")}: <b>${c.fromName}</b> · ${t("br.shop_label")}: <b>${c.shopName}</b> · ${statusBadge(c.status)}</div>
         </div>
       </div>
       <div class="muted mt8">${c.detail}</div>
       <div class="actions">
-        <button class="addbtn" data-decide="${c.id}" data-decision="approved">Approve refund</button>
-        <button class="ghost" data-decide="${c.id}" data-decision="rejected">Reject</button>
-        <button class="ghost" data-decide="${c.id}" data-decision="resolved">Mark resolved</button>
+        <button class="addbtn" data-decide="${c.id}" data-decision="approved">${t("br.approve_refund")}</button>
+        <button class="ghost" data-decide="${c.id}" data-decision="rejected">${t("br.reject")}</button>
+        <button class="ghost" data-decide="${c.id}" data-decision="resolved">${t("mc.mark_resolved")}</button>
       </div>
     </div>
   `).join("");
 
   el.querySelectorAll("[data-decide]").forEach(b => b.addEventListener("click", async () => {
-    const note = prompt("Final decision note:") || "";
+    const note = prompt(t("mc.final_note")) || "";
     try {
       await Complaints.decide(b.dataset.decide, b.dataset.decision, note);
-      toast(`Case ${b.dataset.decision}`, "success");
+      toast(t("br.case_updated", { decision: t(`status.${b.dataset.decision}`, b.dataset.decision) }), "success");
       drawEscalations();
     } catch (e) { toast(e.message, "danger"); }
   }));
@@ -244,8 +244,8 @@ async function drawEscalations() {
 // ------------------ AUDIT LOG (shared modal) ------------------
 async function openAuditLog() {
   const rows = await Audit.list({ limit: 100 });
-  openModal("Audit log (last 100 events)", `
-    <div class="muted">Append-only log of governance and lifecycle events.</div>
+  openModal(t("audit.title"), `
+    <div class="muted">${t("audit.subtitle")}</div>
     <div class="mt12" style="display:grid;gap:6px;">
       ${rows.map(r => `
         <div class="comment" style="background:var(--surface);">
@@ -260,7 +260,7 @@ async function openAuditLog() {
             ? `<div class="muted mt8" style="font-size:12px;font-family:ui-monospace,monospace;">${escapeHtml(JSON.stringify(r.details))}</div>`
             : ""}
         </div>
-      `).join("") || `<div class="empty">No events yet.</div>`}
+      `).join("") || `<div class="empty">${t("audit.empty")}</div>`}
     </div>
   `);
 }

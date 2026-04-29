@@ -6,7 +6,7 @@ import { DB } from "./db.js";
 import { runSeed } from "./seed.js";
 import { Auth } from "./auth.js";
 import { state } from "./state.js";
-import { start, go } from "./router.js";
+import { start, go, route } from "./router.js";
 import { defaultRouteFor } from "./views/customer.js";
 import { cartCount } from "./views/customer.js";
 import { ROLE_LABELS, t, getLang, setLang, applyTheme, openThemePicker } from "./views/shared.js";
@@ -128,6 +128,8 @@ function applyLang() {
     setLabel();
     wireTopbar();
     wireBottomNav();
+    // Re-render the current view so all translated strings update at once.
+    route();
   };
 }
 

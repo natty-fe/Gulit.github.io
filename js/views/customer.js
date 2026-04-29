@@ -7,6 +7,7 @@ import { state } from "../state.js";
 import {
   toast, openModal, closeModal, etb, dateShort, statusBadge,
   iconSvg, avatarSvg, stars, formField, openThemePicker, getTheme, THEMES,
+  t, catLabel,
 } from "./shared.js";
 import { SUB_CITIES, CATEGORIES } from "../seed.js";
 
@@ -19,21 +20,21 @@ export async function renderAuth() {
     <section class="page authwrap">
       <div class="authcard">
         <div class="authhero">
-          <h2>Welcome to GULIT</h2>
-          <p>The digital gulit market: regulated prices, trusted shops, and traceable deliveries.</p>
+          <h2>${t("auth.welcome")}</h2>
+          <p>${t("auth.subtitle")}</p>
         </div>
         <div class="authbody">
           <div class="tabs">
-            <div class="tab active" data-tab="login">Sign in</div>
-            <div class="tab" data-tab="signup">Create account</div>
+            <div class="tab active" data-tab="login">${t("auth.tab_signin")}</div>
+            <div class="tab" data-tab="signup">${t("auth.tab_signup")}</div>
           </div>
           <div id="authForm"></div>
 
           <hr/>
           <div class="muted" style="font-size:12px;">
-            Demo logins (password <b>demo1234</b>):<br/>
-            <b>customer</b> hana@example.com · <b>owner</b> abebe@example.com · <b>delivery</b> yonas@example.com<br/>
-            <b>branch</b> branch@example.com · <b>main</b> main@example.com
+            ${t("auth.demo_logins")}<br/>
+            <b>${t("role.customer")}</b> hana@example.com · <b>${t("role.owner")}</b> abebe@example.com · <b>${t("role.delivery")}</b> yonas@example.com<br/>
+            <b>${t("role.branch")}</b> branch@example.com · <b>${t("role.main")}</b> main@example.com
           </div>
         </div>
       </div>
@@ -50,32 +51,30 @@ function drawAuthForm(mode) {
   const wrap = document.getElementById("authForm");
   if (mode === "login") {
     wrap.innerHTML = `
-      ${formField({ label: "Email or phone", name: "identifier", required: true, value: "hana@example.com" })}
-      ${formField({ label: "Password", name: "password", type: "password", required: true, value: "demo1234" })}
+      ${formField({ label: t("auth.identifier"), name: "identifier", required: true, value: "hana@example.com" })}
+      ${formField({ label: t("auth.password"), name: "password", type: "password", required: true, value: "demo1234" })}
       <div class="btnrow">
-        <button class="primary" id="loginBtn">Sign in</button>
+        <button class="primary" id="loginBtn">${t("auth.signin_btn")}</button>
       </div>
     `;
     document.getElementById("loginBtn").addEventListener("click", onLogin);
   } else {
     wrap.innerHTML = `
-      ${formField({ label: "Full name", name: "name", required: true, placeholder: "e.g., Hana Tesfaye" })}
-      ${formField({ label: "Email", name: "email", placeholder: "you@example.com" })}
-      ${formField({ label: "Phone", name: "phone", placeholder: "+251 9xx xxx xxx" })}
-      ${formField({ label: "Password", name: "password", type: "password", required: true })}
-      ${formField({ label: "Role", name: "role", type: "select", value: "customer", options: [
-        { value: "customer", label: "Customer" },
-        { value: "owner", label: "Shop Owner" },
-        { value: "delivery", label: "Delivery" },
+      ${formField({ label: t("auth.fullname"), name: "name", required: true, placeholder: t("auth.fullname_ph") })}
+      ${formField({ label: t("auth.email"), name: "email", placeholder: t("auth.email_ph") })}
+      ${formField({ label: t("auth.phone"), name: "phone", placeholder: t("auth.phone_ph") })}
+      ${formField({ label: t("auth.password"), name: "password", type: "password", required: true })}
+      ${formField({ label: t("auth.role"), name: "role", type: "select", value: "customer", options: [
+        { value: "customer", label: t("role.customer") },
+        { value: "owner", label: t("role.owner") },
+        { value: "delivery", label: t("role.delivery") },
       ]})}
-      ${formField({ label: "Sub-city", name: "subCity", type: "select", value: "Bole",
+      ${formField({ label: t("auth.subcity"), name: "subCity", type: "select", value: "Bole",
         options: SUB_CITIES.map(s => ({ value: s, label: s })) })}
       <div class="btnrow">
-        <button class="primary" id="signupBtn">Create account</button>
+        <button class="primary" id="signupBtn">${t("auth.signup_btn")}</button>
       </div>
-      <div class="muted mt8" style="font-size:12px;">
-        Branch and Main Committee accounts are provisioned by administrators.
-      </div>
+      <div class="muted mt8" style="font-size:12px;">${t("auth.committee_note")}</div>
     `;
     document.getElementById("signupBtn").addEventListener("click", onSignup);
   }
@@ -84,11 +83,11 @@ function drawAuthForm(mode) {
 async function onLogin() {
   const identifier = document.querySelector("#authForm [name=identifier]").value.trim();
   const password = document.querySelector("#authForm [name=password]").value;
-  if (!identifier || !password) { toast("Enter your credentials", "danger"); return; }
+  if (!identifier || !password) { toast(t("auth.enter_creds"), "danger"); return; }
   try {
     const { user } = await Auth.login({ identifier, password });
     state.setUser(user);
-    toast(`Welcome, ${user.name}`, "success");
+    toast(t("auth.welcome_user", { name: user.name }), "success");
     location.hash = defaultRouteFor(user.role);
   } catch (e) {
     toast(e.message, "danger");
@@ -103,7 +102,7 @@ async function onSignup() {
       password: f("password"), role: f("role"), subCity: f("subCity"),
     });
     state.setUser(user);
-    toast(`Account created · welcome, ${user.name}`, "success");
+    toast(t("auth.account_created", { name: user.name }), "success");
     location.hash = defaultRouteFor(user.role);
   } catch (e) {
     toast(e.message, "danger");
@@ -135,11 +134,11 @@ export async function renderHome() {
         <div class="card">
           <div class="hd">
             <div>
-              <h2>Browse regulated prices</h2>
-              <div class="muted">Search items, filter categories, add to cart.</div>
+              <h2>${t("home.title")}</h2>
+              <div class="muted">${t("home.subtitle")}</div>
             </div>
             <div class="right">
-              <div class="muted" style="font-weight:900;">Sub-city</div>
+              <div class="muted" style="font-weight:900;">${t("auth.subcity")}</div>
               <select id="subCitySel" style="width:auto; padding: 6px 10px;">
                 ${SUB_CITIES.map(s => `<option value="${s}" ${s === subCity ? "selected" : ""}>${s}</option>`).join("")}
               </select>
@@ -147,23 +146,23 @@ export async function renderHome() {
           </div>
           <div class="bd">
             <div class="searchwrap">
-              <input id="qInput" placeholder="Search vegetables, grains, eggs…" value="${q}"/>
-              <button class="iconbtn" id="qClear" title="Clear">×</button>
+              <input id="qInput" placeholder="${t("home.search_ph")}" value="${q}"/>
+              <button class="iconbtn" id="qClear" title="${t("close")}">×</button>
             </div>
             <div class="chips" id="catChips">
-              ${CATEGORIES.map(c => `<button class="chip ${c === cat ? "active" : ""}" data-cat="${c}">${c}</button>`).join("")}
+              ${CATEGORIES.map(c => `<button class="chip ${c === cat ? "active" : ""}" data-cat="${c}">${catLabel(c)}</button>`).join("")}
             </div>
-            <div class="plist" id="plist"><div class="empty">Loading…</div></div>
+            <div class="plist" id="plist"><div class="empty">${t("loading")}</div></div>
           </div>
         </div>
 
         <div class="card">
           <div class="hd">
             <div>
-              <h2>Shops nearby</h2>
-              <div class="muted">In <b>${subCity}</b> sub-city.</div>
+              <h2>${t("home.shops_nearby")}</h2>
+              <div class="muted">${t("home.shops_in", { city: subCity })}</div>
             </div>
-            <button class="viewbtn" id="allShopsBtn">All</button>
+            <button class="viewbtn" id="allShopsBtn">${t("all")}</button>
           </div>
           <div class="bd">
             <div class="map">
@@ -214,29 +213,29 @@ async function drawProducts() {
   const q = state.get("filterQ") || "";
   const list = document.getElementById("plist");
   if (!list) return;
-  list.innerHTML = `<div class="empty">Loading…</div>`;
+  list.innerHTML = `<div class="empty">${t("loading")}</div>`;
 
   const rows = await Inventory.listingsForBrowse({ subCity, q, category });
   if (rows.length === 0) {
-    list.innerHTML = `<div class="empty">No products in ${subCity} match your filters.</div>`;
+    list.innerHTML = `<div class="empty">${t("home.no_products", { city: subCity })}</div>`;
     return;
   }
   list.innerHTML = rows.map(r => {
     const oldPrice = r.oldPrice && r.oldPrice > r.price
       ? `<div class="old">${etb(r.oldPrice)}</div>` : "";
-    const range = r.range ? `<div class="range">Range ${etb(r.range.minPrice)}–${etb(r.range.maxPrice)}</div>` : "";
+    const range = r.range ? `<div class="range">${t("home.range", { min: etb(r.range.minPrice), max: etb(r.range.maxPrice) })}</div>` : "";
     return `
       <div class="pitem">
         <div class="pimg">${iconSvg(r.product.icon)}</div>
         <div>
           <div class="ptitle">${r.product.name}</div>
-          <div class="psub">${r.product.category} · Sold by <a data-shop="${r.shop.id}">${r.shop.name}</a></div>
+          <div class="psub">${catLabel(r.product.category)} · ${t("home.sold_by")} <a data-shop="${r.shop.id}">${r.shop.name}</a></div>
           ${range}
         </div>
         <div class="pricebox">
           ${oldPrice}
           <div class="now">${etb(r.price)} / ${r.product.unit}</div>
-          <button class="addbtn" data-add="${r.id}">Add</button>
+          <button class="addbtn" data-add="${r.id}">${t("add")}</button>
         </div>
       </div>
     `;
@@ -252,7 +251,7 @@ async function drawShops() {
   if (!grid) return;
   const shops = await Shops.list({ subCity });
   if (shops.length === 0) {
-    grid.innerHTML = `<div class="empty">No approved shops yet in ${subCity}.</div>`;
+    grid.innerHTML = `<div class="empty">${t("home.no_shops", { city: subCity })}</div>`;
     return;
   }
   grid.innerHTML = shops.map((s, i) => `
@@ -261,9 +260,9 @@ async function drawShops() {
       <div>
         <div style="font-weight:900;">${s.name}</div>
         <div>${stars(s.rating || 0)}</div>
-        <div class="shopmeta">Sub-city: ${s.subCity}</div>
+        <div class="shopmeta">${t("auth.subcity")}: ${s.subCity}</div>
       </div>
-      <button class="viewbtn" data-shop="${s.id}">Profile</button>
+      <button class="viewbtn" data-shop="${s.id}">${t("profile")}</button>
     </div>
   `).join("");
   grid.querySelectorAll("[data-shop]").forEach(b => b.addEventListener("click", () => openShopModal(b.dataset.shop)));
@@ -277,8 +276,8 @@ export async function renderShops() {
     <section class="page">
       <div class="card">
         <div class="hd">
-          <div><h2>Shops in ${subCity}</h2><div class="muted">Tap a shop for profile, sellers, and reviews.</div></div>
-          <button class="viewbtn" data-link="home">Back</button>
+          <div><h2>${t("shops.title", { city: subCity })}</h2><div class="muted">${t("shops.subtitle")}</div></div>
+          <button class="viewbtn" data-link="home">${t("back")}</button>
         </div>
         <div class="shopsgrid" id="shopsAll"></div>
       </div>
@@ -286,16 +285,16 @@ export async function renderShops() {
   `;
   const shops = await Shops.list({ subCity });
   const el = document.getElementById("shopsAll");
-  if (shops.length === 0) { el.innerHTML = `<div class="empty">No approved shops in ${subCity}.</div>`; return; }
+  if (shops.length === 0) { el.innerHTML = `<div class="empty">${t("shops.no_approved", { city: subCity })}</div>`; return; }
   el.innerHTML = shops.map((s, i) => `
     <div class="shopcard">
       <div class="avatar">${avatarSvg(i)}</div>
       <div>
         <div style="font-weight:900;">${s.name}</div>
         <div>${stars(s.rating || 0)}</div>
-        <div class="shopmeta">Sub-city: ${s.subCity}</div>
+        <div class="shopmeta">${t("auth.subcity")}: ${s.subCity}</div>
       </div>
-      <button class="viewbtn" data-shop="${s.id}">Profile</button>
+      <button class="viewbtn" data-shop="${s.id}">${t("profile")}</button>
     </div>
   `).join("");
   el.querySelectorAll("[data-shop]").forEach(b => b.addEventListener("click", () => openShopModal(b.dataset.shop)));
@@ -307,45 +306,45 @@ async function openShopModal(shopId) {
   if (!shop) return;
   const inv = await Inventory.byShop(shopId);
   const sample = inv.slice(0, 6);
-  openModal(`${shop.name} · Profile`, `
+  openModal(`${shop.name} · ${t("profile")}`, `
     <div class="row">
       <div>
         <div style="font-weight:900;font-size:16px;">${shop.name}</div>
-        <div class="muted">Sub-city: <b>${shop.subCity}</b></div>
+        <div class="muted">${t("auth.subcity")}: <b>${shop.subCity}</b></div>
         <div class="mt8">${stars(shop.rating || 0)}</div>
       </div>
       <div>${statusBadge(shop.status)}</div>
     </div>
 
     <hr/>
-    <div style="font-weight:900;">Popular items</div>
-    <div class="muted">Prices respect committee-set ranges.</div>
+    <div style="font-weight:900;">${t("shops.popular_items")}</div>
+    <div class="muted">${t("shops.regulated_note")}</div>
     <div class="mt8" style="display:grid;gap:10px;">
       ${sample.map(i => `
         <div class="pitem">
           <div class="pimg">${iconSvg(i.product?.icon || "grain")}</div>
           <div>
-            <div class="ptitle">${i.product?.name || "Item"}</div>
-            <div class="psub">${i.product?.category || ""} · ${etb(i.price)} / ${i.product?.unit || "kg"}</div>
+            <div class="ptitle">${i.product?.name || ""}</div>
+            <div class="psub">${catLabel(i.product?.category || "All")} · ${etb(i.price)} / ${i.product?.unit || "kg"}</div>
           </div>
           <div class="pricebox">
-            <button class="addbtn" data-add="${i.id}">Add</button>
+            <button class="addbtn" data-add="${i.id}">${t("add")}</button>
           </div>
         </div>
-      `).join("") || `<div class="muted">No items listed yet.</div>`}
+      `).join("") || `<div class="muted">${t("shops.no_listed")}</div>`}
     </div>
 
     <hr/>
     <div class="row">
-      <div><div style="font-weight:900;">Reviews</div><div class="muted">Customers can leave feedback after delivery.</div></div>
-      <button class="viewbtn" id="addReview">Add review</button>
+      <div><div style="font-weight:900;">${t("shops.reviews")}</div><div class="muted">${t("shops.feedback_note")}</div></div>
+      <button class="viewbtn" id="addReview">${t("shops.add_review")}</button>
     </div>
     ${(shop.reviews || []).map(r => `
       <div class="comment">
         <div style="font-weight:900;">${r.by} <span class="muted">· ${"★".repeat(r.stars || 5)}</span></div>
         <div class="muted" style="margin-top:4px;">${r.text}</div>
       </div>
-    `).join("") || `<div class="muted mt8">No reviews yet.</div>`}
+    `).join("") || `<div class="muted mt8">${t("shops.no_reviews")}</div>`}
   `);
 
   document.querySelectorAll("#modalBody [data-add]").forEach(b => b.addEventListener("click", () => {
@@ -353,19 +352,19 @@ async function openShopModal(shopId) {
   }));
 
   document.getElementById("addReview")?.addEventListener("click", () => {
-    openModal("Add review", `
-      ${formField({ label: "Stars (1–5)", name: "stars", type: "number", value: "5" })}
-      ${formField({ label: "Your comment", name: "text", type: "textarea", placeholder: "Share your experience…" })}
-      <div class="btnrow"><button class="primary" id="reviewSubmit">Submit</button><button class="ghost" id="reviewCancel">Cancel</button></div>
+    openModal(t("shops.review_title"), `
+      ${formField({ label: t("shops.review_stars"), name: "stars", type: "number", value: "5" })}
+      ${formField({ label: t("shops.review_text"), name: "text", type: "textarea", placeholder: t("shops.review_text_ph") })}
+      <div class="btnrow"><button class="primary" id="reviewSubmit">${t("submit")}</button><button class="ghost" id="reviewCancel">${t("cancel")}</button></div>
     `);
     document.getElementById("reviewCancel").onclick = () => closeModal();
     document.getElementById("reviewSubmit").onclick = async () => {
       const stars = Number(document.querySelector("#modalBody [name=stars]").value || 5);
       const text = document.querySelector("#modalBody [name=text]").value.trim();
-      if (!text) { toast("Please write a comment", "danger"); return; }
+      if (!text) { toast(t("shops.write_comment"), "danger"); return; }
       try {
         await Shops.addReview(shopId, { text, stars });
-        toast("Review posted", "success");
+        toast(t("shops.review_posted"), "success");
         openShopModal(shopId);
       } catch (e) { toast(e.message, "danger"); }
     };
@@ -380,7 +379,7 @@ export function addToCart(inventoryId) {
   const cart = { ...getCart() };
   cart[inventoryId] = (cart[inventoryId] || 0) + 1;
   setCart(cart);
-  toast("Added to cart", "success");
+  toast(t("home.added"), "success");
 }
 export function decFromCart(inventoryId) {
   const cart = { ...getCart() };
@@ -396,17 +395,17 @@ export function cartCount() {
 export async function renderCart() {
   const v = view();
   v.innerHTML = `<section class="page"><div class="card">
-    <div class="hd"><div><h2>Cart</h2><div class="muted">Review items, then checkout.</div></div>
-      <button class="viewbtn" data-link="home">Back</button>
+    <div class="hd"><div><h2>${t("cart.title")}</h2><div class="muted">${t("cart.subtitle")}</div></div>
+      <button class="viewbtn" data-link="home">${t("back")}</button>
     </div>
-    <div class="bd" id="cartBody">Loading…</div>
+    <div class="bd" id="cartBody">${t("loading")}</div>
   </div></section>`;
 
   const cart = getCart();
   const ids = Object.keys(cart);
   if (ids.length === 0) {
     document.getElementById("cartBody").innerHTML =
-      `<div class="empty">Cart is empty. <a data-link="home">Browse items</a>.</div>`;
+      `<div class="empty">${t("cart.empty")} <a data-link="home">${t("cart.empty_browse")}</a>.</div>`;
     return;
   }
 
@@ -422,8 +421,8 @@ export async function renderCart() {
         <div class="pitem">
           <div class="pimg">${iconSvg(inv.product?.icon || "grain")}</div>
           <div>
-            <div class="ptitle">${inv.product?.name || "Item"}</div>
-            <div class="psub">${etb(inv.price)} / ${inv.product?.unit} · Shop: ${inv.shop?.name || ""}</div>
+            <div class="ptitle">${inv.product?.name || ""}</div>
+            <div class="psub">${etb(inv.price)} / ${inv.product?.unit} · ${t("br.shop_label")}: ${inv.shop?.name || ""}</div>
           </div>
           <div class="pricebox">
             <div style="font-weight:900;">x ${qty}</div>
@@ -438,10 +437,10 @@ export async function renderCart() {
     </div>
     <hr/>
     <div class="row">
-      <div><div style="font-weight:900;">Total</div><div class="muted">Delivery fees added at checkout.</div></div>
+      <div><div style="font-weight:900;">${t("total")}</div><div class="muted">${t("cart.delivery_note")}</div></div>
       <div style="font-weight:900;color:var(--primary);font-size:18px;">${etb(total)}</div>
     </div>
-    <div class="mt12"><button class="primary w100" id="checkout">Proceed to checkout</button></div>
+    <div class="mt12"><button class="primary w100" id="checkout">${t("cart.proceed")}</button></div>
   `;
 
   document.querySelectorAll("[data-inc]").forEach(b => b.addEventListener("click", () => { addToCart(b.dataset.inc); renderCart(); }));
@@ -457,15 +456,15 @@ async function fetchInventoryWithProduct(invId) {
 export async function renderCheckout() {
   const v = view();
   v.innerHTML = `<section class="page"><div class="card">
-    <div class="hd"><div><h2>Checkout</h2><div class="muted">Choose payment option and confirm.</div></div>
-      <button class="viewbtn" data-link="cart">Back</button>
+    <div class="hd"><div><h2>${t("checkout.title")}</h2><div class="muted">${t("checkout.subtitle")}</div></div>
+      <button class="viewbtn" data-link="cart">${t("back")}</button>
     </div>
-    <div class="bd" id="checkoutBody">Loading…</div>
+    <div class="bd" id="checkoutBody">${t("loading")}</div>
   </div></section>`;
 
   const cart = getCart();
   const ids = Object.keys(cart);
-  if (ids.length === 0) { document.getElementById("checkoutBody").innerHTML = `<div class="empty">Cart is empty.</div>`; return; }
+  if (ids.length === 0) { document.getElementById("checkoutBody").innerHTML = `<div class="empty">${t("cart.empty")}</div>`; return; }
   const items = [];
   for (const id of ids) {
     const inv = await fetchInventoryWithProduct(id);
@@ -474,22 +473,20 @@ export async function renderCheckout() {
   const total = items.reduce((a, x) => a + x.qty * x.inv.price, 0);
 
   document.getElementById("checkoutBody").innerHTML = `
-    <div style="font-weight:900;">Order summary</div>
-    <div class="muted">${items.length} item line(s) · Total <b>${etb(total)}</b></div>
+    <div style="font-weight:900;">${t("checkout.summary")}</div>
+    <div class="muted">${t("checkout.lines_total", { lines: items.length, total: etb(total) })}</div>
 
     <hr/>
-    <div class="fieldlabel">Delivery address (sub-city)</div>
+    <div class="fieldlabel">${t("checkout.address")}</div>
     <select id="deliverySubCity">
       ${SUB_CITIES.map(s => `<option ${s === state.user?.subCity ? "selected" : ""}>${s}</option>`).join("")}
     </select>
 
     <div class="btnrow">
-      <button class="primary" id="payNow">Pay now</button>
-      <button class="ghost" id="payCod">Pay on delivery</button>
+      <button class="primary" id="payNow">${t("checkout.pay_now")}</button>
+      <button class="ghost" id="payCod">${t("checkout.pay_cod")}</button>
     </div>
-    <div class="muted mt12" style="font-size:12px;">
-      Pay-now uses a third-party gateway (mocked in this prototype). Refunds are issued via the same gateway when committee approves.
-    </div>
+    <div class="muted mt12" style="font-size:12px;">${t("checkout.note")}</div>
   `;
 
   document.getElementById("payNow").onclick = () => placeOrder("prepay");
@@ -500,10 +497,11 @@ async function placeOrder(paymentType) {
   const subCity = document.getElementById("deliverySubCity").value;
   const cart = getCart();
   const items = Object.entries(cart).map(([id, qty]) => ({ inventoryId: id, qty }));
+  if (items.length === 0) { toast(t("cart.empty_toast"), "danger"); return; }
   try {
     const orders = await Orders.create({ items, paymentType, customerSubCity: subCity });
     setCart({});
-    toast(`Order placed · ${orders.length} shop(s)`, "success");
+    toast(t("checkout.placed", { n: orders.length }), "success");
     location.hash = "#/track";
   } catch (e) {
     toast(e.message, "danger");
@@ -516,32 +514,32 @@ export async function renderTracking() {
   if (!u) { location.hash = "#/auth"; return; }
   const v = view();
   v.innerHTML = `<section class="page"><div class="card">
-    <div class="hd"><div><h2>Order tracking</h2><div class="muted">Latest orders and live status.</div></div>
-      <button class="viewbtn" data-link="home">Home</button>
+    <div class="hd"><div><h2>${t("track.title")}</h2><div class="muted">${t("track.subtitle")}</div></div>
+      <button class="viewbtn" data-link="home">${t("track.home")}</button>
     </div>
-    <div class="bd" id="trackBody">Loading…</div>
+    <div class="bd" id="trackBody">${t("loading")}</div>
   </div></section>`;
 
   const orders = await Orders.list({ customerId: u.id });
   if (orders.length === 0) {
-    document.getElementById("trackBody").innerHTML = `<div class="empty">No orders yet. <a data-link="home">Start browsing</a>.</div>`;
+    document.getElementById("trackBody").innerHTML = `<div class="empty">${t("track.no_orders")} <a data-link="home">${t("track.start_browsing")}</a>.</div>`;
     return;
   }
   document.getElementById("trackBody").innerHTML = orders.map(o => `
     <div class="deliverycard mt12">
       <div class="row">
         <div>
-          <div style="font-weight:900;">Order ${o.id.slice(-6).toUpperCase()}</div>
-          <div class="muted">Placed ${dateShort(o.createdAt)} · Payment <b>${o.paymentType === "prepay" ? "Pay now" : "Cash on delivery"}</b></div>
+          <div style="font-weight:900;">${t("track.order_label")} ${o.id.slice(-6).toUpperCase()}</div>
+          <div class="muted">${t("track.placed", { date: dateShort(o.createdAt) })} · ${t("track.payment")} <b>${o.paymentType === "prepay" ? t("track.pay_now_label") : t("track.pay_cod_label")}</b></div>
         </div>
         <div>${statusBadge(o.status)}</div>
       </div>
-      <div class="muted mt8">${o.items.length} item(s) · Total <b>${etb(o.total)}</b></div>
+      <div class="muted mt8">${t("items_count", { n: o.items.length })} · ${t("total")} <b>${etb(o.total)}</b></div>
       <div class="progress"><div class="bar" style="width:${progressPct(o.status)}%"></div></div>
       <div class="flex mt12" style="flex-wrap:wrap;gap:6px;">
-        <button class="viewbtn" data-detail="${o.id}">Details</button>
+        <button class="viewbtn" data-detail="${o.id}">${t("details")}</button>
         ${o.status !== "completed" && o.status !== "cancelled" && o.status !== "refunded" ?
-          `<button class="ghost" data-complain="${o.id}">Submit complaint</button>` : ""}
+          `<button class="ghost" data-complain="${o.id}">${t("track.complain")}</button>` : ""}
       </div>
     </div>
   `).join("");
@@ -561,9 +559,9 @@ async function openOrderDetail(orderId) {
   // Look up delivery (if assigned) so we can show the OTP and courier info.
   const delivery = o.deliveryId ? await Deliveries.byId(o.deliveryId) : null;
 
-  openModal(`Order ${o.id.slice(-6).toUpperCase()}`, `
+  openModal(`${t("track.order_label")} ${o.id.slice(-6).toUpperCase()}`, `
     <div class="row">
-      <div><div style="font-weight:900;">${o.items.length} item(s)</div><div class="muted">Placed ${dateShort(o.createdAt)}</div></div>
+      <div><div style="font-weight:900;">${t("items_count", { n: o.items.length })}</div><div class="muted">${t("track.placed", { date: dateShort(o.createdAt) })}</div></div>
       <div>${statusBadge(o.status)}</div>
     </div>
     <hr/>
@@ -571,42 +569,42 @@ async function openOrderDetail(orderId) {
       <div class="row mt8"><div class="muted"><b>${i.name}</b> × ${i.qty}</div><div style="font-weight:900;">${etb(i.lineTotal)}</div></div>
     `).join("")}
     <hr/>
-    <div class="row"><div style="font-weight:900;">Total</div><div style="font-weight:900;color:var(--primary);">${etb(o.total)}</div></div>
-    <div class="muted mt8">Payment: <b>${o.paymentType === "prepay" ? "Pay now" : "Cash on delivery"}</b></div>
+    <div class="row"><div style="font-weight:900;">${t("total")}</div><div style="font-weight:900;color:var(--primary);">${etb(o.total)}</div></div>
+    <div class="muted mt8">${t("track.payment")}: <b>${o.paymentType === "prepay" ? t("track.pay_now_label") : t("track.pay_cod_label")}</b></div>
     ${delivery ? `
       <hr/>
-      <div style="font-weight:900;">Delivery</div>
-      <div class="muted mt8">Status: ${statusBadge(delivery.status)} · ETA ${delivery.eta || "—"}</div>
+      <div style="font-weight:900;">${t("track.delivery")}</div>
+      <div class="muted mt8">${statusBadge(delivery.status)} · ${t("track.eta")} ${delivery.eta || "—"}</div>
       ${delivery.status !== "delivered" ? `
         <div class="mt12" style="padding:12px;background:var(--primary-tint);border:1px solid var(--primary-ring);border-radius:14px;text-align:center;">
-          <div class="muted" style="font-size:12px;">Share this OTP with the courier on arrival</div>
+          <div class="muted" style="font-size:12px;">${t("track.share_otp")}</div>
           <div style="font-size:28px;font-weight:900;letter-spacing:.4em;color:var(--primary);">${delivery.otp}</div>
         </div>
-      ` : `<div class="muted mt8">Confirmed at ${dateShort(delivery.confirmedAt)}.</div>`}
+      ` : `<div class="muted mt8">${t("track.confirmed_at", { date: dateShort(delivery.confirmedAt) })}</div>`}
     ` : ""}
   `);
 }
 
 function openComplaintForm(orderId) {
-  openModal("Submit complaint", `
-    ${formField({ label: "Complaint type", name: "type", type: "select", options: [
-      { value: "Missing item", label: "Missing item" },
-      { value: "Late delivery", label: "Late delivery" },
-      { value: "Wrong item", label: "Wrong item" },
-      { value: "Refund request", label: "Refund request" },
-      { value: "Other", label: "Other" },
+  openModal(t("cmp.modal_title"), `
+    ${formField({ label: t("cmp.type"), name: "type", type: "select", options: [
+      { value: "Missing item", label: t("cmp.type.missing") },
+      { value: "Late delivery", label: t("cmp.type.late") },
+      { value: "Wrong item", label: t("cmp.type.wrong") },
+      { value: "Refund request", label: t("cmp.type.refund") },
+      { value: "Other", label: t("cmp.type.other") },
     ]})}
-    ${formField({ label: "Details", name: "detail", type: "textarea", placeholder: "Explain what happened…", required: true })}
-    <div class="btnrow"><button class="primary" id="cmpSubmit">Submit</button><button class="ghost" id="cmpCancel">Cancel</button></div>
+    ${formField({ label: t("cmp.detail"), name: "detail", type: "textarea", placeholder: t("cmp.detail_ph"), required: true })}
+    <div class="btnrow"><button class="primary" id="cmpSubmit">${t("cmp.submit")}</button><button class="ghost" id="cmpCancel">${t("cancel")}</button></div>
   `);
   document.getElementById("cmpCancel").onclick = () => closeModal();
   document.getElementById("cmpSubmit").onclick = async () => {
     const type = document.querySelector("#modalBody [name=type]").value;
     const detail = document.querySelector("#modalBody [name=detail]").value.trim();
-    if (!detail) { toast("Please describe the issue", "danger"); return; }
+    if (!detail) { toast(t("cmp.describe"), "danger"); return; }
     try {
       await Complaints.create({ orderId, type, detail });
-      toast("Complaint submitted to branch committee", "success");
+      toast(t("cmp.sent"), "success");
       closeModal(); renderTracking();
     } catch (e) { toast(e.message, "danger"); }
   };
@@ -617,52 +615,52 @@ export async function renderAccount() {
   const u = state.user;
   if (!u) { location.hash = "#/auth"; return; }
   const v = view();
+  const curTheme = THEMES.find(th => th.id === getTheme());
+
   v.innerHTML = `<section class="page"><div class="card">
     <div class="hd">
-      <div><h2>Account</h2><div class="muted">Profile and demo controls.</div></div>
-      <button class="danger" id="logoutBtn">Sign out</button>
+      <div><h2>${t("acc.title")}</h2><div class="muted">${t("acc.subtitle")}</div></div>
+      <button class="danger" id="logoutBtn">${t("acc.signout")}</button>
     </div>
     <div class="bd">
       <div class="row">
         <div>
           <div style="font-weight:900;">${u.name}</div>
-          <div class="muted">Role: <b>${u.role}</b> · Sub-city: <b>${u.subCity || "—"}</b></div>
-          <div class="muted">Email: ${u.email || "—"} · Phone: ${u.phone || "—"}</div>
+          <div class="muted">${t("acc.role")}: <b>${t(`role.${u.role}`)}</b> · ${t("acc.subcity")}: <b>${u.subCity || "—"}</b></div>
+          <div class="muted">${t("acc.email")}: ${u.email || "—"} · ${t("acc.phone")}: ${u.phone || "—"}</div>
         </div>
       </div>
       <hr/>
-      <div style="font-weight:900;">Preferences</div>
+      <div style="font-weight:900;">${t("preferences")}</div>
       <div class="row mt8">
         <div>
-          <div class="muted" style="font-size:13px;">Theme</div>
-          <div style="font-weight:800;">${THEMES.find(t => t.id === getTheme())?.name || "Sunset Market"}</div>
+          <div class="muted" style="font-size:13px;">${t("acc.theme")}</div>
+          <div style="font-weight:800;">${curTheme?.name || ""}</div>
         </div>
-        <button class="viewbtn" id="themePickBtn">Change theme</button>
+        <button class="viewbtn" id="themePickBtn">${t("acc.change_theme")}</button>
       </div>
 
       <hr/>
-      <div class="muted">Demo controls</div>
+      <div class="muted">${t("acc.demo")}</div>
       <div class="btnrow">
-        <button class="ghost" id="resetBtn">Reset demo data</button>
+        <button class="ghost" id="resetBtn">${t("acc.reset")}</button>
       </div>
-      <div class="muted mt8" style="font-size:12px;">
-        Resetting wipes local data and reloads the seed (products, shops, demo accounts, regulated price ranges).
-      </div>
+      <div class="muted mt8" style="font-size:12px;">${t("acc.reset_note")}</div>
     </div>
   </div></section>`;
 
   document.getElementById("themePickBtn").addEventListener("click", () => openThemePicker());
 
   document.getElementById("logoutBtn").addEventListener("click", () => {
-    Auth.logout(); state.setUser(null); toast("Signed out"); location.hash = "#/auth";
+    Auth.logout(); state.setUser(null); toast(t("acc.signed_out")); location.hash = "#/auth";
   });
   document.getElementById("resetBtn").addEventListener("click", async () => {
-    if (!confirm("Reset all local demo data? This signs you out.")) return;
+    if (!confirm(t("acc.reset_confirm"))) return;
     const { runSeed } = await import("../seed.js");
     Auth.logout();
     state.setUser(null);
     await runSeed({ force: true });
-    toast("Demo data reset", "success");
+    toast(t("acc.reset_done"), "success");
     location.hash = "#/auth";
   });
 }

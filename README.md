@@ -22,8 +22,8 @@ The architecture mirrors a real backend: a `db.js` table layer underneath an `ap
 - **RBAC** — every API method enforces role checks (`Auth.require([...])`).
 - **Price-range enforcement** — listing and ordering reject prices outside the regulated band.
 - **Audit log** — append-only events for registration, login, shop status, price changes, order/delivery status, complaint decisions, refunds.
-- **Bilingual** — EN / አማርኛ toggle in the topbar.
-- **7 themes** — Sunset Market, Saffron Spice, Berry Bloom, Coral Reef, Teal Tide, Forest, and Midnight (dark). Tap the 🎨 in the topbar; selection persists across sessions.
+- **Bilingual** — EN / አማርኛ toggle in the topbar; flips every UI string (auth, browse, cart, checkout, tracking, owner, delivery, committee, status badges, role labels) and re-renders the current view.
+- **7 themes** — botanical/garden palette: Garden Cream (default), Terracotta Earth, Sage Garden, Dusty Rose, Mustard Field, Plum Bloom, plus a warm Midnight dark mode. Tap the palette icon in the topbar; selection persists across sessions.
 - **Mobile-first** — responsive layout, role-aware bottom navigation.
 
 ---
