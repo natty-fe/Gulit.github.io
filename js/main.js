@@ -99,23 +99,18 @@ function navConfigFor(role) {
       { path: "#/home",  icon: "🏠", label: t("browse") },
       { path: "#/cart",  icon: "🛒", label: t("cart"), badge: cartCount() || null },
       { path: "#/track", icon: "📦", label: t("track") },
-      { path: "#/account", icon: "👤", label: t("account") },
     ],
     owner: [
       { path: "#/owner",   icon: "🏪", label: t("orders") },
-      { path: "#/account", icon: "👤", label: t("account") },
     ],
     delivery: [
       { path: "#/delivery", icon: "🛵", label: t("deliveries") },
-      { path: "#/account",  icon: "👤", label: t("account") },
     ],
     branch: [
       { path: "#/committee", icon: "🧾", label: t("cases") },
-      { path: "#/account",   icon: "👤", label: t("account") },
     ],
     main: [
       { path: "#/main-committee", icon: "📊", label: t("ranges") },
-      { path: "#/account",        icon: "👤", label: t("account") },
     ],
   };
   return items[role] || [];
