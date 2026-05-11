@@ -403,7 +403,12 @@ async function drawProducts() {
     const outOfStock = !(r.qty > 0);
     const buyAction = outOfStock
       ? `<span class="oos-badge">${t("home.out_of_stock")}</span>`
-      : `<button class="addbtn" data-add="${r.id}">${t("add")}</button>`;
+      : `
+        <div class="qty-add">
+          <input type="number" class="qty-input" data-qty="${r.id}" value="1" min="1" max="${r.qty}" />
+          <button class="addbtn" data-add="${r.id}">${t("add")}</button>
+        </div>
+      `;
     return `
       <div class="pitem ${outOfStock ? "is-oos" : ""}">
         <div class="pimg">${iconSvg(r.product.icon)}</div>
@@ -421,7 +426,12 @@ async function drawProducts() {
     `;
   }).join("");
 
-  list.querySelectorAll("[data-add]").forEach(b => b.addEventListener("click", () => addToCart(b.dataset.add)));
+  list.querySelectorAll("[data-add]").forEach(b => b.addEventListener("click", () => {
+    const id = b.dataset.add;
+    const qtyEl = list.querySelector(`[data-qty="${id}"]`);
+    const qty = Math.max(1, Number(qtyEl?.value || 1));
+    addToCart(id, qty);
+  }));
   list.querySelectorAll("[data-shop]").forEach(b => b.addEventListener("click", () => openShopModal(b.dataset.shop)));
 }
 
@@ -510,7 +520,14 @@ async function openShopModal(shopId) {
             <div class="psub">${catLabel(i.product?.category || "All")} · ${etb(i.price)} / ${unitLabel(i.product?.unit || "kg")}</div>
           </div>
           <div class="pricebox">
-            ${oos ? `<span class="oos-badge">${t("home.out_of_stock")}</span>` : `<button class="addbtn" data-add="${i.id}">${t("add")}</button>`}
+            ${oos
+              ? `<span class="oos-badge">${t("home.out_of_stock")}</span>`
+              : `
+                <div class="qty-add">
+                  <input type="number" class="qty-input" data-qty="${i.id}" value="1" min="1" max="${i.qty}" />
+                  <button class="addbtn" data-add="${i.id}">${t("add")}</button>
+                </div>
+              `}
           </div>
         </div>
       `;}).join("") || `<div class="muted">${t("shops.no_listed")}</div>`}
@@ -530,7 +547,10 @@ async function openShopModal(shopId) {
   `);
 
   document.querySelectorAll("#modalBody [data-add]").forEach(b => b.addEventListener("click", () => {
-    addToCart(b.dataset.add);
+    const id = b.dataset.add;
+    const qtyEl = document.querySelector(`#modalBody [data-qty="${id}"]`);
+    const qty = Math.max(1, Number(qtyEl?.value || 1));
+    addToCart(id, qty);
   }));
 
   document.getElementById("addReview")?.addEventListener("click", () => {
@@ -557,9 +577,10 @@ async function openShopModal(shopId) {
 function getCart() { return state.get("cart") || {}; }
 function setCart(c) { state.set("cart", c); state.emit("cart"); }
 
-export function addToCart(inventoryId) {
+export function addToCart(inventoryId, qty = 1) {
+  const n = Math.max(1, Math.floor(Number(qty) || 1));
   const cart = { ...getCart() };
-  cart[inventoryId] = (cart[inventoryId] || 0) + 1;
+  cart[inventoryId] = (cart[inventoryId] || 0) + n;
   setCart(cart);
   toast(t("home.added"), "success");
 }
