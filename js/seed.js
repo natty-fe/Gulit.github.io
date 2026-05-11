@@ -14,18 +14,18 @@ export const SUB_CITIES = [
 export const CATEGORIES = ["All", "Vegetables", "Grains", "Cereals", "Fruits", "Protein", "Spices"];
 
 const PRODUCTS = [
-  { id: "prd_onion",    name: "Onion",        nameAm: "ሽንኩርት",       category: "Vegetables", unit: "kg",    icon: "onion" },
-  { id: "prd_tomato",   name: "Tomato",       nameAm: "ቲማቲም",       category: "Vegetables", unit: "kg",    icon: "tomato" },
-  { id: "prd_potato",   name: "Potato",       nameAm: "ድንች",         category: "Vegetables", unit: "kg",    icon: "potato" },
-  { id: "prd_carrot",   name: "Carrot",       nameAm: "ካሮት",         category: "Vegetables", unit: "kg",    icon: "carrot" },
-  { id: "prd_pepper",   name: "Green Pepper", nameAm: "ቃሪያ",         category: "Vegetables", unit: "kg",    icon: "pepper" },
-  { id: "prd_cabbage",  name: "Cabbage",      nameAm: "ጥቅል ጎመን",     category: "Vegetables", unit: "kg",    icon: "cabbage" },
-  { id: "prd_egg",      name: "Egg (tray)",   nameAm: "እንቁላል (ትሬ)",  category: "Protein",    unit: "tray",  icon: "egg" },
-  { id: "prd_teff",     name: "Teff",         nameAm: "ጤፍ",          category: "Grains",     unit: "kg",    icon: "grain" },
-  { id: "prd_rice",     name: "Rice",         nameAm: "ሩዝ",          category: "Cereals",    unit: "kg",    icon: "grain" },
-  { id: "prd_lentils",  name: "Lentils",      nameAm: "ምስር",         category: "Grains",     unit: "kg",    icon: "grain" },
-  { id: "prd_banana",   name: "Banana",       nameAm: "ሙዝ",          category: "Fruits",     unit: "dozen", icon: "banana" },
-  { id: "prd_berbere",  name: "Berbere",      nameAm: "በርበሬ",        category: "Spices",     unit: "pack",  icon: "spice" },
+  { id: "prd_onion",    name: "Onion",        nameAm: "ሽንኩርት",       category: "Vegetables", unit: "kg",    icon: "onion",   image: "assets/products/onion.webp" },
+  { id: "prd_tomato",   name: "Tomato",       nameAm: "ቲማቲም",       category: "Vegetables", unit: "kg",    icon: "tomato",  image: "assets/products/tomato.webp" },
+  { id: "prd_potato",   name: "Potato",       nameAm: "ድንች",         category: "Vegetables", unit: "kg",    icon: "potato",  image: "assets/products/potato.jpeg" },
+  { id: "prd_carrot",   name: "Carrot",       nameAm: "ካሮት",         category: "Vegetables", unit: "kg",    icon: "carrot",  image: "assets/products/carrot.jpeg" },
+  { id: "prd_pepper",   name: "Green Pepper", nameAm: "ቃሪያ",         category: "Vegetables", unit: "kg",    icon: "pepper",  image: "assets/products/pepper.jpeg" },
+  { id: "prd_cabbage",  name: "Cabbage",      nameAm: "ጥቅል ጎመን",     category: "Vegetables", unit: "kg",    icon: "cabbage", image: "assets/products/cabbage.jpeg" },
+  { id: "prd_egg",      name: "Egg (tray)",   nameAm: "እንቁላል (ትሬ)",  category: "Protein",    unit: "tray",  icon: "egg",     image: "assets/products/egg.jpeg" },
+  { id: "prd_teff",     name: "Teff",         nameAm: "ጤፍ",          category: "Grains",     unit: "kg",    icon: "grain",   image: "assets/products/teff.webp" },
+  { id: "prd_rice",     name: "Rice",         nameAm: "ሩዝ",          category: "Cereals",    unit: "kg",    icon: "grain",   image: "assets/products/rice.jpeg" },
+  { id: "prd_lentils",  name: "Lentils",      nameAm: "ምስር",         category: "Grains",     unit: "kg",    icon: "grain",   image: "assets/products/lentils.webp" },
+  { id: "prd_banana",   name: "Banana",       nameAm: "ሙዝ",          category: "Fruits",     unit: "dozen", icon: "banana",  image: "assets/products/banana.jpeg" },
+  { id: "prd_berbere",  name: "Berbere",      nameAm: "በርበሬ",        category: "Spices",     unit: "pack",  icon: "spice",   image: "assets/products/berbere.jpeg" },
 ];
 
 // Initial regulated price bands (ETB). setBy is null because no main-committee
@@ -92,7 +92,7 @@ export async function runSeed({ force = false } = {}) {
   seedDemoShopsAndInventory({ branchByCity });
 
   DB.setMeta("seeded", true);
-  DB.setMeta("seedVersion", 7);
+  DB.setMeta("seedVersion", 8);
 }
 
 // All demo staff share this password so the demo flow stays simple.
@@ -359,5 +359,17 @@ export async function runMigrations() {
       if (!i.status) DB.update("inventory", i.id, { status: "approved" });
     }
     DB.setMeta("seedVersion", 7);
+  }
+
+  // v7 → v8: products gained an `image` field pointing at real photos under
+  // assets/products/. Backfill the 12 seeded products by id.
+  if (v < 8) {
+    const imageById = Object.fromEntries(PRODUCTS.map((p) => [p.id, p.image]));
+    for (const p of DB.all("products")) {
+      if (p.image) continue;
+      const url = imageById[p.id];
+      if (url) DB.update("products", p.id, { image: url });
+    }
+    DB.setMeta("seedVersion", 8);
   }
 }
