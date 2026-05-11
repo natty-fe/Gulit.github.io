@@ -9,7 +9,7 @@ import { state } from "./state.js";
 import { start, go, route } from "./router.js";
 import { defaultRouteFor } from "./views/customer.js";
 import { cartCount } from "./views/customer.js";
-import { ROLE_LABELS, t, getLang, setLang, applyTheme, openThemePicker } from "./views/shared.js";
+import { ROLE_LABELS, t, getLang, setLang, applyTheme, openThemePicker, userAvatarHtml } from "./views/shared.js";
 
 (async function bootstrap() {
   // Theme must be applied before anything paints to avoid a flash.
@@ -61,6 +61,7 @@ function wireTopbar() {
   const authBtn = document.getElementById("authBtn");
   if (u) {
     pill.hidden = false;
+    pill.querySelector(".userAvatar").innerHTML = userAvatarHtml(u, 32);
     pill.querySelector(".userName").textContent = u.name;
     pill.querySelector(".userRole").textContent = ROLE_LABELS[u.role] || u.role;
     authBtn.textContent = t("acc.account_btn");

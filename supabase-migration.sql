@@ -74,6 +74,12 @@ create trigger profiles_set_updated_at
   for each row execute function public.tg_set_updated_at();
 
 -- ============================================================
+-- 4. AVATAR COLUMN (profile pictures, base64 data URL — small)
+-- Added after the initial migration; safe to re-run thanks to IF NOT EXISTS.
+-- ============================================================
+alter table public.profiles add column if not exists avatar text;
+
+-- ============================================================
 -- Done. Phase 2 (shops/inventory/orders/etc.) is not part of this migration —
 -- those tables stay in localStorage for now.
 -- ============================================================

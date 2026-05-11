@@ -371,6 +371,10 @@ const STR = {
     "acc.current_password": "Current password (required for changes)",
     "acc.workid_readonly": "Work ID",
     "acc.fayda_hint": "Replace with your real Fayda FAN if the auto-generated one isn't yours yet.",
+    "acc.avatar_title": "Profile picture",
+    "acc.avatar_hint": "Upload a square photo. If you don't set one, a generated avatar is shown.",
+    "acc.upload_avatar": "Upload picture",
+    "acc.clear_avatar": "Remove picture",
     "acc.subcity_locked": "Sub-city changes require committee approval — request a change below.",
     "acc.request_location": "Request location change",
     "acc.request_location_subtitle": "Pick a sub-city you want to move to. The committee will review and decide.",
@@ -882,6 +886,10 @@ const STR = {
     "acc.current_password": "የአሁኑ የይለፍ ቃል (ለለውጥ ያስፈልጋል)",
     "acc.workid_readonly": "የሥራ መታወቂያ",
     "acc.fayda_hint": "በራስ-ሰር የተሰጠው የእርስዎ ካልሆነ በትክክለኛው የፋይዳ FAN ይተኩት።",
+    "acc.avatar_title": "የመለያ ምስል",
+    "acc.avatar_hint": "ካሬ ቅርፅ ያለው ፎቶ ይጫኑ። ካልሰጡ በራስ-ሰር የተሰራ ምስል ይታያል።",
+    "acc.upload_avatar": "ምስል ጫን",
+    "acc.clear_avatar": "ምስል አስወግድ",
     "acc.subcity_locked": "የክፍለ ከተማ ለውጥ የኮሚቴ ፈቃድ ይጠይቃል — ከታች ጥያቄ ያቅርቡ።",
     "acc.request_location": "የቦታ ለውጥ ይጠይቁ",
     "acc.request_location_subtitle": "የሚሄዱበትን ክፍለ ከተማ ይምረጡ። ኮሚቴው ይገመግማል።",
@@ -1364,6 +1372,17 @@ export function iconSvg(kind) {
     </svg>`,
   };
   return svgs[kind] || svgs.grain;
+}
+
+// Render a user's avatar: uploaded image if present, else a deterministic
+// SVG avatar seeded by their id / name so it stays visually stable.
+export function userAvatarHtml(user, size = 40) {
+  if (user?.avatar) {
+    return `<img class="user-avatar" src="${user.avatar}" alt="" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;display:block;" />`;
+  }
+  const seedSrc = String(user?.id || user?.name || "u");
+  const seed = seedSrc.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+  return `<span class="user-avatar" style="display:inline-flex;width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;align-items:center;justify-content:center;">${avatarSvg(seed)}</span>`;
 }
 
 export function avatarSvg(seed = 0) {

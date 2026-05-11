@@ -8,7 +8,7 @@ import {
   toast, openModal, closeModal, etb, dateShort, statusBadge,
   iconSvg, avatarSvg, stars, formField, openThemePicker, getTheme, THEMES,
   t, catLabel, productName, unitLabel, shopName, subCityLabel, cityLabel,
-  SUB_CITY_COORDS, ADDIS_CENTER, isDev, productImageHtml,
+  SUB_CITY_COORDS, ADDIS_CENTER, isDev, productImageHtml, userAvatarHtml, imageFileToDataUrl,
 } from "./shared.js";
 import { SUB_CITIES, CATEGORIES } from "../seed.js";
 
@@ -911,8 +911,9 @@ export async function renderAccount() {
       <button class="danger" id="logoutBtn">${t("acc.signout")}</button>
     </div>
     <div class="bd">
-      <div class="row" style="align-items:flex-start;">
-        <div>
+      <div class="row" style="align-items:flex-start;gap:14px;">
+        <div class="account-avatar">${userAvatarHtml(u, 72)}</div>
+        <div style="flex:1;min-width:0;">
           <div style="font-weight:900;font-size:16px;">${u.name}</div>
           <div class="muted">${t("acc.role")}: <b>${t(`role.${u.role}`)}</b> · ${t("acc.subcity")}: <b>${subCityLabel(u.subCity) || "—"}</b></div>
           <div class="muted">${t("acc.email")}: ${u.email || "—"} · ${t("acc.phone")}: ${u.phone || "—"}</div>
@@ -1000,6 +1001,19 @@ async function openProfileEditor() {
         options: SUB_CITIES.map(s => ({ value: s, label: subCityLabel(s) })) });
 
   openModal(t("acc.edit_modal"), `
+    <div class="fieldlabel">${t("acc.avatar_title")}</div>
+    <div class="avatar-picker">
+      <div class="avatar-preview" id="profAvatarPreview">${userAvatarHtml(u, 80)}</div>
+      <div class="avatar-picker-side">
+        <div class="muted" style="font-size:12px;">${t("acc.avatar_hint")}</div>
+        <input type="file" id="profAvatarUpload" accept="image/*" hidden />
+        <div class="btnrow" style="margin:0;">
+          <button type="button" class="viewbtn" id="profAvatarBtn">📷 ${t("acc.upload_avatar")}</button>
+          <button type="button" class="ghost" id="profAvatarClear" ${u.avatar ? "" : "hidden"}>${t("acc.clear_avatar")}</button>
+        </div>
+      </div>
+    </div>
+    <hr/>
     ${formField({ label: t("auth.fullname"), name: "name", value: u.name || "", required: true })}
     ${formField({ label: t("auth.email"), name: "email", value: u.email || "" })}
     <div class="muted" style="font-size:12px;margin-top:6px;">${t("auth.email_accepted_hint", { list: ALLOWED_EMAIL_DOMAINS.join(", ") })}</div>
@@ -1023,6 +1037,34 @@ async function openProfileEditor() {
     </div>
   `);
   document.getElementById("profCancel").onclick = () => closeModal();
+
+  // Avatar picker. avatarValue tracks the current selection — null = use the
+  // SVG fallback. undefined = no change (skip updating the field).
+  let avatarValue = u.avatar ?? null;
+  let avatarChanged = false;
+  const renderAvatarPreview = () => {
+    const wrap = document.getElementById("profAvatarPreview");
+    if (!wrap) return;
+    wrap.innerHTML = userAvatarHtml({ ...u, avatar: avatarValue }, 80);
+    document.getElementById("profAvatarClear").hidden = !avatarValue;
+  };
+  const avInput = document.getElementById("profAvatarUpload");
+  document.getElementById("profAvatarBtn").onclick = () => avInput.click();
+  avInput.addEventListener("change", async () => {
+    const f = avInput.files?.[0];
+    if (!f) return;
+    try {
+      avatarValue = await imageFileToDataUrl(f, { maxSize: 200 });
+      avatarChanged = true;
+      renderAvatarPreview();
+    } catch (e) { toast(e.message, "danger"); }
+    avInput.value = "";
+  });
+  document.getElementById("profAvatarClear").onclick = () => {
+    avatarValue = null;
+    avatarChanged = true;
+    renderAvatarPreview();
+  };
 
   document.getElementById("reqLocBtn")?.addEventListener("click", () => openLocationRequest(u));
 
@@ -1096,6 +1138,7 @@ async function openProfileEditor() {
         currentPassword: f("currentPassword"),
         newPassword: newPw,
         faydaFan: isStaff ? f("faydaFan").trim() : undefined,
+        avatar: avatarChanged ? avatarValue : undefined,
       });
       state.setUser(updated);
       toast(t("acc.profile_saved"), "success");

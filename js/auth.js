@@ -52,6 +52,7 @@ function _profileToAppShape(authUser, p) {
     committeeId: p.committee_id,
     workId: p.work_id,
     faydaFan: p.fayda_fan,
+    avatar: p.avatar || null,
     createdAt: p.created_at,
   };
 }
@@ -97,7 +98,7 @@ export const Auth = {
     return _cachedUser;
   },
 
-  async register({ name, email, phone, password, role, subCity, committeeId, workId, faydaFan }) {
+  async register({ name, email, phone, password, role, subCity, committeeId, workId, faydaFan, avatar = null }) {
     if (!name || !password) throw new Error("Name and password required.");
     if (!role) throw new Error("Role required.");
     if (email && !isAcceptedEmail(email)) {
@@ -143,6 +144,7 @@ export const Auth = {
         id: data.user.id, name, phone: phone || null,
         role, sub_city: subCity || null, committee_id: committeeId || null,
         work_id: normWorkId, fayda_fan: normFan,
+        avatar: avatar || null,
       };
       const { error: pErr } = await sb.from("profiles").insert(profileRow);
       if (pErr) throw new Error("Profile creation failed: " + pErr.message);
@@ -169,6 +171,7 @@ export const Auth = {
       name, email: email || null, phone: phone || null, passwordHash,
       role, subCity: subCity || null, committeeId: committeeId || null,
       workId: normWorkId, faydaFan: normFan,
+      avatar: avatar || null,
     });
     DB.insert("auditLogs", {
       actorId: user.id, action: "REGISTER", entity: "user", entityId: user.id,
@@ -235,7 +238,7 @@ export const Auth = {
     return u;
   },
 
-  async updateProfile({ name, email, phone, subCity, currentPassword, newPassword, faydaFan }) {
+  async updateProfile({ name, email, phone, subCity, currentPassword, newPassword, faydaFan, avatar }) {
     if (isSupabaseEnabled()) {
       const sb = getSupabase();
       const cur = _cachedUser;
@@ -284,6 +287,7 @@ export const Auth = {
 
       const patch = { name: name || cur.name, phone: phone || null, sub_city: nextSubCity || null };
       if (normFan) patch.fayda_fan = normFan;
+      if (avatar !== undefined) patch.avatar = avatar || null;
       const { error: upErr } = await sb.from("profiles").update(patch).eq("id", cur.id);
       if (upErr) throw new Error(upErr.message);
 
@@ -325,6 +329,7 @@ export const Auth = {
 
     const patch = { name: name || fullUser.name, email: email || null, phone: phone || null, subCity: nextSubCity };
     if (wantsPasswordChange) patch.passwordHash = await hashPassword(newPassword);
+    if (avatar !== undefined) patch.avatar = avatar || null;
 
     if (faydaFan !== undefined && fullUser.role !== "customer") {
       const fanDigits = String(faydaFan || "").replace(/\s+/g, "");
