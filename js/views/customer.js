@@ -846,8 +846,8 @@ export async function renderAccount() {
       </div>
     `);
     document.getElementById("signoutNo").onclick = () => closeModal();
-    document.getElementById("signoutYes").onclick = () => {
-      Auth.logout();
+    document.getElementById("signoutYes").onclick = async () => {
+      await Auth.logout();
       state.setUser(null);
       closeModal();
       toast(t("acc.signed_out"));
@@ -857,7 +857,7 @@ export async function renderAccount() {
   document.getElementById("resetBtn")?.addEventListener("click", async () => {
     if (!confirm(t("acc.reset_confirm"))) return;
     const { runSeed } = await import("../seed.js");
-    Auth.logout();
+    await Auth.logout();
     state.setUser(null);
     await runSeed({ force: true });
     toast(t("acc.reset_done"), "success");
