@@ -367,8 +367,13 @@ async function initLiveMap(subCity) {
     html: `<div style="width:14px;height:14px;border-radius:50%;background:${primary};border:3px solid #fff;box-shadow:0 4px 10px rgba(0,0,0,.25);"></div>`,
     iconSize: [20, 20], iconAnchor: [10, 10],
   });
+  const dirUrl = (lat, lng) =>
+    `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+  const dirLink = (lat, lng) =>
+    `<a href="${dirUrl(lat, lng)}" target="_blank" rel="noopener" class="popup-dir">📍 ${t("map.directions")}</a>`;
+
   L.marker(center, { icon: centerIcon }).addTo(_leafletMap)
-    .bindPopup(`<b>${subCityLabel(subCity)}</b>`);
+    .bindPopup(`<b>${subCityLabel(subCity)}</b><br/>${dirLink(center[0], center[1])}`);
 
   const shops = await Shops.list({ subCity });
   shops.forEach((s, i) => {
@@ -384,8 +389,24 @@ async function initLiveMap(subCity) {
       iconSize: [30, 30], iconAnchor: [15, 15],
     });
     L.marker([lat, lng], { icon: shopIcon }).addTo(_leafletMap)
-      .bindPopup(`<b>${shopName(s)}</b><br/>${stars(s.rating || 0)}`);
+      .bindPopup(`<b>${shopName(s)}</b><br/>${stars(s.rating || 0)}<br/>${dirLink(lat, lng)}`);
   });
+
+  // Floating "Open in Maps" control top-right so users can launch directions
+  // to the sub-city center without clicking a pin first.
+  const OpenInMapsControl = L.Control.extend({
+    options: { position: "topright" },
+    onAdd() {
+      const a = L.DomUtil.create("a", "leaflet-open-maps");
+      a.href = dirUrl(center[0], center[1]);
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.innerHTML = `📍 ${t("map.open_in_maps")}`;
+      L.DomEvent.disableClickPropagation(a);
+      return a;
+    },
+  });
+  new OpenInMapsControl().addTo(_leafletMap);
 
   // Fix tile rendering inside flex/grid by invalidating size after layout settles.
   setTimeout(() => _leafletMap && _leafletMap.invalidateSize(), 60);

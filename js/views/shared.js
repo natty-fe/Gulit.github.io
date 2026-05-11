@@ -383,6 +383,8 @@ const STR = {
     "acc.signout_yes": "Yes, sign out",
     "map.loading": "Loading map…",
     "map.shops_in": "{n} shop(s) in {city}",
+    "map.directions": "Get directions",
+    "map.open_in_maps": "Open in Maps",
 
     // ---- owner ----
     "own.title": "Shop Owner Dashboard",
@@ -880,6 +882,8 @@ const STR = {
     "acc.signout_yes": "አዎ፣ ውጣ",
     "map.loading": "ካርታ በመጫን ላይ…",
     "map.shops_in": "በ{city} ውስጥ {n} ሱቆች",
+    "map.directions": "አቅጣጫዎች",
+    "map.open_in_maps": "በካርታ ይክፈቱ",
 
     // ---- owner ----
     "own.title": "የሱቅ ባለቤት ዳሽቦርድ",
