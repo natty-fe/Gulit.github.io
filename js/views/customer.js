@@ -344,9 +344,17 @@ async function initLiveMap(subCity) {
     zoomControl: true, attributionControl: true, scrollWheelZoom: false,
   }).setView(center, 14);
 
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19, attribution: "© OpenStreetMap contributors",
-  }).addTo(_leafletMap);
+  // Esri WorldImagery — free, no API key, real satellite photography.
+  L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    { maxZoom: 19, attribution: "Imagery © Esri, Maxar, Earthstar Geographics" }
+  ).addTo(_leafletMap);
+  // Transparent labels layer so streets, sub-city names, and major roads
+  // still show on top of the satellite imagery (Google-Maps-Hybrid style).
+  L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+    { maxZoom: 19, attribution: "Labels © Esri" }
+  ).addTo(_leafletMap);
 
   // Drop a marker at the sub-city center, then mark each approved shop in
   // the area with a slight jitter so multiple shops don't overlap.
