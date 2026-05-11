@@ -279,6 +279,18 @@ export async function renderHome() {
             <div class="chips" id="catChips">
               ${CATEGORIES.map(c => `<button class="chip ${c === cat ? "active" : ""}" data-cat="${c}">${catLabel(c)}</button>`).join("")}
             </div>
+            <div class="sort-row">
+              <span class="muted" style="font-size:12px;font-weight:800;">${t("home.sort_by")}</span>
+              <select id="sortSel">
+                <option value="default">${t("home.sort_default")}</option>
+                <option value="name_asc">${t("home.sort_name_asc")}</option>
+                <option value="name_desc">${t("home.sort_name_desc")}</option>
+                <option value="price_asc">${t("home.sort_price_asc")}</option>
+                <option value="price_desc">${t("home.sort_price_desc")}</option>
+                <option value="shop_asc">${t("home.sort_shop_asc")}</option>
+                <option value="rating_desc">${t("home.sort_rating_desc")}</option>
+              </select>
+            </div>
             <div class="plist" id="plist"><div class="empty">${t("loading")}</div></div>
           </div>
         </div>
@@ -320,6 +332,12 @@ export async function renderHome() {
     const btn = e.target.closest(".chip"); if (!btn) return;
     state.set("filterCategory", btn.dataset.cat);
     document.querySelectorAll("#catChips .chip").forEach(c => c.classList.toggle("active", c === btn));
+    drawProducts();
+  });
+  const sortSel = document.getElementById("sortSel");
+  sortSel.value = state.get("filterSort") || "default";
+  sortSel.addEventListener("change", (e) => {
+    state.set("filterSort", e.target.value);
     drawProducts();
   });
   document.getElementById("allShopsBtn").addEventListener("click", () => location.hash = "#/shops");
@@ -416,11 +434,23 @@ async function drawProducts() {
   const subCity = state.get("filterSubCity") || state.user?.subCity || "Bole";
   const category = state.get("filterCategory") || "All";
   const q = state.get("filterQ") || "";
+  const sort = state.get("filterSort") || "default";
   const list = document.getElementById("plist");
   if (!list) return;
   list.innerHTML = `<div class="empty">${t("loading")}</div>`;
 
   const rows = await Inventory.listingsForBrowse({ subCity, q, category });
+
+  const lc = (s) => String(s || "").toLowerCase();
+  switch (sort) {
+    case "name_asc":    rows.sort((a, b) => lc(productName(a.product)).localeCompare(lc(productName(b.product)))); break;
+    case "name_desc":   rows.sort((a, b) => lc(productName(b.product)).localeCompare(lc(productName(a.product)))); break;
+    case "price_asc":   rows.sort((a, b) => Number(a.price) - Number(b.price)); break;
+    case "price_desc":  rows.sort((a, b) => Number(b.price) - Number(a.price)); break;
+    case "shop_asc":    rows.sort((a, b) => lc(shopName(a.shop)).localeCompare(lc(shopName(b.shop)))); break;
+    case "rating_desc": rows.sort((a, b) => (b.shop?.rating || 0) - (a.shop?.rating || 0)); break;
+    default: /* leave default order */
+  }
   if (rows.length === 0) {
     list.innerHTML = `<div class="empty">${t("home.no_products", { city: subCityLabel(subCity) })}</div>`;
     return;

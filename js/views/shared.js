@@ -269,6 +269,14 @@ const STR = {
     "home.unit": "per",
     "home.added": "Added to cart",
     "home.out_of_stock": "Out of stock",
+    "home.sort_by": "Sort by",
+    "home.sort_default": "Recommended",
+    "home.sort_name_asc": "Name (A–Z)",
+    "home.sort_name_desc": "Name (Z–A)",
+    "home.sort_price_asc": "Price (low to high)",
+    "home.sort_price_desc": "Price (high to low)",
+    "home.sort_shop_asc": "Shop name (A–Z)",
+    "home.sort_rating_desc": "Top-rated shop first",
 
     // ---- shops ----
     "shops.title": "Shops in {city}",
@@ -772,6 +780,14 @@ const STR = {
     "home.unit": "በ",
     "home.added": "ወደ ጋሪ ታክሏል",
     "home.out_of_stock": "በክምችት የለም",
+    "home.sort_by": "በዚህ ደርድር",
+    "home.sort_default": "የተመከረ",
+    "home.sort_name_asc": "ስም (ሀ–ፈ)",
+    "home.sort_name_desc": "ስም (ፈ–ሀ)",
+    "home.sort_price_asc": "ዋጋ (ዝቅተኛ ወደ ከፍተኛ)",
+    "home.sort_price_desc": "ዋጋ (ከፍተኛ ወደ ዝቅተኛ)",
+    "home.sort_shop_asc": "የሱቅ ስም (ሀ–ፈ)",
+    "home.sort_rating_desc": "በደረጃ የተሻለ ሱቅ መጀመሪያ",
 
     // ---- shops ----
     "shops.title": "በ{city} ውስጥ ያሉ ሱቆች",
