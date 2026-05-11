@@ -405,7 +405,11 @@ async function drawProducts() {
       ? `<span class="oos-badge">${t("home.out_of_stock")}</span>`
       : `
         <div class="qty-add">
-          <input type="number" class="qty-input" data-qty="${r.id}" value="1" min="1" max="${r.qty}" />
+          <div class="qty-stepper">
+            <button type="button" class="qty-step" data-step="-1" data-id="${r.id}">−</button>
+            <input type="number" class="qty-input" data-qty="${r.id}" value="1" min="1" max="${r.qty}" />
+            <button type="button" class="qty-step" data-step="+1" data-id="${r.id}">+</button>
+          </div>
           <button class="addbtn" data-add="${r.id}">${t("add")}</button>
         </div>
       `;
@@ -431,6 +435,15 @@ async function drawProducts() {
     const qtyEl = list.querySelector(`[data-qty="${id}"]`);
     const qty = Math.max(1, Number(qtyEl?.value || 1));
     addToCart(id, qty);
+  }));
+  list.querySelectorAll("[data-step]").forEach(b => b.addEventListener("click", () => {
+    const id = b.dataset.id;
+    const qtyEl = list.querySelector(`[data-qty="${id}"]`);
+    if (!qtyEl) return;
+    const min = Number(qtyEl.min || 1);
+    const max = Number(qtyEl.max || Infinity);
+    const next = Math.min(max, Math.max(min, (Number(qtyEl.value) || min) + Number(b.dataset.step)));
+    qtyEl.value = String(next);
   }));
   list.querySelectorAll("[data-shop]").forEach(b => b.addEventListener("click", () => openShopModal(b.dataset.shop)));
 }
@@ -524,7 +537,11 @@ async function openShopModal(shopId) {
               ? `<span class="oos-badge">${t("home.out_of_stock")}</span>`
               : `
                 <div class="qty-add">
-                  <input type="number" class="qty-input" data-qty="${i.id}" value="1" min="1" max="${i.qty}" />
+                  <div class="qty-stepper">
+                    <button type="button" class="qty-step" data-step="-1" data-id="${i.id}">−</button>
+                    <input type="number" class="qty-input" data-qty="${i.id}" value="1" min="1" max="${i.qty}" />
+                    <button type="button" class="qty-step" data-step="+1" data-id="${i.id}">+</button>
+                  </div>
                   <button class="addbtn" data-add="${i.id}">${t("add")}</button>
                 </div>
               `}
@@ -546,6 +563,15 @@ async function openShopModal(shopId) {
     `).join("") || `<div class="muted mt8">${t("shops.no_reviews")}</div>`}
   `);
 
+  document.querySelectorAll("#modalBody [data-step]").forEach(b => b.addEventListener("click", () => {
+    const id = b.dataset.id;
+    const qtyEl = document.querySelector(`#modalBody [data-qty="${id}"]`);
+    if (!qtyEl) return;
+    const min = Number(qtyEl.min || 1);
+    const max = Number(qtyEl.max || Infinity);
+    const next = Math.min(max, Math.max(min, (Number(qtyEl.value) || min) + Number(b.dataset.step)));
+    qtyEl.value = String(next);
+  }));
   document.querySelectorAll("#modalBody [data-add]").forEach(b => b.addEventListener("click", () => {
     const id = b.dataset.add;
     const qtyEl = document.querySelector(`#modalBody [data-qty="${id}"]`);
