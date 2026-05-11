@@ -7,6 +7,7 @@
 import { DB } from "./db.js";
 import { Auth } from "./auth.js";
 import { SUB_CITIES } from "./seed.js";
+import { getSupabase, isSupabaseEnabled } from "./supabase-client.js";
 
 // Tiny artificial latency to mimic network calls (and let UI show loading).
 const sleep = (ms = 80) => new Promise((r) => setTimeout(r, ms));
@@ -593,6 +594,26 @@ export const Users = {
   async checkUnique({ workId, faydaFan, excludeUserId } = {}) {
     await sleep(40);
     const out = {};
+    // Use Supabase profiles when enabled — that's the cross-device source of
+    // truth. Falls back to localStorage when not configured.
+    if (isSupabaseEnabled()) {
+      const sb = getSupabase();
+      if (workId) {
+        const v = String(workId).trim().toUpperCase();
+        let q = sb.from("profiles").select("id").eq("work_id", v);
+        if (excludeUserId) q = q.neq("id", excludeUserId);
+        const { data } = await q.maybeSingle();
+        out.workIdTaken = !!data;
+      }
+      if (faydaFan) {
+        const v = String(faydaFan).replace(/\s+/g, "");
+        let q = sb.from("profiles").select("id").eq("fayda_fan", v);
+        if (excludeUserId) q = q.neq("id", excludeUserId);
+        const { data } = await q.maybeSingle();
+        out.faydaFanTaken = !!data;
+      }
+      return out;
+    }
     if (workId) {
       const v = String(workId).trim().toUpperCase();
       const found = DB.find("users", (u) => u.workId === v && (!excludeUserId || u.id !== excludeUserId));

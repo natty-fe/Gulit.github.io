@@ -19,7 +19,10 @@ import { ROLE_LABELS, t, getLang, setLang, applyTheme, openThemePicker } from ".
   await runSeed();
   await runMigrations();
 
-  // Restore session if a token exists.
+  // Hydrate auth — either from Supabase session (cross-device) or from the
+  // localStorage token cache (offline mode). Either way Auth.currentUser()
+  // is sync after this returns.
+  await Auth.init();
   const u = Auth.currentUser();
   if (u) state.setUser(u);
 
