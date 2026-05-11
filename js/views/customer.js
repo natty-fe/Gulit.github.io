@@ -8,7 +8,7 @@ import {
   toast, openModal, closeModal, etb, dateShort, statusBadge,
   iconSvg, avatarSvg, stars, formField, openThemePicker, getTheme, THEMES,
   t, catLabel, productName, unitLabel, shopName, subCityLabel, cityLabel,
-  SUB_CITY_COORDS, ADDIS_CENTER, isDev,
+  SUB_CITY_COORDS, ADDIS_CENTER, isDev, productImageHtml,
 } from "./shared.js";
 import { SUB_CITIES, CATEGORIES } from "../seed.js";
 
@@ -444,7 +444,7 @@ async function drawProducts() {
       `;
     return `
       <div class="pitem ${outOfStock ? "is-oos" : ""}">
-        <div class="pimg">${iconSvg(r.product.icon)}</div>
+        <div class="pimg">${productImageHtml(r.product)}</div>
         <div>
           <div class="ptitle">${productName(r.product)}</div>
           <div class="psub">${catLabel(r.product.category)} · ${t("home.sold_by")} <a data-shop="${r.shop.id}">${shopName(r.shop)}</a></div>
@@ -556,7 +556,7 @@ async function openShopModal(shopId) {
         const oos = !(i.qty > 0);
         return `
         <div class="pitem ${oos ? "is-oos" : ""}">
-          <div class="pimg">${iconSvg(i.product?.icon || "grain")}</div>
+          <div class="pimg">${productImageHtml(i.product)}</div>
           <div>
             <div class="ptitle">${productName(i.product)}</div>
             <div class="psub">${catLabel(i.product?.category || "All")} · ${etb(i.price)} / ${unitLabel(i.product?.unit || "kg")}</div>

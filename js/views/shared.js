@@ -446,6 +446,10 @@ const STR = {
     "own.product_category": "Category",
     "own.product_unit": "Unit",
     "own.product_icon": "Icon",
+    "own.product_image": "Image",
+    "own.product_image_hint": "Pick a built-in icon below, or upload your own photo. If you do neither, a default placeholder is used.",
+    "own.upload_image": "Upload your own image",
+    "own.clear_image": "Remove image",
     "own.suggested_min": "Suggested minimum (ETB)",
     "own.suggested_max": "Suggested maximum (ETB)",
     "own.initial_price": "My initial price (ETB)",
@@ -945,6 +949,10 @@ const STR = {
     "own.product_category": "ምድብ",
     "own.product_unit": "መለኪያ",
     "own.product_icon": "አዶ",
+    "own.product_image": "ምስል",
+    "own.product_image_hint": "ከታች ካሉት ቅርጾች ይምረጡ ወይም የራስዎን ፎቶ ይጫኑ። ምንም ካልመረጡ ነባሪ ምስል ይታያል።",
+    "own.upload_image": "የራስዎን ምስል ይጫኑ",
+    "own.clear_image": "ምስል አስወግድ",
     "own.suggested_min": "የተጠቆመ ዝቅተኛ (ብር)",
     "own.suggested_max": "የተጠቆመ ከፍተኛ (ብር)",
     "own.initial_price": "የእርስዎ የመጀመሪያ ዋጋ (ብር)",
@@ -1239,6 +1247,57 @@ export function openThemePicker() {
 }
 
 // Inline product-icon SVGs (offline-safe, match the prototype's look).
+// Generic placeholder shown when a product has neither an uploaded image
+// nor a matching built-in icon key.
+const PLACEHOLDER_SVG = `<svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+  <rect x="10" y="22" width="44" height="32" rx="6" fill="#9ca3af" opacity=".35"/>
+  <path d="M22 22l5-10h10l5 10" stroke="currentColor" stroke-width="3" stroke-linecap="round" fill="none" opacity=".55"/>
+  <path d="M20 34h24M20 42h24" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".5"/>
+</svg>`;
+
+// Render a product's visual: uploaded image if present, else built-in icon,
+// else the placeholder above. Used everywhere the catalog is displayed so
+// uploaded images take effect across browse, shops, cart, owner inventory.
+export function productImageHtml(product) {
+  if (!product) return PLACEHOLDER_SVG;
+  if (product.image) {
+    return `<img class="product-image" src="${product.image}" alt="" />`;
+  }
+  if (product.icon) return iconSvg(product.icon);
+  return PLACEHOLDER_SVG;
+}
+
+// Read an <input type="file"> File, downscale to maxSize px (keeping aspect
+// ratio) and return a JPEG data URL. Keeps localStorage payloads small.
+export async function imageFileToDataUrl(file, { maxSize = 240, quality = 0.85 } = {}) {
+  if (!file) throw new Error("No file selected.");
+  if (!file.type?.startsWith("image/")) throw new Error("Selected file isn't an image.");
+  if (file.size > 8 * 1024 * 1024) throw new Error("Image is too large (max 8 MB).");
+  const dataUrl = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = (e) => resolve(e.target.result);
+    r.onerror = () => reject(new Error("File read failed."));
+    r.readAsDataURL(file);
+  });
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width  * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(c.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => reject(new Error("Image decode failed."));
+    img.src = dataUrl;
+  });
+}
+
 export function iconSvg(kind) {
   const svgs = {
     onion: `<svg viewBox="0 0 64 64" fill="none" aria-hidden="true">

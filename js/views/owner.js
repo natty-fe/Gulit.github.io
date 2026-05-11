@@ -6,7 +6,7 @@ import { Inventory, Notifications, Orders, PriceRanges, Products, ProductProposa
 import { state } from "../state.js";
 import {
   toast, openModal, closeModal, etb, dateShort, timeShort, statusBadge, iconSvg, formField, t,
-  productName, unitLabel, shopName, subCityLabel,
+  productName, unitLabel, shopName, subCityLabel, productImageHtml, imageFileToDataUrl,
 } from "./shared.js";
 import { SUB_CITIES, CATEGORIES } from "../seed.js";
 
@@ -223,7 +223,7 @@ async function drawOwnerInventory(shopId) {
           ? ` ${statusBadge(inv.status)}` : "";
         return `
           <div class="pitem">
-            <div class="pimg">${iconSvg(p.icon)}</div>
+            <div class="pimg">${productImageHtml(p)}</div>
             <div>
               <div class="ptitle">${productName(p)}${statusBadgeHtml}</div>
               <div class="psub">${t(`cat.${p.category}`, p.category)} · ${unitLabel(p.unit)}</div>
@@ -498,7 +498,23 @@ function openProposeProduct(myShops) {
   if (eligible.length === 0) { toast(t("own.inv_no_shops"), "danger"); return; }
   const catOptions = CATEGORIES.filter(c => c !== "All").map(c => ({ value: c, label: t(`cat.${c}`, c) }));
   const unitOptions = PROPOSE_UNITS.map(u => ({ value: u, label: unitLabel(u) }));
-  const iconOptions = PROPOSE_ICONS.map(i => ({ value: i, label: i }));
+
+  // Picker state. Either selectedIcon is a key from PROPOSE_ICONS, OR
+  // selectedImage is a data URL from an upload. Whichever was set most
+  // recently wins. Both null → product gets the default placeholder.
+  let selectedIcon = "grain";
+  let selectedImage = null;
+
+  const renderPreview = () => {
+    const wrap = document.getElementById("propPreview");
+    if (!wrap) return;
+    wrap.innerHTML = productImageHtml({ icon: selectedIcon, image: selectedImage });
+    document.getElementById("propClearImg").hidden = !selectedImage;
+    document.querySelectorAll("#propIconGrid .icon-cell").forEach(c => {
+      c.classList.toggle("selected", !selectedImage && c.dataset.icon === selectedIcon);
+    });
+  };
+
   openModal(t("own.propose_title"), `
     <div class="muted">${t("own.propose_subtitle")}</div>
     ${formField({ label: t("own.propose_shop"), name: "shopId", type: "select",
@@ -507,7 +523,27 @@ function openProposeProduct(myShops) {
     ${formField({ label: t("own.product_name_am"), name: "nameAm", required: true, placeholder: t("own.product_name_am_ph") })}
     ${formField({ label: t("own.product_category"), name: "category", type: "select", value: "Vegetables", options: catOptions })}
     ${formField({ label: t("own.product_unit"), name: "unit", type: "select", value: "kg", options: unitOptions })}
-    ${formField({ label: t("own.product_icon"), name: "icon", type: "select", value: "grain", options: iconOptions })}
+
+    <div class="fieldlabel">${t("own.product_image")}</div>
+    <div class="image-picker">
+      <div class="image-preview" id="propPreview"></div>
+      <div class="image-picker-side">
+        <div class="muted" style="font-size:12px;">${t("own.product_image_hint")}</div>
+        <div id="propIconGrid" class="icon-grid">
+          ${PROPOSE_ICONS.map(k => `
+            <button type="button" class="icon-cell" data-icon="${k}" title="${k}">
+              ${iconSvg(k)}
+            </button>
+          `).join("")}
+        </div>
+        <div class="upload-row">
+          <input type="file" id="propUpload" accept="image/*" hidden />
+          <button type="button" class="viewbtn" id="propUploadBtn">📷 ${t("own.upload_image")}</button>
+          <button type="button" class="ghost" id="propClearImg" hidden>${t("own.clear_image")}</button>
+        </div>
+      </div>
+    </div>
+
     <div class="row mt8" style="gap:8px;">
       <div style="flex:1;">${formField({ label: t("own.suggested_min"), name: "min", type: "number" })}</div>
       <div style="flex:1;">${formField({ label: t("own.suggested_max"), name: "max", type: "number" })}</div>
@@ -518,6 +554,33 @@ function openProposeProduct(myShops) {
     </div>
     <div class="btnrow"><button class="primary" id="propSave">${t("own.propose_send")}</button><button class="ghost" id="propCancel">${t("cancel")}</button></div>
   `);
+
+  renderPreview();
+
+  document.querySelectorAll("#propIconGrid .icon-cell").forEach(c => {
+    c.addEventListener("click", () => {
+      selectedIcon = c.dataset.icon;
+      selectedImage = null;
+      renderPreview();
+    });
+  });
+
+  const uploadInput = document.getElementById("propUpload");
+  document.getElementById("propUploadBtn").onclick = () => uploadInput.click();
+  uploadInput.addEventListener("change", async () => {
+    const f = uploadInput.files?.[0];
+    if (!f) return;
+    try {
+      selectedImage = await imageFileToDataUrl(f);
+      renderPreview();
+    } catch (e) { toast(e.message, "danger"); }
+    uploadInput.value = "";
+  });
+  document.getElementById("propClearImg").onclick = () => {
+    selectedImage = null;
+    renderPreview();
+  };
+
   document.getElementById("propCancel").onclick = () => closeModal();
   document.getElementById("propSave").onclick = async () => {
     const get = (n) => document.querySelector(`#modalBody [name=${n}]`).value;
@@ -528,7 +591,8 @@ function openProposeProduct(myShops) {
         nameAm: get("nameAm").trim(),
         category: get("category"),
         unit: get("unit"),
-        icon: get("icon"),
+        icon: selectedImage ? "grain" : selectedIcon,
+        image: selectedImage,
         suggestedMin: Number(get("min")),
         suggestedMax: Number(get("max")),
         initialPrice: Number(get("ip")),

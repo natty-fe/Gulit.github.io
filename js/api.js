@@ -672,7 +672,7 @@ export const ProductProposals = {
     return rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   },
 
-  async propose({ shopId, name, nameAm, category = "Vegetables", unit = "kg", icon = "grain", suggestedMin, suggestedMax, initialPrice, initialQty }) {
+  async propose({ shopId, name, nameAm, category = "Vegetables", unit = "kg", icon = "grain", image = null, suggestedMin, suggestedMax, initialPrice, initialQty }) {
     const u = Auth.require(["owner"]);
     if (!name || !name.trim() || !nameAm || !nameAm.trim())
       throw new Error("Both English and Amharic names are required.");
@@ -693,7 +693,7 @@ export const ProductProposals = {
       shopId, shopName: shop.name,
       branchCommitteeId: shop.branchCommitteeId,
       name: name.trim(), nameAm: nameAm.trim(),
-      category, unit, icon,
+      category, unit, icon, image: image || null,
       suggestedMin: min, suggestedMax: max,
       initialPrice: ip, initialQty: iq,
       status: "pending",
@@ -737,6 +737,7 @@ export const ProductProposals = {
         id: productId,
         name: p.name, nameAm: p.nameAm,
         category: p.category, unit: p.unit, icon: p.icon || "grain",
+        image: p.image || null,
       });
       // Initial regulated price band.
       DB.insert("priceRanges", {
