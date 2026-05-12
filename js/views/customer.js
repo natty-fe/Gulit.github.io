@@ -1113,7 +1113,11 @@ async function openComplaintForm(orderId) {
   const order = await Orders.byId(orderId);
   const orderHours = order ? (Date.now() - new Date(order.createdAt).getTime()) / 3600000 : Infinity;
   const NEVER_ARRIVED_WAIT_HOURS = 6;
-  const naReady = orderHours >= NEVER_ARRIVED_WAIT_HOURS;
+  // Hide "Never arrived" entirely once the order is marked delivered or
+  // completed — the customer received it (or had the OTP), so the type
+  // doesn't apply anymore.
+  const naApplies = order && order.status !== "delivered" && order.status !== "completed";
+  const naReady = naApplies && orderHours >= NEVER_ARRIVED_WAIT_HOURS;
   const naHoursLeft = Math.max(0, NEVER_ARRIVED_WAIT_HOURS - orderHours).toFixed(1);
   const naLabel = naReady
     ? t("cmp.type.never_arrived")
@@ -1124,7 +1128,7 @@ async function openComplaintForm(orderId) {
     <select name="type" id="cmpTypeSel">
       <option value="Missing item">${t("cmp.type.missing")}</option>
       <option value="Late delivery">${t("cmp.type.late")}</option>
-      <option value="Never arrived"${naReady ? "" : " disabled"}>${naLabel}</option>
+      ${naApplies ? `<option value="Never arrived"${naReady ? "" : " disabled"}>${naLabel}</option>` : ""}
       <option value="Wrong item">${t("cmp.type.wrong")}</option>
       <option value="Quality">${t("cmp.type.quality")}</option>
       <option value="Other">${t("cmp.type.other")}</option>

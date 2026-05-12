@@ -503,10 +503,13 @@ export const Complaints = {
     if ((type === "Wrong item" || type === "Quality") && !image) {
       throw new Error("A photo is required for this complaint type.");
     }
-    // "Order never arrived" can only be filed after the customer has waited
-    // at least 6 hours since placing the order. Stops accidental clicks
-    // right after checkout.
+    // "Order never arrived" is only valid before the order is finalized as
+    // delivered / completed (the OTP confirmation proves receipt), and only
+    // after the customer has waited at least 6 hours since placing it.
     if (type === "Never arrived") {
+      if (order.status === "delivered" || order.status === "completed") {
+        throw new Error("This order has already been marked as delivered. Use a different complaint type.");
+      }
       const hoursOld = (Date.now() - new Date(order.createdAt).getTime()) / 3600000;
       if (hoursOld < 6) {
         const hLeft = Math.max(0, 6 - hoursOld).toFixed(1);
