@@ -496,11 +496,11 @@ export const Complaints = {
     const order = DB.byId("orders", orderId);
     if (!order) throw new Error("Order not found.");
     if (order.customerId !== u.id) throw new Error("Not your order.");
-    // Photo is only required for "Wrong item" complaints; for everything
-    // else it's optional (you can't photograph a missing item or late
-    // delivery; quality is recommended but not enforced).
-    if (type === "Wrong item" && !image) {
-      throw new Error("A photo is required for a wrong-item complaint.");
+    // Wrong-item and Quality complaints need a photo as evidence (the bad
+    // item vs. what was ordered; the spoiled/damaged item). Missing item
+    // and Late delivery have nothing concrete to photograph; Other is open.
+    if ((type === "Wrong item" || type === "Quality") && !image) {
+      throw new Error("A photo is required for this complaint type.");
     }
     const shop = DB.byId("shops", order.shopId);
     const c = DB.insert("complaints", {

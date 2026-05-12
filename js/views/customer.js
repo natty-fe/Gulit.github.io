@@ -1139,10 +1139,17 @@ function openComplaintForm(orderId) {
     // Late delivery has nothing to photograph — hide the whole photo block.
     photoWrap.hidden = type === "Late delivery";
     if (type === "Late delivery") { cmpImage = null; }
-    // Wrong item is the only case where the photo is required.
-    const required = type === "Wrong item";
+    // Wrong item and Quality need a photo as evidence; the rest don't.
+    const required = type === "Wrong item" || type === "Quality";
     photoLabel.textContent = required ? `${t("cmp.photo_label")} *` : `${t("cmp.photo_label")} (${t("optional")})`;
-    photoHint.textContent = required ? t("cmp.photo_hint") : t("cmp.photo_hint_optional");
+    // Per-type hint so the customer knows what to actually photograph.
+    const hintKey = {
+      "Missing item":  "cmp.photo_hint.missing",
+      "Wrong item":    "cmp.photo_hint.wrong",
+      "Quality":       "cmp.photo_hint.quality",
+      "Other":         "cmp.photo_hint.other",
+    }[type] || "cmp.photo_hint_optional";
+    photoHint.textContent = t(hintKey);
   };
   typeSel.addEventListener("change", syncForType);
   syncForType();
@@ -1169,7 +1176,7 @@ function openComplaintForm(orderId) {
     const type = typeSel.value;
     const detail = document.querySelector("#modalBody [name=detail]").value.trim();
     if (!detail) { toast(t("cmp.describe"), "danger"); return; }
-    if (type === "Wrong item" && !cmpImage) { toast(t("cmp.photo_required"), "danger"); return; }
+    if ((type === "Wrong item" || type === "Quality") && !cmpImage) { toast(t("cmp.photo_required"), "danger"); return; }
     try {
       const created = await Complaints.create({
         orderId, type, detail,
