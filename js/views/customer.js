@@ -791,8 +791,145 @@ export async function renderCheckout() {
     <div class="muted mt12" style="font-size:12px;">${t("checkout.note")}</div>
   `;
 
-  document.getElementById("payNow").onclick = () => placeOrder("prepay");
+  document.getElementById("payNow").onclick = () => openPayNowFlow(items);
   document.getElementById("payCod").onclick = () => placeOrder("cod");
+}
+
+// Pay-now flow: customers split their cart into per-shop orders. We open
+// a modal asking them to pay to each shop's account in turn and upload a
+// screenshot. If there are multiple shops, the modal cycles through them.
+async function openPayNowFlow(items) {
+  // Group cart items by shop (mirror of what Orders.create will do server-
+  // side), then ask the customer for a proof per shop.
+  const shopGroups = new Map();
+  for (const { inv, qty } of items) {
+    if (!shopGroups.has(inv.shop.id)) shopGroups.set(inv.shop.id, { shop: inv.shop, items: [], total: 0 });
+    const g = shopGroups.get(inv.shop.id);
+    g.items.push({ inv, qty });
+    g.total += inv.price * qty;
+  }
+  const groups = [...shopGroups.values()];
+  // We collect one proof per shop, then place all orders at the end.
+  const proofs = new Map();
+  let cursor = 0;
+
+  const renderStep = async () => {
+    const g = groups[cursor];
+    const shop = await Shops.byId(g.shop.id);
+    const accounts = shop?.paymentAccounts || [];
+    if (accounts.length === 0) {
+      toast(t("checkout.no_accounts", { shop: shopName(shop) }), "danger");
+      closeModal();
+      return;
+    }
+    let pickedAccountId = accounts[0].id;
+    let proofImage = null;
+
+    openModal(t("checkout.pay_modal", { shop: shopName(shop), step: cursor + 1, total: groups.length }), `
+      <div class="muted">${t("checkout.pay_modal_subtitle", { total: etb(g.total) })}</div>
+      <div class="fieldlabel mt12">${t("checkout.pick_account")}</div>
+      <div id="payAccChoices" style="display:grid;gap:8px;">
+        ${accounts.map((a, i) => `
+          <label class="pay-account-card" data-acc="${a.id}">
+            <input type="radio" name="payacc" value="${a.id}" ${i === 0 ? "checked" : ""} />
+            <div>
+              <div style="font-weight:900;">${escapeAttr(a.bankName)}</div>
+              <div class="muted" style="font-size:12px;">${t("checkout.account_name")}: <b>${escapeAttr(a.accountName)}</b></div>
+              <div class="muted" style="font-size:12px;display:flex;gap:6px;align-items:center;">
+                <span>${t("checkout.account_number")}: <b class="mono">${escapeAttr(a.accountNumber)}</b></span>
+                <button type="button" class="ghost copy-btn" data-copy="${escapeAttr(a.accountNumber)}" style="font-size:11px;padding:2px 8px;">${t("checkout.copy")}</button>
+              </div>
+            </div>
+          </label>
+        `).join("")}
+      </div>
+      <div class="muted mt12" style="font-size:12px;">${t("checkout.transfer_instructions")}</div>
+      <hr/>
+      <div class="fieldlabel">${t("checkout.proof_label")} *</div>
+      <div class="avatar-picker">
+        <div class="avatar-preview" id="payProofPreview" style="border-radius:14px;">
+          <span class="muted" style="font-size:11px;text-align:center;padding:6px;">${t("checkout.proof_hint")}</span>
+        </div>
+        <div class="avatar-picker-side">
+          <input type="file" id="payProofUpload" accept="image/*" capture="environment" hidden />
+          <div class="btnrow" style="margin:0;flex-wrap:wrap;">
+            <button type="button" class="viewbtn" id="payProofBtn">📷 ${t("checkout.upload_screenshot")}</button>
+          </div>
+        </div>
+      </div>
+      ${formField({ label: t("checkout.reference_label"), name: "reference", required: true, placeholder: t("checkout.reference_ph") })}
+      <div class="btnrow mt12">
+        <button class="primary" id="payNext">${cursor + 1 === groups.length ? t("checkout.pay_finish") : t("checkout.pay_next")}</button>
+        <button class="ghost" id="payCancel">${t("cancel")}</button>
+      </div>
+    `);
+
+    document.querySelectorAll('input[name="payacc"]').forEach(r => r.addEventListener("change", (e) => {
+      pickedAccountId = e.target.value;
+    }));
+    document.querySelectorAll(".copy-btn").forEach(b => b.addEventListener("click", async (e) => {
+      e.preventDefault();
+      try { await navigator.clipboard.writeText(b.dataset.copy); toast(t("checkout.copied"), "success"); } catch {}
+    }));
+    const proofInput = document.getElementById("payProofUpload");
+    document.getElementById("payProofBtn").onclick = () => proofInput.click();
+    proofInput.addEventListener("change", async () => {
+      const f = proofInput.files?.[0];
+      if (!f) return;
+      try {
+        proofImage = await imageFileToDataUrl(f, { maxSize: 600, quality: 0.85 });
+        document.getElementById("payProofPreview").innerHTML = `<img src="${proofImage}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:14px;" />`;
+      } catch (e) { toast(e.message, "danger"); }
+      proofInput.value = "";
+    });
+    document.getElementById("payCancel").onclick = () => closeModal();
+    document.getElementById("payNext").onclick = async () => {
+      const reference = document.querySelector("#modalBody [name=reference]").value.trim();
+      if (!proofImage) { toast(t("checkout.proof_required"), "danger"); return; }
+      if (!reference) { toast(t("checkout.reference_required"), "danger"); return; }
+      proofs.set(g.shop.id, { accountId: pickedAccountId, image: proofImage, reference });
+      cursor++;
+      if (cursor < groups.length) {
+        await renderStep();
+      } else {
+        await submitAllOrders(proofs);
+      }
+    };
+  };
+  await renderStep();
+}
+
+async function submitAllOrders(proofs) {
+  const subCity = document.getElementById("deliverySubCity")?.value || state.user?.subCity || "Bole";
+  const cart = getCart();
+  const items = Object.entries(cart).map(([id, qty]) => ({ inventoryId: id, qty }));
+  // Orders.create groups per shop and only accepts one proof at a time. We
+  // do separate calls per shop so each gets its own proof attached.
+  try {
+    // First call: send full cart with the first shop's proof; this won't
+    // attach proofs to other shops. So instead: split cart per shop and
+    // place each order with its proof.
+    const ordersResult = [];
+    for (const [shopId, proof] of proofs.entries()) {
+      const groupItems = [];
+      for (const { inventoryId, qty } of items) {
+        const inv = await Inventory.byId(inventoryId);
+        if (inv?.shopId === shopId) groupItems.push({ inventoryId, qty });
+      }
+      if (groupItems.length === 0) continue;
+      const placed = await Orders.create({
+        items: groupItems, paymentType: "prepay", customerSubCity: subCity,
+        paymentProof: proof,
+      });
+      ordersResult.push(...placed);
+    }
+    setCart({});
+    closeModal();
+    toast(t("checkout.placed", { n: ordersResult.length }), "success");
+    location.hash = "#/track";
+  } catch (e) {
+    toast(e.message, "danger");
+  }
 }
 
 async function placeOrder(paymentType) {
@@ -1010,6 +1147,29 @@ async function openOrderDetail(orderId) {
     <hr/>
     <div class="row"><div style="font-weight:900;">${t("total")}</div><div style="font-weight:900;color:var(--primary);">${etb(o.total)}</div></div>
     <div class="muted mt8">${t("track.payment")}: <b>${o.paymentType === "prepay" ? t("track.pay_now_label") : t("track.pay_cod_label")}</b></div>
+    ${(o.paymentProofs || []).length ? `
+      <hr/>
+      <div style="font-weight:900;">${t("track.payment_history")}</div>
+      <div class="muted" style="font-size:12px;">${t("track.payment_history_note")}</div>
+      <div style="display:grid;gap:8px;margin-top:8px;">
+        ${o.paymentProofs.map(p => `
+          <div class="complaint-item">
+            <div class="row" style="align-items:flex-start;gap:10px;">
+              <img src="${p.image}" alt="" class="proof-thumb" />
+              <div style="flex:1;min-width:0;font-size:12px;">
+                <div><b>${t("own.proof_ref")}:</b> <span class="mono">${escapeAttr(p.reference)}</span></div>
+                ${p.accountSnapshot ? `<div class="muted mt8">${escapeAttr(p.accountSnapshot.bankName)} · ${escapeAttr(p.accountSnapshot.accountNumber)}</div>` : ""}
+                <div class="muted mt8">${dateShort(p.uploadedAt)} · ${paymentProofBadge(p.status)}</div>
+                ${p.decisionNote ? `<div class="muted mt8">"${escapeAttr(p.decisionNote)}"</div>` : ""}
+              </div>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+      ${o.paymentStatus === "rejected" ? `
+        <div class="btnrow mt8"><button class="primary" data-reupload="${o.id}">${t("track.reupload_proof")}</button></div>
+      ` : ""}
+    ` : ""}
     ${delivery ? `
       <hr/>
       <div style="font-weight:900;">${t("track.delivery")}</div>
@@ -1064,6 +1224,99 @@ async function openOrderDetail(orderId) {
       closeModal();
       openComplaintForm(e.currentTarget.dataset.complainInline);
     });
+  document.querySelector("#modalBody [data-reupload]")
+    ?.addEventListener("click", (e) => {
+      closeModal();
+      openReuploadProof(e.currentTarget.dataset.reupload);
+    });
+  document.querySelectorAll("#modalBody .proof-thumb").forEach(img =>
+    img.addEventListener("click", () => openImageZoomCust(img.src)));
+}
+
+function openImageZoomCust(src) {
+  openModal("", `<img src="${src}" alt="" style="display:block;width:100%;max-width:600px;border-radius:14px;" />`);
+}
+
+function paymentProofBadge(s) {
+  const tone = s === "verified" ? "ok" : s === "rejected" ? "danger" : "warn";
+  return `<span class="badge-status ${tone}">${t(`payment_status.${s}`, s)}</span>`;
+}
+
+// Re-upload after a rejected proof — reuses the multi-step pay flow but for
+// a single shop.
+async function openReuploadProof(orderId) {
+  const order = await Orders.byId(orderId);
+  if (!order) return;
+  const shop = await Shops.byId(order.shopId);
+  const accounts = shop?.paymentAccounts || [];
+  if (accounts.length === 0) { toast(t("checkout.no_accounts", { shop: shopName(shop) }), "danger"); return; }
+  let pickedAccountId = accounts[0].id;
+  let proofImage = null;
+  openModal(t("track.reupload_proof"), `
+    <div class="muted">${t("track.reupload_subtitle", { shop: shopName(shop) })}</div>
+    <div class="fieldlabel mt12">${t("checkout.pick_account")}</div>
+    <div style="display:grid;gap:8px;">
+      ${accounts.map((a, i) => `
+        <label class="pay-account-card" data-acc="${a.id}">
+          <input type="radio" name="payacc" value="${a.id}" ${i === 0 ? "checked" : ""} />
+          <div>
+            <div style="font-weight:900;">${escapeAttr(a.bankName)}</div>
+            <div class="muted" style="font-size:12px;">${escapeAttr(a.accountName)}</div>
+            <div class="muted" style="font-size:12px;display:flex;gap:6px;align-items:center;">
+              <span class="mono">${escapeAttr(a.accountNumber)}</span>
+              <button type="button" class="ghost copy-btn" data-copy="${escapeAttr(a.accountNumber)}" style="font-size:11px;padding:2px 8px;">${t("checkout.copy")}</button>
+            </div>
+          </div>
+        </label>
+      `).join("")}
+    </div>
+    <hr/>
+    <div class="fieldlabel">${t("checkout.proof_label")} *</div>
+    <div class="avatar-picker">
+      <div class="avatar-preview" id="reProofPreview" style="border-radius:14px;">
+        <span class="muted" style="font-size:11px;text-align:center;padding:6px;">${t("checkout.proof_hint")}</span>
+      </div>
+      <div class="avatar-picker-side">
+        <input type="file" id="reProofUpload" accept="image/*" capture="environment" hidden />
+        <div class="btnrow" style="margin:0;flex-wrap:wrap;">
+          <button type="button" class="viewbtn" id="reProofBtn">📷 ${t("checkout.upload_screenshot")}</button>
+        </div>
+      </div>
+    </div>
+    ${formField({ label: t("checkout.reference_label"), name: "reference", required: true, placeholder: t("checkout.reference_ph") })}
+    <div class="btnrow mt12">
+      <button class="primary" id="reSubmit">${t("submit")}</button>
+      <button class="ghost" id="reCancel">${t("cancel")}</button>
+    </div>
+  `);
+  document.querySelectorAll('input[name="payacc"]').forEach(r => r.addEventListener("change", (e) => { pickedAccountId = e.target.value; }));
+  document.querySelectorAll(".copy-btn").forEach(b => b.addEventListener("click", async (e) => {
+    e.preventDefault();
+    try { await navigator.clipboard.writeText(b.dataset.copy); toast(t("checkout.copied"), "success"); } catch {}
+  }));
+  const proofInput = document.getElementById("reProofUpload");
+  document.getElementById("reProofBtn").onclick = () => proofInput.click();
+  proofInput.addEventListener("change", async () => {
+    const f = proofInput.files?.[0];
+    if (!f) return;
+    try {
+      proofImage = await imageFileToDataUrl(f, { maxSize: 600, quality: 0.85 });
+      document.getElementById("reProofPreview").innerHTML = `<img src="${proofImage}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:14px;" />`;
+    } catch (e) { toast(e.message, "danger"); }
+    proofInput.value = "";
+  });
+  document.getElementById("reCancel").onclick = () => closeModal();
+  document.getElementById("reSubmit").onclick = async () => {
+    const reference = document.querySelector("#modalBody [name=reference]").value.trim();
+    if (!proofImage) { toast(t("checkout.proof_required"), "danger"); return; }
+    if (!reference) { toast(t("checkout.reference_required"), "danger"); return; }
+    try {
+      await Orders.uploadPaymentProof(orderId, { accountId: pickedAccountId, image: proofImage, reference });
+      toast(t("track.proof_uploaded"), "success");
+      closeModal();
+      renderTracking();
+    } catch (e) { toast(e.message, "danger"); }
+  };
 }
 
 function escapeAttr(s) {

@@ -92,7 +92,7 @@ export async function runSeed({ force = false } = {}) {
   seedDemoShopsAndInventory({ branchByCity });
 
   DB.setMeta("seeded", true);
-  DB.setMeta("seedVersion", 8);
+  DB.setMeta("seedVersion", 9);
 }
 
 // All demo staff share this password so the demo flow stays simple.
@@ -213,6 +213,9 @@ function seedDemoShopsAndInventory({ branchByCity }) {
     if (!branchId) continue;
 
     const firstName = (owner.name || "").split(" ")[0] || "Shop";
+    // Synthetic CBE account number derived from the owner index so each
+    // demo shop has a plausible-looking unique account customers can pay to.
+    const accNumber = `1000${String(1000000000 + (owner.workId?.replace(/\D/g, "") | 0)).slice(-10)}`;
     const shop = DB.insert("shops", {
       ownerId: owner.id,
       name: `${firstName}'s ${owner.subCity} Market`,
@@ -222,6 +225,9 @@ function seedDemoShopsAndInventory({ branchByCity }) {
       approvedAt: new Date().toISOString(),
       rating: 0,
       reviews: [],
+      paymentAccounts: [
+        { id: `pay_${owner.id}_cbe`, bankName: "Commercial Bank of Ethiopia", accountName: owner.name, accountNumber: accNumber },
+      ],
     });
 
     for (const p of products) {
@@ -371,5 +377,24 @@ export async function runMigrations() {
       if (url) DB.update("products", p.id, { image: url });
     }
     DB.setMeta("seedVersion", 8);
+  }
+
+  // v8 → v9: shops gained a paymentAccounts array. Backfill a single CBE
+  // account on every existing shop so the demo's pay-now flow has somewhere
+  // to send the customer.
+  if (v < 9) {
+    for (const s of DB.all("shops")) {
+      if (Array.isArray(s.paymentAccounts) && s.paymentAccounts.length) continue;
+      const owner = DB.byId("users", s.ownerId);
+      const accountName = owner?.name || s.name;
+      const workIdDigits = (owner?.workId || "0").replace(/\D/g, "") || "0";
+      const accNumber = `1000${String(1000000000 + Number(workIdDigits)).slice(-10)}`;
+      DB.update("shops", s.id, {
+        paymentAccounts: [
+          { id: `pay_${s.id}_cbe`, bankName: "Commercial Bank of Ethiopia", accountName, accountNumber: accNumber },
+        ],
+      });
+    }
+    DB.setMeta("seedVersion", 9);
   }
 }

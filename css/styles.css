@@ -1001,6 +1001,42 @@ input:focus, select:focus, textarea:focus{
 .qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .qty-input{ -moz-appearance: textfield; }
 
+.pay-account-card{
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-soft);
+  cursor: pointer;
+}
+.pay-account-card input[type="radio"]{ margin-top: 4px; }
+.pay-account-card:has(input:checked){ border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary-ring, transparent) inset; }
+.mono{ font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace; }
+.proof-thumb{
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  cursor: zoom-in;
+}
+.pending-proof{
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px dashed var(--accent, #c97b5e);
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+.pay-account-row{
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-soft);
+}
+.pay-account-row input, .pay-account-row select{ width: 100%; }
+
 .complaint-item{
   border: 1px solid var(--border);
   border-radius: 14px;

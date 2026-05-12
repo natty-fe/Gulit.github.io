@@ -11,6 +11,23 @@ import {
 import { SUB_CITIES, CATEGORIES } from "../seed.js";
 
 const PROPOSE_UNITS = ["kg", "tray", "dozen", "pack", "litre", "piece"];
+// Banks + mobile-money options shown in the payment-account editor.
+const BANK_OPTIONS = [
+  "Commercial Bank of Ethiopia",
+  "Awash International Bank",
+  "Dashen Bank",
+  "Bank of Abyssinia",
+  "Wegagen Bank",
+  "Cooperative Bank of Oromia",
+  "Hibret Bank",
+  "Nib International Bank",
+  "Berhan Bank",
+  "Telebirr",
+  "M-Pesa",
+  "HelloCash",
+  "CBE Birr",
+  "Other",
+];
 const PROPOSE_ICONS = ["onion", "tomato", "potato", "carrot", "pepper", "cabbage", "egg", "grain", "banana", "spice"];
 // Real photo to display in the icon picker grid for each built-in option.
 // For keys that don't have a specific photo (grain/spice are generic), pick
@@ -56,6 +73,14 @@ export async function renderOwner() {
 
           <div class="card mt12" style="box-shadow:none;border:1px solid var(--border);">
             <div class="hd">
+              <h2>${t("own.payment_accounts_title")}</h2>
+              <div class="muted">${t("own.payment_accounts_dash_subtitle")}</div>
+            </div>
+            <div class="bd" id="ownerPaymentAccounts"></div>
+          </div>
+
+          <div class="card mt12" style="box-shadow:none;border:1px solid var(--border);">
+            <div class="hd">
               <h2>${t("inventory")}</h2>
               <div class="flex" style="gap:8px;align-items:center;flex-wrap:wrap;">
                 <select id="invShopSel">${myShops.map(s => `<option value="${s.id}">${shopName(s)} · ${subCityLabel(s.subCity)}</option>`).join("")}</select>
@@ -93,6 +118,7 @@ export async function renderOwner() {
   }
   drawOwnerProposals();
   drawOwnerActivity();
+  drawOwnerPaymentAccounts(myShops);
 
   document.getElementById("newShopBtn").addEventListener("click", () => openShopRegistration());
   document.getElementById("invShopSel")?.addEventListener("change", (e) => drawOwnerInventory(e.target.value));
@@ -132,26 +158,69 @@ async function drawOwnerOrders(shops) {
   }
   if (allOrders.length === 0) { el.innerHTML = `<div class="empty">${t("own.no_orders")}</div>`; return; }
 
-  el.innerHTML = allOrders.map(o => `
+  el.innerHTML = allOrders.map(o => {
+    const pendingProof = (o.paymentProofs || []).find(p => p.status === "pending");
+    return `
     <div class="pitem" style="grid-template-columns:48px 1fr auto;">
       <div class="pimg">${iconSvg("tomato")}</div>
-      <div>
+      <div style="min-width:0;">
         <div class="ptitle">${t("track.order_label")} ${o.id.slice(-6).toUpperCase()} <span class="tag-chip">${shopName({ name: o.shopName })}</span></div>
         <div class="psub">${t("items_count", { n: o.items.length })} · ${etb(o.total)} · ${t("own.customer")}: ${o.customerName}</div>
-        <div class="muted mt8">${dateShort(o.createdAt)} · ${statusBadge(o.status)}</div>
+        <div class="muted mt8">${dateShort(o.createdAt)} · ${statusBadge(o.status)}${o.paymentStatus && o.paymentStatus !== "n/a" ? ` · ${paymentStatusBadge(o.paymentStatus)}` : ""}</div>
+        ${pendingProof ? `
+          <div class="pending-proof">
+            <div class="row" style="align-items:flex-start;gap:10px;">
+              <img src="${pendingProof.image}" alt="" class="proof-thumb" data-zoom="${pendingProof.image}" />
+              <div style="flex:1;min-width:0;font-size:12px;">
+                <div><b>${t("own.proof_ref")}:</b> <span class="mono">${escapeAttr(pendingProof.reference)}</span></div>
+                ${pendingProof.accountSnapshot ? `<div class="muted mt8">${escapeAttr(pendingProof.accountSnapshot.bankName)} · ${escapeAttr(pendingProof.accountSnapshot.accountNumber)}</div>` : ""}
+                <div class="muted mt8">${dateShort(pendingProof.uploadedAt)} ${timeShort(pendingProof.uploadedAt)}</div>
+              </div>
+            </div>
+            <div class="btnrow mt8">
+              <button class="addbtn" data-pverify="${o.id}" data-proof="${pendingProof.id}">${t("own.verify_payment")}</button>
+              <button class="ghost" data-preject="${o.id}" data-proof="${pendingProof.id}">${t("own.reject_payment")}</button>
+            </div>
+          </div>
+        ` : ""}
       </div>
       <div class="flex" style="flex-direction:column;gap:6px;align-items:flex-end;">
         <button class="viewbtn" data-detail="${o.id}">${t("view")}</button>
         ${nextActionBtn(o)}
       </div>
     </div>
-  `).join("");
+  `;}).join("");
 
   el.querySelectorAll("[data-detail]").forEach(b => b.addEventListener("click", () => openOrderDetail(b.dataset.detail)));
   el.querySelectorAll("[data-accept]").forEach(b => b.addEventListener("click", () => updateStatus(b.dataset.accept, "accepted")));
   el.querySelectorAll("[data-prep]").forEach(b => b.addEventListener("click", () => updateStatus(b.dataset.prep, "preparing")));
   el.querySelectorAll("[data-cancel]").forEach(b => b.addEventListener("click", () => updateStatus(b.dataset.cancel, "cancelled")));
   el.querySelectorAll("[data-assign]").forEach(b => b.addEventListener("click", () => openAssignDelivery(b.dataset.assign)));
+  el.querySelectorAll("[data-pverify]").forEach(b => b.addEventListener("click", () => decidePayment(b.dataset.pverify, b.dataset.proof, "verified")));
+  el.querySelectorAll("[data-preject]").forEach(b => b.addEventListener("click", () => decidePayment(b.dataset.preject, b.dataset.proof, "rejected")));
+  el.querySelectorAll("[data-zoom]").forEach(img => img.addEventListener("click", () => openImageZoom(img.dataset.zoom)));
+}
+
+function openImageZoom(src) {
+  openModal("", `<img src="${src}" alt="" style="display:block;width:100%;max-width:600px;border-radius:14px;" />`);
+}
+
+async function decidePayment(orderId, proofId, decision) {
+  let note = "";
+  if (decision === "rejected") {
+    note = prompt(t("own.reject_payment_note")) || "";
+    if (!note) return;
+  }
+  try {
+    await Orders.decidePaymentProof(orderId, proofId, decision, note);
+    toast(decision === "verified" ? t("own.payment_verified") : t("own.payment_rejected"), "success");
+    renderOwner();
+  } catch (e) { toast(e.message, "danger"); }
+}
+
+function paymentStatusBadge(s) {
+  const tone = s === "verified" ? "ok" : s === "rejected" ? "danger" : "warn";
+  return `<span class="badge-status ${tone}">${t(`payment_status.${s}`, s)}</span>`;
 }
 
 function nextActionBtn(o) {
@@ -437,6 +506,25 @@ async function openBulkInventoryEditor(shopId) {
 }
 
 // ------------------ PROPOSAL: new product ---------------
+function drawOwnerPaymentAccounts(shops) {
+  const el = document.getElementById("ownerPaymentAccounts");
+  if (!el) return;
+  if (!shops.length) { el.innerHTML = `<div class="empty">${t("own.no_shops")}</div>`; return; }
+  el.innerHTML = shops.map(s => `
+    <div class="pitem" style="grid-template-columns:1fr auto;">
+      <div>
+        <div class="ptitle">${shopName(s)}</div>
+        <div class="psub">${(s.paymentAccounts || []).length} ${t("own.payment_accounts_count")}</div>
+        ${(s.paymentAccounts || []).slice(0, 2).map(a => `
+          <div class="muted mt8" style="font-size:12px;">${escapeAttr(a.bankName)} · ${escapeAttr(a.accountNumber)}</div>
+        `).join("")}
+      </div>
+      <button class="viewbtn" data-payacc="${s.id}">${t("own.payment_edit")}</button>
+    </div>
+  `).join("");
+  el.querySelectorAll("[data-payacc]").forEach(b => b.addEventListener("click", () => openPaymentAccountsEditor(b.dataset.payacc)));
+}
+
 async function drawOwnerProposals() {
   const u = state.user;
   const el = document.getElementById("ownerProposals");
@@ -501,6 +589,9 @@ function notifTitle(n) {
     });
     case "INVENTORY_APPROVED":   return t("notif.inventory_approved", { product: d.productName || "", shop: d.shopName || "" });
     case "INVENTORY_REJECTED":   return t("notif.inventory_rejected", { product: d.productName || "", shop: d.shopName || "" });
+    case "PAYMENT_PROOF_PENDING": return t("notif.payment_pending", { id: (d.orderId || "").slice(-6).toUpperCase(), ref: d.reference || "" });
+    case "PAYMENT_VERIFIED":      return t("notif.payment_verified_owner", { id: (d.orderId || "").slice(-6).toUpperCase() });
+    case "PAYMENT_REJECTED":      return t("notif.payment_rejected_owner", { id: (d.orderId || "").slice(-6).toUpperCase() });
     default: return n.title || n.type;
   }
 }
@@ -635,20 +726,126 @@ function openProposeProduct(myShops) {
 
 // ------------------ SHOP REGISTRATION ------------------
 function openShopRegistration() {
+  // Local editor state: start with one blank account row so the owner must
+  // fill at least one before submitting.
+  let accounts = [{ id: `tmp_${Date.now()}`, bankName: "Commercial Bank of Ethiopia", accountName: "", accountNumber: "" }];
+
   openModal(t("own.shop_modal"), `
     ${formField({ label: t("own.shop_name"), name: "name", required: true, placeholder: t("own.shop_name_ph") })}
     ${formField({ label: t("auth.subcity"), name: "subCity", type: "select", value: "Bole",
       options: SUB_CITIES.map(s => ({ value: s, label: subCityLabel(s) })) })}
+    <hr/>
+    <div class="fieldlabel">${t("own.payment_accounts_title")}</div>
+    <div class="muted" style="font-size:12px;">${t("own.payment_accounts_subtitle")}</div>
+    <div id="payAccountsList" style="display:grid;gap:10px;margin-top:8px;"></div>
+    <div class="btnrow" style="margin:8px 0;">
+      <button class="ghost" id="payAccAdd" type="button">＋ ${t("own.payment_add")}</button>
+    </div>
     <div class="muted mt8" style="font-size:12px;">${t("own.shop_note")}</div>
     <div class="btnrow"><button class="primary" id="shopSave">${t("submit")}</button><button class="ghost" id="shopCancel">${t("cancel")}</button></div>
   `);
+
+  const renderAccountsList = () => renderPaymentAccountsEditor("payAccountsList", accounts, (next) => { accounts = next; });
+  renderAccountsList();
+  document.getElementById("payAccAdd").onclick = () => {
+    accounts.push({ id: `tmp_${Date.now()}_${accounts.length}`, bankName: "Commercial Bank of Ethiopia", accountName: "", accountNumber: "" });
+    renderAccountsList();
+  };
+
   document.getElementById("shopCancel").onclick = () => closeModal();
   document.getElementById("shopSave").onclick = async () => {
+    // Pull latest values out of the inputs before submitting.
+    readPaymentAccountsEditor("payAccountsList", accounts);
     const name = document.querySelector("#modalBody [name=name]").value.trim();
     const subCity = document.querySelector("#modalBody [name=subCity]").value;
     try {
-      await Shops.register({ name, subCity });
+      await Shops.register({ name, subCity, paymentAccounts: accounts });
       toast(t("own.shop_submitted"), "success");
+      closeModal();
+      renderOwner();
+    } catch (e) { toast(e.message, "danger"); }
+  };
+}
+
+// ------------------ PAYMENT ACCOUNTS EDITOR (shared) ------------------
+// Renders the current `accounts` array into the container element, with
+// per-row inputs + delete buttons + an "Add" button wired to onChange.
+function renderPaymentAccountsEditor(containerId, accounts, onChange) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = accounts.map((a, i) => `
+    <div class="pay-account-row" data-row="${i}">
+      <div class="row" style="gap:6px;align-items:flex-end;flex-wrap:wrap;">
+        <div style="flex:2;min-width:160px;">
+          <div class="fieldlabel" style="font-size:11px;">${t("own.payment_bank")}</div>
+          <select class="pay-bank">${BANK_OPTIONS.map(b => `<option value="${escapeAttr(b)}" ${b === a.bankName ? "selected" : ""}>${b}</option>`).join("")}</select>
+        </div>
+        <div style="flex:2;min-width:160px;">
+          <div class="fieldlabel" style="font-size:11px;">${t("own.payment_account_name")}</div>
+          <input class="pay-name" type="text" value="${escapeAttr(a.accountName || "")}" placeholder="${t("own.payment_account_name_ph")}" />
+        </div>
+        <div style="flex:2;min-width:160px;">
+          <div class="fieldlabel" style="font-size:11px;">${t("own.payment_account_number")}</div>
+          <input class="pay-number" type="text" value="${escapeAttr(a.accountNumber || "")}" placeholder="${t("own.payment_account_number_ph")}" />
+        </div>
+        <button type="button" class="ghost pay-remove" data-row="${i}" style="font-size:11px;padding:6px 10px;">✕</button>
+      </div>
+    </div>
+  `).join("");
+
+  el.querySelectorAll(".pay-remove").forEach(b => b.addEventListener("click", () => {
+    readPaymentAccountsEditor(containerId, accounts);
+    const idx = Number(b.dataset.row);
+    accounts.splice(idx, 1);
+    if (accounts.length === 0) {
+      accounts.push({ id: `tmp_${Date.now()}`, bankName: "Commercial Bank of Ethiopia", accountName: "", accountNumber: "" });
+    }
+    onChange?.(accounts);
+    renderPaymentAccountsEditor(containerId, accounts, onChange);
+  }));
+}
+
+// Read live input values back into the accounts array (no submit step).
+function readPaymentAccountsEditor(containerId, accounts) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.querySelectorAll(".pay-account-row").forEach((row) => {
+    const i = Number(row.dataset.row);
+    if (!accounts[i]) return;
+    accounts[i].bankName      = row.querySelector(".pay-bank").value;
+    accounts[i].accountName   = row.querySelector(".pay-name").value.trim();
+    accounts[i].accountNumber = row.querySelector(".pay-number").value.trim();
+  });
+}
+
+// Owner opens this from the Payment accounts dashboard section.
+async function openPaymentAccountsEditor(shopId) {
+  const shop = await Shops.byId(shopId);
+  if (!shop) return;
+  let accounts = (shop.paymentAccounts || []).map(a => ({ ...a }));
+  if (accounts.length === 0) {
+    accounts.push({ id: `tmp_${Date.now()}`, bankName: "Commercial Bank of Ethiopia", accountName: "", accountNumber: "" });
+  }
+  openModal(t("own.payment_accounts_modal", { shop: shopName(shop) }), `
+    <div class="muted">${t("own.payment_accounts_subtitle")}</div>
+    <div id="payAccountsList" style="display:grid;gap:10px;margin-top:8px;"></div>
+    <div class="btnrow" style="margin:8px 0;">
+      <button class="ghost" id="payAccAdd" type="button">＋ ${t("own.payment_add")}</button>
+    </div>
+    <div class="btnrow"><button class="primary" id="payAccSave">${t("save")}</button><button class="ghost" id="payAccCancel">${t("cancel")}</button></div>
+  `);
+  const renderList = () => renderPaymentAccountsEditor("payAccountsList", accounts, (next) => { accounts = next; });
+  renderList();
+  document.getElementById("payAccAdd").onclick = () => {
+    accounts.push({ id: `tmp_${Date.now()}_${accounts.length}`, bankName: "Commercial Bank of Ethiopia", accountName: "", accountNumber: "" });
+    renderList();
+  };
+  document.getElementById("payAccCancel").onclick = () => closeModal();
+  document.getElementById("payAccSave").onclick = async () => {
+    readPaymentAccountsEditor("payAccountsList", accounts);
+    try {
+      await Shops.setPaymentAccounts(shopId, accounts);
+      toast(t("own.payment_accounts_saved"), "success");
       closeModal();
       renderOwner();
     } catch (e) { toast(e.message, "danger"); }

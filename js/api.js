@@ -33,6 +33,18 @@ function mainCommitteeId() {
   return c ? c.id : null;
 }
 
+// Normalize a list of payment account entries from the UI. Each must have a
+// bank name, account name, and account number. Empty/invalid rows dropped.
+function sanitizePaymentAccounts(list) {
+  if (!Array.isArray(list)) return [];
+  return list.map((a) => ({
+    id:            String(a.id || "").trim() || DB.id("pay"),
+    bankName:      String(a.bankName || "").trim(),
+    accountName:   String(a.accountName || "").trim(),
+    accountNumber: String(a.accountNumber || "").trim(),
+  })).filter((a) => a.bankName && a.accountName && a.accountNumber);
+}
+
 // ------------------ PRODUCTS & PRICING ------------------
 export const Products = {
   async list({ q = "", category = "All" } = {}) {
@@ -91,19 +103,33 @@ export const Shops = {
     await sleep();
     return DB.filter("shops", (s) => s.ownerId === ownerId);
   },
-  async register({ ownerId, name, subCity }) {
+  async register({ ownerId, name, subCity, paymentAccounts = [] }) {
     const u = Auth.require(["owner", "branch", "main"]);
     if (!name || !subCity) throw new Error("Name and sub-city required.");
+    const cleanAccounts = sanitizePaymentAccounts(paymentAccounts);
+    if (cleanAccounts.length === 0) throw new Error("Add at least one payment account.");
     // Find branch committee for that sub-city.
     const branch = DB.find("committees", (c) => c.type === "branch" && c.jurisdiction === subCity);
     if (!branch) throw new Error("No branch committee for that sub-city.");
     const shop = DB.insert("shops", {
       ownerId: ownerId || u.id, name, subCity,
       branchCommitteeId: branch.id, status: "pending",
-      rating: 0, reviews: [],
+      rating: 0, reviews: [], paymentAccounts: cleanAccounts,
     });
     audit(u.id, "SHOP_REGISTERED", "shop", shop.id, { name, subCity });
     return shop;
+  },
+
+  async setPaymentAccounts(shopId, accounts) {
+    const u = Auth.require(["owner"]);
+    const shop = DB.byId("shops", shopId);
+    if (!shop) throw new Error("Shop not found.");
+    if (shop.ownerId !== u.id) throw new Error("Not your shop.");
+    const cleaned = sanitizePaymentAccounts(accounts);
+    if (cleaned.length === 0) throw new Error("You must keep at least one payment account.");
+    const next = DB.update("shops", shopId, { paymentAccounts: cleaned });
+    audit(u.id, "PAYMENT_ACCOUNTS_UPDATED", "shop", shopId, { count: cleaned.length });
+    return next;
   },
   async setStatus(shopId, status, reason = "") {
     const u = Auth.require(["branch", "main"]);
@@ -327,10 +353,17 @@ export const Inventory = {
 const ORDER_STATUS = ["created", "paid", "accepted", "preparing", "dispatched", "delivered", "completed", "cancelled", "refunded"];
 
 export const Orders = {
-  async create({ items, paymentType, customerSubCity }) {
+  async create({ items, paymentType, customerSubCity, paymentProof }) {
     const u = Auth.require(["customer"]);
     if (!Array.isArray(items) || items.length === 0) throw new Error("Cart is empty.");
     if (!["prepay", "cod"].includes(paymentType)) throw new Error("Invalid payment type.");
+    // For pay-now (prepay), a payment proof (screenshot + reference) is
+    // required from the customer. Owner verifies before order moves to paid.
+    if (paymentType === "prepay") {
+      if (!paymentProof || !paymentProof.image || !paymentProof.reference) {
+        throw new Error("Upload a payment screenshot and enter the transaction reference.");
+      }
+    }
 
     // Group items by shop -> one order per shop (real marketplace behavior).
     const byShop = new Map();
@@ -360,10 +393,30 @@ export const Orders = {
     const created = [];
     for (const [shopId, lines] of byShop.entries()) {
       const total = Number(lines.reduce((a, l) => a + l.lineTotal, 0).toFixed(2));
+      const shop = DB.byId("shops", shopId);
+      // Attach the payment proof per-order (one proof per shop in cart).
+      // Snapshot the destination account so the proof is self-contained
+      // even if the owner later edits or removes that account.
+      let proofs = [];
+      let status = "created";
+      let paymentStatus = "n/a";
+      if (paymentType === "prepay") {
+        const account = (shop?.paymentAccounts || []).find((a) => a.id === paymentProof.accountId) || null;
+        proofs = [{
+          id: DB.id("pp"),
+          accountId: paymentProof.accountId || null,
+          accountSnapshot: account ? { bankName: account.bankName, accountName: account.accountName, accountNumber: account.accountNumber } : null,
+          image: paymentProof.image,
+          reference: String(paymentProof.reference || "").trim(),
+          uploadedAt: new Date().toISOString(),
+          status: "pending",
+        }];
+        paymentStatus = "pending_verification";
+      }
       const order = DB.insert("orders", {
         customerId: u.id, customerName: u.name, customerSubCity: customerSubCity || u.subCity,
         shopId, items: lines, total, paymentType,
-        status: paymentType === "prepay" ? "paid" : "created",
+        status, paymentStatus, paymentProofs: proofs,
       });
 
       // Decrement inventory.
@@ -372,10 +425,84 @@ export const Orders = {
         if (inv) DB.update("inventory", inv.id, { qty: Math.max(0, inv.qty - l.qty) });
       }
 
+      // Notify owner if they need to verify a payment.
+      if (paymentType === "prepay" && shop?.ownerId) {
+        notify({
+          recipientType: "user", recipientId: shop.ownerId, type: "PAYMENT_PROOF_PENDING",
+          title: "Payment to verify",
+          data: { orderId: order.id, reference: proofs[0].reference },
+        });
+      }
+
       audit(u.id, "ORDER_CREATED", "order", order.id, { shopId, total, paymentType });
       created.push(order);
     }
     return created;
+  },
+
+  // Customer uploads an additional payment proof on an existing order
+  // (e.g., after a rejected first attempt, or pay-after-delivery). Proofs
+  // are append-only: no delete API.
+  async uploadPaymentProof(orderId, { accountId, image, reference }) {
+    const u = Auth.require(["customer"]);
+    const order = DB.byId("orders", orderId);
+    if (!order) throw new Error("Order not found.");
+    if (order.customerId !== u.id) throw new Error("Not your order.");
+    if (!image || !reference) throw new Error("Screenshot and reference number are required.");
+    const shop = DB.byId("shops", order.shopId);
+    const account = (shop?.paymentAccounts || []).find((a) => a.id === accountId) || null;
+    const proof = {
+      id: DB.id("pp"),
+      accountId: accountId || null,
+      accountSnapshot: account ? { bankName: account.bankName, accountName: account.accountName, accountNumber: account.accountNumber } : null,
+      image, reference: String(reference || "").trim(),
+      uploadedAt: new Date().toISOString(),
+      status: "pending",
+    };
+    const proofs = [...(order.paymentProofs || []), proof];
+    const updated = DB.update("orders", orderId, { paymentProofs: proofs, paymentStatus: "pending_verification" });
+    if (shop?.ownerId) {
+      notify({
+        recipientType: "user", recipientId: shop.ownerId, type: "PAYMENT_PROOF_PENDING",
+        title: "New payment proof",
+        data: { orderId, reference: proof.reference },
+      });
+    }
+    audit(u.id, "PAYMENT_PROOF_UPLOADED", "order", orderId, { proofId: proof.id });
+    return updated;
+  },
+
+  // Owner verifies or rejects a payment proof. Verifying flips order to paid;
+  // rejecting leaves the order open and notifies the customer to retry.
+  async decidePaymentProof(orderId, proofId, decision, note = "") {
+    const u = Auth.require(["owner"]);
+    if (!["verified", "rejected"].includes(decision)) throw new Error("Invalid decision.");
+    const order = DB.byId("orders", orderId);
+    if (!order) throw new Error("Order not found.");
+    const shop = DB.byId("shops", order.shopId);
+    if (!shop || shop.ownerId !== u.id) throw new Error("Not your order.");
+    const proofs = (order.paymentProofs || []).map((p) =>
+      p.id === proofId
+        ? { ...p, status: decision, decidedBy: u.id, decidedAt: new Date().toISOString(), decisionNote: String(note || "") }
+        : p
+    );
+    const patch = { paymentProofs: proofs };
+    if (decision === "verified") {
+      patch.paymentStatus = "verified";
+      if (order.status === "created") patch.status = "paid";
+    } else {
+      patch.paymentStatus = "rejected";
+    }
+    const updated = DB.update("orders", orderId, patch);
+    notify({
+      recipientType: "user", recipientId: order.customerId,
+      type: decision === "verified" ? "PAYMENT_VERIFIED" : "PAYMENT_REJECTED",
+      title: decision === "verified" ? "Payment verified" : "Payment rejected",
+      body: note,
+      data: { orderId, reference: proofs.find((p) => p.id === proofId)?.reference },
+    });
+    audit(u.id, decision === "verified" ? "PAYMENT_VERIFIED" : "PAYMENT_REJECTED", "order", orderId, { proofId });
+    return updated;
   },
 
   async list({ customerId, shopId, courierId, status } = {}) {
