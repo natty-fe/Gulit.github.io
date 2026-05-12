@@ -54,6 +54,10 @@ function drawAuthForm(mode) {
       </div>
     `;
     document.getElementById("loginBtn").addEventListener("click", onLogin);
+    // Force the identifier (email) to lowercase as the user types — emails
+    // are case-insensitive and our auth store keeps them lowercase.
+    const idInput = document.querySelector("#authForm [name=identifier]");
+    idInput?.addEventListener("input", () => { idInput.value = idInput.value.toLowerCase(); });
   } else {
     wrap.innerHTML = `
       ${formField({ label: t("auth.fullname"), name: "name", required: true, placeholder: t("auth.fullname_ph") })}
@@ -177,6 +181,12 @@ function drawAuthForm(mode) {
       }
     };
     emailInput?.addEventListener("input", () => {
+      // Force lowercase as the user types so saved value matches Supabase.
+      if (emailInput.value !== emailInput.value.toLowerCase()) {
+        const pos = emailInput.selectionStart;
+        emailInput.value = emailInput.value.toLowerCase();
+        emailInput.setSelectionRange?.(pos, pos);
+      }
       clearTimeout(emailTimer);
       emailTimer = setTimeout(checkEmail, 200);
     });
@@ -188,7 +198,7 @@ function drawAuthForm(mode) {
 }
 
 async function onLogin() {
-  const identifier = document.querySelector("#authForm [name=identifier]").value.trim();
+  const identifier = document.querySelector("#authForm [name=identifier]").value.trim().toLowerCase();
   const password = document.querySelector("#authForm [name=password]").value;
   if (!identifier || !password) { toast(t("auth.enter_creds"), "danger"); return; }
   try {
@@ -203,6 +213,10 @@ async function onLogin() {
 
 async function onSignup() {
   const f = (n) => document.querySelector(`#authForm [name=${n}]`).value.trim();
+  // Emails are case-insensitive — normalize to lowercase here as a safety net
+  // in addition to the input-time listener.
+  const emailEl = document.querySelector("#authForm [name=email]");
+  if (emailEl) emailEl.value = emailEl.value.toLowerCase();
   const role = f("role");
   const subCity = f("subCity");
   const password = f("password");
@@ -1056,6 +1070,11 @@ export async function renderAccount() {
       </div>
       <div class="muted mt8" style="font-size:12px;">${t("acc.reset_note")}</div>
       ` : ""}
+
+      <hr/>
+      <div style="font-weight:900;color:var(--danger,#b91c1c);">${t("acc.delete_title")}</div>
+      <div class="muted mt8" style="font-size:12px;">${t("acc.delete_subtitle")}</div>
+      <div class="btnrow"><button class="danger" id="deleteAcctBtn">${t("acc.delete_btn")}</button></div>
     </div>
   </div></section>`;
 
@@ -1088,6 +1107,32 @@ export async function renderAccount() {
     toast(t("acc.reset_done"), "success");
     location.hash = "#/auth";
   });
+
+  document.getElementById("deleteAcctBtn").addEventListener("click", () => openDeleteAccount(u));
+}
+
+function openDeleteAccount(u) {
+  openModal(t("acc.delete_modal_title"), `
+    <div class="muted">${t("acc.delete_modal_body", { name: u.name })}</div>
+    ${formField({ label: t("acc.delete_name_label"), name: "confirmName", placeholder: u.name, required: true })}
+    ${formField({ label: t("auth.password"), name: "delPassword", type: "password", required: true })}
+    <div class="btnrow mt12">
+      <button class="danger" id="delConfirm">${t("acc.delete_confirm")}</button>
+      <button class="ghost" id="delCancel">${t("cancel")}</button>
+    </div>
+  `);
+  document.getElementById("delCancel").onclick = () => closeModal();
+  document.getElementById("delConfirm").onclick = async () => {
+    const confirmName = document.querySelector("#modalBody [name=confirmName]").value;
+    const password = document.querySelector("#modalBody [name=delPassword]").value;
+    try {
+      await Auth.deleteAccount({ password, confirmName });
+      state.setUser(null);
+      closeModal();
+      toast(t("acc.delete_done"), "success");
+      location.hash = "#/auth";
+    } catch (e) { toast(e.message, "danger"); }
+  };
 }
 
 async function openProfileEditor() {
@@ -1205,6 +1250,12 @@ async function openProfileEditor() {
       }
     };
     emailInput?.addEventListener("input", () => {
+      // Force lowercase as the user types so saved value matches Supabase.
+      if (emailInput.value !== emailInput.value.toLowerCase()) {
+        const pos = emailInput.selectionStart;
+        emailInput.value = emailInput.value.toLowerCase();
+        emailInput.setSelectionRange?.(pos, pos);
+      }
       clearTimeout(emailTimer);
       emailTimer = setTimeout(checkEmail, 200);
     });

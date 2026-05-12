@@ -204,6 +204,39 @@ export const Auth = {
     return { token, user: Auth.publicUser(user) };
   },
 
+  // Permanently delete the current user's account. Requires re-authentication
+  // (password) and a name confirmation to prevent accidental clicks.
+  async deleteAccount({ password, confirmName }) {
+    const cur = Auth.currentUser();
+    if (!cur) throw new Error("Not signed in.");
+    if (!confirmName || confirmName.trim().toLowerCase() !== String(cur.name || "").trim().toLowerCase()) {
+      throw new Error("The name you entered doesn't match your account.");
+    }
+    if (!password) throw new Error("Password required.");
+
+    if (isSupabaseEnabled()) {
+      const sb = getSupabase();
+      const { error: vErr } = await sb.auth.signInWithPassword({ email: cur.email, password });
+      if (vErr) throw new Error("Password is incorrect.");
+      const { error: dErr } = await sb.rpc("delete_self");
+      if (dErr) throw new Error(dErr.message);
+      try { await sb.auth.signOut(); } catch { /* ignore */ }
+      _cachedUser = null;
+      return;
+    }
+
+    // Local fallback
+    const fullUser = DB.byId("users", cur.id);
+    if (!fullUser) throw new Error("Account not found.");
+    const hash = await hashPassword(password);
+    if (hash !== fullUser.passwordHash) throw new Error("Password is incorrect.");
+    for (const s of DB.all("sessions")) {
+      if (s.userId === cur.id) DB.remove("sessions", s.id);
+    }
+    DB.remove("users", cur.id);
+    localStorage.removeItem(TOKEN_KEY);
+  },
+
   async logout() {
     if (isSupabaseEnabled()) {
       try { await getSupabase().auth.signOut(); } catch { /* ignore */ }

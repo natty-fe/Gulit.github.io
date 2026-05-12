@@ -80,6 +80,25 @@ create trigger profiles_set_updated_at
 alter table public.profiles add column if not exists avatar text;
 
 -- ============================================================
+-- 5. SELF-DELETE FUNCTION
+-- Lets a signed-in user delete their own auth.users row (cascades to the
+-- profiles row via ON DELETE CASCADE). SECURITY DEFINER so it can touch
+-- the auth schema, but it only deletes the row matching auth.uid() — so
+-- a user can never delete anyone else's account.
+-- ============================================================
+create or replace function public.delete_self()
+returns void
+language sql
+security definer
+set search_path = public, auth
+as $$
+  delete from auth.users where id = auth.uid();
+$$;
+
+revoke all on function public.delete_self() from public;
+grant execute on function public.delete_self() to authenticated;
+
+-- ============================================================
 -- Done. Phase 2 (shops/inventory/orders/etc.) is not part of this migration —
 -- those tables stay in localStorage for now.
 -- ============================================================
