@@ -491,14 +491,16 @@ export const Deliveries = {
 
 // ------------------ COMPLAINTS / REFUNDS ------------------
 export const Complaints = {
-  async create({ orderId, type, detail }) {
+  async create({ orderId, type, detail, image }) {
     const u = Auth.require(["customer"]);
     const order = DB.byId("orders", orderId);
     if (!order) throw new Error("Order not found.");
     if (order.customerId !== u.id) throw new Error("Not your order.");
+    if (!image) throw new Error("A photo of the issue is required.");
     const shop = DB.byId("shops", order.shopId);
     const c = DB.insert("complaints", {
       orderId, type: type || "Other", detail: detail || "",
+      image,
       fromId: u.id, fromName: u.name,
       shopId: shop.id, shopName: shop.name,
       branchCommitteeId: shop.branchCommitteeId,
@@ -586,6 +588,31 @@ export const Users = {
   async listByRole(role) {
     await sleep();
     return DB.filter("users", (u) => u.role === role).map((u) => Auth.publicUser(u));
+  },
+
+  // Customer leaves a rating + comment on a delivery courier after completion.
+  async rateDelivery({ userId, stars, text = "" }) {
+    const u = Auth.require(["customer"]);
+    const n = Number(stars);
+    if (!(n >= 1 && n <= 5)) throw new Error("Stars must be between 1 and 5.");
+    const courier = DB.byId("users", userId);
+    if (!courier || courier.role !== "delivery") throw new Error("Delivery person not found.");
+    const reviews = [...(courier.reviews || []), {
+      by: u.name, byId: u.id,
+      text: String(text || "").trim(),
+      stars: n,
+      date: new Date().toISOString().slice(0, 10),
+    }];
+    const avg = reviews.reduce((a, r) => a + (r.stars || 0), 0) / reviews.length;
+    const next = DB.update("users", userId, { reviews, rating: Number(avg.toFixed(1)) });
+    audit(u.id, "DELIVERY_RATED", "user", userId, { stars: n });
+    return Auth.publicUser(next);
+  },
+
+  async byId(id) {
+    await sleep();
+    const u = DB.byId("users", id);
+    return u ? Auth.publicUser(u) : null;
   },
   // Check whether a Work ID and/or Fayda FAN is already taken. Used by the
   // signup and profile-editor forms to give the user immediate feedback while

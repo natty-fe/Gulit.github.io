@@ -84,13 +84,18 @@ function _adoptLocalDemoData(user) {
   if (!user || !user.email) return;
   const local = DB.find("users", (u) => u.email === user.email);
   if (!local || local.id === user.id) return;
-  for (const s of DB.filter("shops", (x) => x.ownerId === local.id)) {
+  const oldId = local.id;
+  // Re-id the local user row itself so direct lookups by Supabase id resolve
+  // (needed e.g. for rating a delivery courier by id).
+  DB.remove("users", oldId);
+  DB.insert("users", { ...local, id: user.id });
+  for (const s of DB.filter("shops", (x) => x.ownerId === oldId)) {
     DB.update("shops", s.id, { ownerId: user.id });
   }
-  for (const d of DB.filter("deliveries", (x) => x.courierId === local.id)) {
+  for (const d of DB.filter("deliveries", (x) => x.courierId === oldId)) {
     DB.update("deliveries", d.id, { courierId: user.id });
   }
-  for (const o of DB.filter("orders", (x) => x.customerId === local.id)) {
+  for (const o of DB.filter("orders", (x) => x.customerId === oldId)) {
     DB.update("orders", o.id, { customerId: user.id });
   }
 }

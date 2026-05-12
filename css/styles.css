@@ -1001,6 +1001,16 @@ input:focus, select:focus, textarea:focus{
 .qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .qty-input{ -moz-appearance: textfield; }
 
+.complaint-photo{
+  display: block;
+  margin-top: 10px;
+  max-width: 220px;
+  max-height: 220px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  object-fit: cover;
+}
+
 .oos-badge{
   display: inline-block;
   font-size: 11px;

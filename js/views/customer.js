@@ -978,6 +978,7 @@ async function openOrderDetail(orderId) {
   if (!o) return;
   // Look up delivery (if assigned) so we can show the OTP and courier info.
   const delivery = o.deliveryId ? await Deliveries.byId(o.deliveryId) : null;
+  const isDone = o.status === "delivered" || o.status === "completed";
 
   openModal(`${t("track.order_label")} ${o.id.slice(-6).toUpperCase()}`, `
     <div class="row">
@@ -1002,10 +1003,61 @@ async function openOrderDetail(orderId) {
         </div>
       ` : `<div class="muted mt8">${t("track.confirmed_at", { date: dateShort(delivery.confirmedAt) })}</div>`}
     ` : ""}
+    ${isDone ? `
+      <hr/>
+      <div style="font-weight:900;">${t("track.rate_title")}</div>
+      <div class="muted mt8" style="font-size:12px;">${t("track.rate_subtitle")}</div>
+      <div class="btnrow mt8" style="flex-wrap:wrap;">
+        <button class="addbtn" data-rate-shop="${o.shopId}">${t("track.rate_shop")}</button>
+        ${delivery && delivery.courierId ? `<button class="addbtn" data-rate-courier="${delivery.courierId}">${t("track.rate_delivery")}</button>` : ""}
+      </div>
+    ` : ""}
   `);
+
+  document.querySelector("#modalBody [data-rate-shop]")
+    ?.addEventListener("click", (e) => openRateShop(e.currentTarget.dataset.rateShop));
+  document.querySelector("#modalBody [data-rate-courier]")
+    ?.addEventListener("click", (e) => openRateDelivery(e.currentTarget.dataset.rateCourier));
+}
+
+function openRateShop(shopId) {
+  openModal(t("shops.review_title"), `
+    ${formField({ label: t("shops.review_stars"), name: "stars", type: "number", value: "5" })}
+    ${formField({ label: t("shops.review_text"), name: "text", type: "textarea", placeholder: t("shops.review_text_ph") })}
+    <div class="btnrow"><button class="primary" id="rsSubmit">${t("submit")}</button><button class="ghost" id="rsCancel">${t("cancel")}</button></div>
+  `);
+  document.getElementById("rsCancel").onclick = () => closeModal();
+  document.getElementById("rsSubmit").onclick = async () => {
+    const stars = Number(document.querySelector("#modalBody [name=stars]").value || 5);
+    const text = document.querySelector("#modalBody [name=text]").value.trim();
+    try {
+      await Shops.addReview(shopId, { text, stars });
+      toast(t("shops.review_posted"), "success");
+      closeModal();
+    } catch (e) { toast(e.message, "danger"); }
+  };
+}
+
+function openRateDelivery(courierId) {
+  openModal(t("track.rate_delivery_title"), `
+    ${formField({ label: t("shops.review_stars"), name: "stars", type: "number", value: "5" })}
+    ${formField({ label: t("shops.review_text"), name: "text", type: "textarea", placeholder: t("track.rate_delivery_ph") })}
+    <div class="btnrow"><button class="primary" id="rdSubmit">${t("submit")}</button><button class="ghost" id="rdCancel">${t("cancel")}</button></div>
+  `);
+  document.getElementById("rdCancel").onclick = () => closeModal();
+  document.getElementById("rdSubmit").onclick = async () => {
+    const stars = Number(document.querySelector("#modalBody [name=stars]").value || 5);
+    const text = document.querySelector("#modalBody [name=text]").value.trim();
+    try {
+      await Users.rateDelivery({ userId: courierId, stars, text });
+      toast(t("track.rate_delivery_done"), "success");
+      closeModal();
+    } catch (e) { toast(e.message, "danger"); }
+  };
 }
 
 function openComplaintForm(orderId) {
+  let cmpImage = null;
   openModal(t("cmp.modal_title"), `
     ${formField({ label: t("cmp.type"), name: "type", type: "select", options: [
       { value: "Missing item", label: t("cmp.type.missing") },
@@ -1015,15 +1067,52 @@ function openComplaintForm(orderId) {
       { value: "Other", label: t("cmp.type.other") },
     ]})}
     ${formField({ label: t("cmp.detail"), name: "detail", type: "textarea", placeholder: t("cmp.detail_ph"), required: true })}
-    <div class="btnrow"><button class="primary" id="cmpSubmit">${t("cmp.submit")}</button><button class="ghost" id="cmpCancel">${t("cancel")}</button></div>
+
+    <div class="fieldlabel">${t("cmp.photo_label")} *</div>
+    <div class="avatar-picker">
+      <div class="avatar-preview" id="cmpPhotoPreview" style="border-radius:14px;">
+        <span class="muted" style="font-size:11px;text-align:center;padding:6px;">${t("cmp.photo_hint")}</span>
+      </div>
+      <div class="avatar-picker-side">
+        <input type="file" id="cmpPhotoUpload" accept="image/*" capture="environment" hidden />
+        <div class="btnrow" style="margin:0;flex-wrap:wrap;">
+          <button type="button" class="viewbtn" id="cmpPhotoBtn">📷 ${t("cmp.take_photo")}</button>
+          <button type="button" class="ghost" id="cmpPhotoClear" hidden>${t("acc.clear_avatar")}</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="btnrow mt12"><button class="primary" id="cmpSubmit">${t("cmp.submit")}</button><button class="ghost" id="cmpCancel">${t("cancel")}</button></div>
   `);
+
+  const previewEl = document.getElementById("cmpPhotoPreview");
+  const uploadEl = document.getElementById("cmpPhotoUpload");
+  const clearBtn = document.getElementById("cmpPhotoClear");
+  document.getElementById("cmpPhotoBtn").onclick = () => uploadEl.click();
+  uploadEl.addEventListener("change", async () => {
+    const f = uploadEl.files?.[0];
+    if (!f) return;
+    try {
+      cmpImage = await imageFileToDataUrl(f, { maxSize: 480, quality: 0.8 });
+      previewEl.innerHTML = `<img src="${cmpImage}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:14px;" />`;
+      clearBtn.hidden = false;
+    } catch (e) { toast(e.message, "danger"); }
+    uploadEl.value = "";
+  });
+  clearBtn.onclick = () => {
+    cmpImage = null;
+    previewEl.innerHTML = `<span class="muted" style="font-size:11px;text-align:center;padding:6px;">${t("cmp.photo_hint")}</span>`;
+    clearBtn.hidden = true;
+  };
+
   document.getElementById("cmpCancel").onclick = () => closeModal();
   document.getElementById("cmpSubmit").onclick = async () => {
     const type = document.querySelector("#modalBody [name=type]").value;
     const detail = document.querySelector("#modalBody [name=detail]").value.trim();
     if (!detail) { toast(t("cmp.describe"), "danger"); return; }
+    if (!cmpImage) { toast(t("cmp.photo_required"), "danger"); return; }
     try {
-      await Complaints.create({ orderId, type, detail });
+      await Complaints.create({ orderId, type, detail, image: cmpImage });
       toast(t("cmp.sent"), "success");
       closeModal(); renderTracking();
     } catch (e) { toast(e.message, "danger"); }

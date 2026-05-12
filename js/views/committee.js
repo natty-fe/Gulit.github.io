@@ -179,6 +179,7 @@ async function drawComplaintsForBranch() {
         </div>
       </div>
       <div class="muted mt8">${c.detail}</div>
+      ${c.image ? `<img src="${c.image}" alt="" class="complaint-photo" />` : ""}
       <div class="actions">
         <button class="addbtn" data-decide="${c.id}" data-decision="approved">${t("br.approve_refund")}</button>
         <button class="ghost" data-decide="${c.id}" data-decision="rejected">${t("br.reject")}</button>
@@ -534,6 +535,7 @@ async function drawEscalations() {
         </div>
       </div>
       <div class="muted mt8">${c.detail}</div>
+      ${c.image ? `<img src="${c.image}" alt="" class="complaint-photo" />` : ""}
       <div class="actions">
         <button class="addbtn" data-decide="${c.id}" data-decision="approved">${t("br.approve_refund")}</button>
         <button class="ghost" data-decide="${c.id}" data-decision="rejected">${t("br.reject")}</button>
@@ -585,6 +587,7 @@ async function drawMainOverview() {
             <div class="meta">${t("br.from")}: <b>${c.fromName}</b> · ${t("br.shop_label")}: <b>${shopName({ name: c.shopName })}</b></div>
             <div class="meta">${dateShort(c.createdAt)} · ${statusBadge(c.status)}</div>
             ${c.detail ? `<div class="muted mt8">${escapeHtml(c.detail)}</div>` : ""}
+            ${c.image ? `<img src="${c.image}" alt="" class="complaint-photo" />` : ""}
             ${c.decisionNote ? `<div class="muted mt8">"${escapeHtml(c.decisionNote)}"</div>` : ""}
           </div>
         </div>
