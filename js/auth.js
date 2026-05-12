@@ -74,6 +74,27 @@ function _localCurrentUser() {
   return user ? Auth.publicUser(user) : null;
 }
 
+// Bridge between Supabase identities and the localStorage demo data. The
+// demo seed creates owners/couriers in localStorage with their own ids, and
+// shops/deliveries/orders are linked to those ids. When the same person
+// signs in via Supabase they get a different (uuid) id, so without this
+// step their owner dashboard looks empty. We re-key the matching
+// localStorage rows to the Supabase id once per device.
+function _adoptLocalDemoData(user) {
+  if (!user || !user.email) return;
+  const local = DB.find("users", (u) => u.email === user.email);
+  if (!local || local.id === user.id) return;
+  for (const s of DB.filter("shops", (x) => x.ownerId === local.id)) {
+    DB.update("shops", s.id, { ownerId: user.id });
+  }
+  for (const d of DB.filter("deliveries", (x) => x.courierId === local.id)) {
+    DB.update("deliveries", d.id, { courierId: user.id });
+  }
+  for (const o of DB.filter("orders", (x) => x.customerId === local.id)) {
+    DB.update("orders", o.id, { customerId: user.id });
+  }
+}
+
 // ------------------------------------------------------------
 // Auth
 // ------------------------------------------------------------
@@ -89,8 +110,10 @@ export const Auth = {
     try {
       const { data: { session } } = await sb.auth.getSession();
       _cachedUser = session?.user ? await _fetchProfile(session.user) : null;
+      if (_cachedUser) _adoptLocalDemoData(_cachedUser);
       sb.auth.onAuthStateChange(async (_event, s) => {
         _cachedUser = s?.user ? await _fetchProfile(s.user) : null;
+        if (_cachedUser) _adoptLocalDemoData(_cachedUser);
       });
     } catch {
       _cachedUser = null;
@@ -187,6 +210,7 @@ export const Auth = {
       if (error) throw new Error(error.message);
       _cachedUser = await _fetchProfile(data.user);
       if (!_cachedUser) throw new Error("Profile not found for this account.");
+      _adoptLocalDemoData(_cachedUser);
       return { token: data.session.access_token, user: _cachedUser };
     }
 
