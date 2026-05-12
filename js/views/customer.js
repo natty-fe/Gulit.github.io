@@ -1111,28 +1111,26 @@ async function openComplaintForm(orderId) {
   // Pre-load the order so we can compute the 6-hour wait window for the
   // "Never arrived" option.
   const order = await Orders.byId(orderId);
-  const orderHours = order ? (Date.now() - new Date(order.createdAt).getTime()) / 3600000 : Infinity;
   const NEVER_ARRIVED_WAIT_HOURS = 6;
+  const orderCreatedMs = order ? new Date(order.createdAt).getTime() : 0;
+  const unlockAtMs = orderCreatedMs + NEVER_ARRIVED_WAIT_HOURS * 3600 * 1000;
   // Hide "Never arrived" entirely once the order is marked delivered or
   // completed — the customer received it (or had the OTP), so the type
   // doesn't apply anymore.
   const naApplies = order && order.status !== "delivered" && order.status !== "completed";
-  const naReady = naApplies && orderHours >= NEVER_ARRIVED_WAIT_HOURS;
-  const naHoursLeft = Math.max(0, NEVER_ARRIVED_WAIT_HOURS - orderHours).toFixed(1);
-  const naLabel = naReady
-    ? t("cmp.type.never_arrived")
-    : t("cmp.type.never_arrived_locked", { h: naHoursLeft });
+  const initialNaReady = naApplies && Date.now() >= unlockAtMs;
 
   openModal(t("cmp.modal_title"), `
     <div class="fieldlabel">${t("cmp.type")}</div>
     <select name="type" id="cmpTypeSel">
       <option value="Missing item">${t("cmp.type.missing")}</option>
       <option value="Late delivery">${t("cmp.type.late")}</option>
-      ${naApplies ? `<option value="Never arrived"${naReady ? "" : " disabled"}>${naLabel}</option>` : ""}
+      ${naApplies ? `<option value="Never arrived"${initialNaReady ? "" : " disabled"}>${initialNaReady ? t("cmp.type.never_arrived") : t("cmp.type.never_arrived_locked", { time: "…" })}</option>` : ""}
       <option value="Wrong item">${t("cmp.type.wrong")}</option>
       <option value="Quality">${t("cmp.type.quality")}</option>
       <option value="Other">${t("cmp.type.other")}</option>
     </select>
+    ${naApplies && !initialNaReady ? `<div id="cmpNaCountdown" class="muted mt8" style="font-size:12px;font-weight:700;color:var(--accent);"></div>` : ""}
 
     ${formField({ label: t("cmp.detail"), name: "detail", type: "textarea", placeholder: t("cmp.detail_ph"), required: true })}
 
@@ -1156,6 +1154,40 @@ async function openComplaintForm(orderId) {
   `);
 
   const typeSel = document.getElementById("cmpTypeSel");
+
+  // Live countdown for the "Never arrived" option. Updates the option label
+  // every 30 seconds; when the wait window elapses, the option flips enabled
+  // and the prominent countdown line disappears. Self-cancels when the
+  // modal closes (the option element disappears from the DOM).
+  if (naApplies && !initialNaReady) {
+    let countdownTimer = null;
+    const fmt = (secLeft) => {
+      const h = Math.floor(secLeft / 3600);
+      const m = Math.floor((secLeft % 3600) / 60);
+      const s = secLeft % 60;
+      if (h > 0) return `${h}h ${m}m`;
+      if (m > 0) return `${m}m ${s}s`;
+      return `${s}s`;
+    };
+    const tick = () => {
+      const naOption = typeSel.querySelector('option[value="Never arrived"]');
+      if (!naOption) { clearInterval(countdownTimer); return; }
+      const secLeft = Math.max(0, Math.ceil((unlockAtMs - Date.now()) / 1000));
+      const countdownEl = document.getElementById("cmpNaCountdown");
+      if (secLeft <= 0) {
+        naOption.disabled = false;
+        naOption.textContent = t("cmp.type.never_arrived");
+        if (countdownEl) countdownEl.hidden = true;
+        clearInterval(countdownTimer);
+        return;
+      }
+      const formatted = fmt(secLeft);
+      naOption.textContent = t("cmp.type.never_arrived_locked", { time: formatted });
+      if (countdownEl) countdownEl.textContent = t("cmp.never_arrived_countdown", { time: formatted });
+    };
+    tick();
+    countdownTimer = setInterval(tick, 30 * 1000);
+  }
   const photoWrap = document.getElementById("cmpPhotoWrap");
   const photoLabel = document.getElementById("cmpPhotoLabel");
   const photoHint = document.getElementById("cmpPhotoHint");
