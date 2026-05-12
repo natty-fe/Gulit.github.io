@@ -491,16 +491,25 @@ export const Deliveries = {
 
 // ------------------ COMPLAINTS / REFUNDS ------------------
 export const Complaints = {
-  async create({ orderId, type, detail, image }) {
+  async create({ orderId, type, detail, image, refundReason }) {
     const u = Auth.require(["customer"]);
     const order = DB.byId("orders", orderId);
     if (!order) throw new Error("Order not found.");
     if (order.customerId !== u.id) throw new Error("Not your order.");
-    if (!image) throw new Error("A photo of the issue is required.");
+    // Photo is only required for "Wrong item" complaints; for everything
+    // else it's optional (you can't photograph a missing item, etc.).
+    if (type === "Wrong item" && !image) {
+      throw new Error("A photo is required for a wrong-item complaint.");
+    }
+    // Refund requests need a sub-reason so the committee can route the case.
+    if (type === "Refund request" && !refundReason) {
+      throw new Error("Please choose a refund reason.");
+    }
     const shop = DB.byId("shops", order.shopId);
     const c = DB.insert("complaints", {
       orderId, type: type || "Other", detail: detail || "",
-      image,
+      image: image || null,
+      refundReason: refundReason || null,
       fromId: u.id, fromName: u.name,
       shopId: shop.id, shopName: shop.name,
       branchCommitteeId: shop.branchCommitteeId,

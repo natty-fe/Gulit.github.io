@@ -1066,18 +1066,31 @@ function openComplaintForm(orderId) {
       { value: "Refund request", label: t("cmp.type.refund") },
       { value: "Other", label: t("cmp.type.other") },
     ]})}
+
+    <div id="refundReasonWrap" hidden>
+      ${formField({ label: t("cmp.refund_reason"), name: "refundReason", type: "select", options: [
+        { value: "", label: t("cmp.refund_reason_pick") },
+        { value: "missing",  label: t("cmp.refund_reason.missing") },
+        { value: "wrong",    label: t("cmp.refund_reason.wrong") },
+        { value: "quality",  label: t("cmp.refund_reason.quality") },
+        { value: "other",    label: t("cmp.refund_reason.other") },
+      ]})}
+    </div>
+
     ${formField({ label: t("cmp.detail"), name: "detail", type: "textarea", placeholder: t("cmp.detail_ph"), required: true })}
 
-    <div class="fieldlabel">${t("cmp.photo_label")} *</div>
-    <div class="avatar-picker">
-      <div class="avatar-preview" id="cmpPhotoPreview" style="border-radius:14px;">
-        <span class="muted" style="font-size:11px;text-align:center;padding:6px;">${t("cmp.photo_hint")}</span>
-      </div>
-      <div class="avatar-picker-side">
-        <input type="file" id="cmpPhotoUpload" accept="image/*" capture="environment" hidden />
-        <div class="btnrow" style="margin:0;flex-wrap:wrap;">
-          <button type="button" class="viewbtn" id="cmpPhotoBtn">📷 ${t("cmp.take_photo")}</button>
-          <button type="button" class="ghost" id="cmpPhotoClear" hidden>${t("acc.clear_avatar")}</button>
+    <div id="cmpPhotoWrap">
+      <div class="fieldlabel"><span id="cmpPhotoLabel">${t("cmp.photo_label")}</span></div>
+      <div class="avatar-picker">
+        <div class="avatar-preview" id="cmpPhotoPreview" style="border-radius:14px;">
+          <span class="muted" style="font-size:11px;text-align:center;padding:6px;" id="cmpPhotoHint">${t("cmp.photo_hint")}</span>
+        </div>
+        <div class="avatar-picker-side">
+          <input type="file" id="cmpPhotoUpload" accept="image/*" capture="environment" hidden />
+          <div class="btnrow" style="margin:0;flex-wrap:wrap;">
+            <button type="button" class="viewbtn" id="cmpPhotoBtn">📷 ${t("cmp.take_photo")}</button>
+            <button type="button" class="ghost" id="cmpPhotoClear" hidden>${t("acc.clear_avatar")}</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1085,9 +1098,29 @@ function openComplaintForm(orderId) {
     <div class="btnrow mt12"><button class="primary" id="cmpSubmit">${t("cmp.submit")}</button><button class="ghost" id="cmpCancel">${t("cancel")}</button></div>
   `);
 
+  const typeSel = document.querySelector("#modalBody [name=type]");
+  const refundWrap = document.getElementById("refundReasonWrap");
+  const photoWrap = document.getElementById("cmpPhotoWrap");
+  const photoLabel = document.getElementById("cmpPhotoLabel");
+  const photoHint = document.getElementById("cmpPhotoHint");
   const previewEl = document.getElementById("cmpPhotoPreview");
   const uploadEl = document.getElementById("cmpPhotoUpload");
   const clearBtn = document.getElementById("cmpPhotoClear");
+
+  const syncForType = () => {
+    const type = typeSel.value;
+    refundWrap.hidden = type !== "Refund request";
+    // Late delivery has nothing to photograph — hide the whole photo block.
+    photoWrap.hidden = type === "Late delivery";
+    if (type === "Late delivery") { cmpImage = null; }
+    // Wrong item is the only case where the photo is required.
+    const required = type === "Wrong item";
+    photoLabel.textContent = required ? `${t("cmp.photo_label")} *` : `${t("cmp.photo_label")} (${t("optional")})`;
+    photoHint.textContent = required ? t("cmp.photo_hint") : t("cmp.photo_hint_optional");
+  };
+  typeSel.addEventListener("change", syncForType);
+  syncForType();
+
   document.getElementById("cmpPhotoBtn").onclick = () => uploadEl.click();
   uploadEl.addEventListener("change", async () => {
     const f = uploadEl.files?.[0];
@@ -1101,18 +1134,26 @@ function openComplaintForm(orderId) {
   });
   clearBtn.onclick = () => {
     cmpImage = null;
-    previewEl.innerHTML = `<span class="muted" style="font-size:11px;text-align:center;padding:6px;">${t("cmp.photo_hint")}</span>`;
+    previewEl.innerHTML = `<span class="muted" style="font-size:11px;text-align:center;padding:6px;">${photoHint.textContent}</span>`;
     clearBtn.hidden = true;
   };
 
   document.getElementById("cmpCancel").onclick = () => closeModal();
   document.getElementById("cmpSubmit").onclick = async () => {
-    const type = document.querySelector("#modalBody [name=type]").value;
+    const type = typeSel.value;
     const detail = document.querySelector("#modalBody [name=detail]").value.trim();
+    const refundReason = type === "Refund request"
+      ? document.querySelector("#modalBody [name=refundReason]").value
+      : null;
     if (!detail) { toast(t("cmp.describe"), "danger"); return; }
-    if (!cmpImage) { toast(t("cmp.photo_required"), "danger"); return; }
+    if (type === "Wrong item" && !cmpImage) { toast(t("cmp.photo_required"), "danger"); return; }
+    if (type === "Refund request" && !refundReason) { toast(t("cmp.refund_reason_required"), "danger"); return; }
     try {
-      await Complaints.create({ orderId, type, detail, image: cmpImage });
+      await Complaints.create({
+        orderId, type, detail,
+        image: type === "Late delivery" ? null : cmpImage,
+        refundReason,
+      });
       toast(t("cmp.sent"), "success");
       closeModal(); renderTracking();
     } catch (e) { toast(e.message, "danger"); }

@@ -179,6 +179,7 @@ async function drawComplaintsForBranch() {
         </div>
       </div>
       <div class="muted mt8">${c.detail}</div>
+      ${c.refundReason ? `<div class="muted mt8" style="font-size:12px;"><b>${t("cmp.refund_reason")}:</b> ${t(`cmp.refund_reason.${c.refundReason}`, c.refundReason)}</div>` : ""}
       ${c.image ? `<img src="${c.image}" alt="" class="complaint-photo" />` : ""}
       <div class="actions">
         <button class="addbtn" data-decide="${c.id}" data-decision="approved">${t("br.approve_refund")}</button>
@@ -535,6 +536,7 @@ async function drawEscalations() {
         </div>
       </div>
       <div class="muted mt8">${c.detail}</div>
+      ${c.refundReason ? `<div class="muted mt8" style="font-size:12px;"><b>${t("cmp.refund_reason")}:</b> ${t(`cmp.refund_reason.${c.refundReason}`, c.refundReason)}</div>` : ""}
       ${c.image ? `<img src="${c.image}" alt="" class="complaint-photo" />` : ""}
       <div class="actions">
         <button class="addbtn" data-decide="${c.id}" data-decision="approved">${t("br.approve_refund")}</button>
