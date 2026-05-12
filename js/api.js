@@ -552,12 +552,14 @@ export const Complaints = {
     return updated;
   },
 
-  async list({ branchCommitteeId, status, mainOnly } = {}) {
+  async list({ branchCommitteeId, status, mainOnly, orderId, fromId } = {}) {
     await sleep();
     let rows = DB.all("complaints");
     if (branchCommitteeId) rows = rows.filter((c) => c.branchCommitteeId === branchCommitteeId);
     if (status) rows = rows.filter((c) => c.status === status);
     if (mainOnly) rows = rows.filter((c) => c.status === "escalated");
+    if (orderId) rows = rows.filter((c) => c.orderId === orderId);
+    if (fromId)  rows = rows.filter((c) => c.fromId === fromId);
     return rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   },
   async decide(id, decision, note = "") {

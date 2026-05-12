@@ -979,6 +979,12 @@ async function openOrderDetail(orderId) {
   // Look up delivery (if assigned) so we can show the OTP and courier info.
   const delivery = o.deliveryId ? await Deliveries.byId(o.deliveryId) : null;
   const isDone = o.status === "delivered" || o.status === "completed";
+  // Customer's existing complaints against this order — surface them so the
+  // customer can see what they've already filed and not lose track.
+  const u = state.user;
+  const myComplaints = u
+    ? await Complaints.list({ orderId, fromId: u.id })
+    : [];
 
   openModal(`${t("track.order_label")} ${o.id.slice(-6).toUpperCase()}`, `
     <div class="row">
@@ -1003,6 +1009,25 @@ async function openOrderDetail(orderId) {
         </div>
       ` : `<div class="muted mt8">${t("track.confirmed_at", { date: dateShort(delivery.confirmedAt) })}</div>`}
     ` : ""}
+    ${myComplaints.length ? `
+      <hr/>
+      <div style="font-weight:900;">${t("track.my_complaints", { n: myComplaints.length })}</div>
+      <div style="display:grid;gap:10px;margin-top:10px;">
+        ${myComplaints.map(c => `
+          <div class="complaint-item">
+            <div class="row" style="align-items:flex-start;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-weight:900;">${c.type}</div>
+                <div class="muted" style="font-size:12px;">${dateShort(c.createdAt)} · ${statusBadge(c.status)}${c.wantsRefund ? ` · <span style="color:var(--accent);font-weight:800;">💰 ${t("cmp.refund_requested")}</span>` : ""}</div>
+                <div class="muted mt8" style="font-size:13px;">${escapeAttr(c.detail || "")}</div>
+                ${c.image ? `<img src="${c.image}" alt="" class="complaint-photo" />` : ""}
+                ${c.decisionNote ? `<div class="muted mt8" style="font-size:12px;">"${escapeAttr(c.decisionNote)}"</div>` : ""}
+              </div>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    ` : ""}
     ${isDone ? `
       <hr/>
       <div style="font-weight:900;">${t("track.rate_title")}</div>
@@ -1012,12 +1037,25 @@ async function openOrderDetail(orderId) {
         ${delivery && delivery.courierId ? `<button class="addbtn" data-rate-courier="${delivery.courierId}">${t("track.rate_delivery")}</button>` : ""}
       </div>
     ` : ""}
+    ${o.status !== "completed" && o.status !== "cancelled" && o.status !== "refunded" ? `
+      <hr/>
+      <div class="btnrow"><button class="ghost" data-complain-inline="${o.id}">${myComplaints.length ? t("track.complain_again") : t("track.complain")}</button></div>
+    ` : ""}
   `);
 
   document.querySelector("#modalBody [data-rate-shop]")
     ?.addEventListener("click", (e) => openRateShop(e.currentTarget.dataset.rateShop));
   document.querySelector("#modalBody [data-rate-courier]")
     ?.addEventListener("click", (e) => openRateDelivery(e.currentTarget.dataset.rateCourier));
+  document.querySelector("#modalBody [data-complain-inline]")
+    ?.addEventListener("click", (e) => {
+      closeModal();
+      openComplaintForm(e.currentTarget.dataset.complainInline);
+    });
+}
+
+function escapeAttr(s) {
+  return String(s || "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
 function openRateShop(shopId) {

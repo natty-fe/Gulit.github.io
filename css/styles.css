@@ -1001,6 +1001,13 @@ input:focus, select:focus, textarea:focus{
 .qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .qty-input{ -moz-appearance: textfield; }
 
+.complaint-item{
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: var(--surface-soft);
+}
+
 .complaint-photo{
   display: block;
   margin-top: 10px;
