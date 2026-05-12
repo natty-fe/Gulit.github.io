@@ -12,6 +12,21 @@ import { SUB_CITIES, CATEGORIES } from "../seed.js";
 
 const PROPOSE_UNITS = ["kg", "tray", "dozen", "pack", "litre", "piece"];
 const PROPOSE_ICONS = ["onion", "tomato", "potato", "carrot", "pepper", "cabbage", "egg", "grain", "banana", "spice"];
+// Real photo to display in the icon picker grid for each built-in option.
+// For keys that don't have a specific photo (grain/spice are generic), pick
+// a representative real product photo.
+const PROPOSE_ICON_IMAGES = {
+  onion:   "assets/products/onion.webp",
+  tomato:  "assets/products/tomato.webp",
+  potato:  "assets/products/potato.jpeg",
+  carrot:  "assets/products/carrot.jpeg",
+  pepper:  "assets/products/pepper.jpeg",
+  cabbage: "assets/products/cabbage.jpeg",
+  egg:     "assets/products/egg.jpeg",
+  grain:   "assets/products/teff.webp",
+  banana:  "assets/products/banana.jpeg",
+  spice:   "assets/products/berbere.jpeg",
+};
 
 const view = () => document.getElementById("view");
 
@@ -508,7 +523,13 @@ function openProposeProduct(myShops) {
   const renderPreview = () => {
     const wrap = document.getElementById("propPreview");
     if (!wrap) return;
-    wrap.innerHTML = productImageHtml({ icon: selectedIcon, image: selectedImage });
+    // Use the mapped photo when no upload is set; falls back to the SVG icon
+    // (then placeholder) inside productImageHtml.
+    const previewProduct = {
+      icon: selectedIcon,
+      image: selectedImage || PROPOSE_ICON_IMAGES[selectedIcon] || null,
+    };
+    wrap.innerHTML = productImageHtml(previewProduct);
     document.getElementById("propClearImg").hidden = !selectedImage;
     document.querySelectorAll("#propIconGrid .icon-cell").forEach(c => {
       c.classList.toggle("selected", !selectedImage && c.dataset.icon === selectedIcon);
@@ -530,11 +551,17 @@ function openProposeProduct(myShops) {
       <div class="image-picker-side">
         <div class="muted" style="font-size:12px;">${t("own.product_image_hint")}</div>
         <div id="propIconGrid" class="icon-grid">
-          ${PROPOSE_ICONS.map(k => `
-            <button type="button" class="icon-cell" data-icon="${k}" title="${k}">
-              ${iconSvg(k)}
-            </button>
-          `).join("")}
+          ${PROPOSE_ICONS.map(k => {
+            const img = PROPOSE_ICON_IMAGES[k];
+            const inner = img
+              ? `<img src="${img}" alt="${k}" loading="lazy" />`
+              : iconSvg(k);
+            return `
+              <button type="button" class="icon-cell" data-icon="${k}" title="${k}">
+                ${inner}
+              </button>
+            `;
+          }).join("")}
         </div>
         <div class="upload-row">
           <input type="file" id="propUpload" accept="image/*" hidden />
