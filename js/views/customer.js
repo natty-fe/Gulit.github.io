@@ -1060,22 +1060,12 @@ function openComplaintForm(orderId) {
   let cmpImage = null;
   openModal(t("cmp.modal_title"), `
     ${formField({ label: t("cmp.type"), name: "type", type: "select", options: [
-      { value: "Missing item", label: t("cmp.type.missing") },
+      { value: "Missing item",  label: t("cmp.type.missing") },
       { value: "Late delivery", label: t("cmp.type.late") },
-      { value: "Wrong item", label: t("cmp.type.wrong") },
-      { value: "Refund request", label: t("cmp.type.refund") },
-      { value: "Other", label: t("cmp.type.other") },
+      { value: "Wrong item",    label: t("cmp.type.wrong") },
+      { value: "Quality",       label: t("cmp.type.quality") },
+      { value: "Other",         label: t("cmp.type.other") },
     ]})}
-
-    <div id="refundReasonWrap" hidden>
-      ${formField({ label: t("cmp.refund_reason"), name: "refundReason", type: "select", options: [
-        { value: "", label: t("cmp.refund_reason_pick") },
-        { value: "missing",  label: t("cmp.refund_reason.missing") },
-        { value: "wrong",    label: t("cmp.refund_reason.wrong") },
-        { value: "quality",  label: t("cmp.refund_reason.quality") },
-        { value: "other",    label: t("cmp.refund_reason.other") },
-      ]})}
-    </div>
 
     ${formField({ label: t("cmp.detail"), name: "detail", type: "textarea", placeholder: t("cmp.detail_ph"), required: true })}
 
@@ -1099,7 +1089,6 @@ function openComplaintForm(orderId) {
   `);
 
   const typeSel = document.querySelector("#modalBody [name=type]");
-  const refundWrap = document.getElementById("refundReasonWrap");
   const photoWrap = document.getElementById("cmpPhotoWrap");
   const photoLabel = document.getElementById("cmpPhotoLabel");
   const photoHint = document.getElementById("cmpPhotoHint");
@@ -1109,7 +1098,6 @@ function openComplaintForm(orderId) {
 
   const syncForType = () => {
     const type = typeSel.value;
-    refundWrap.hidden = type !== "Refund request";
     // Late delivery has nothing to photograph — hide the whole photo block.
     photoWrap.hidden = type === "Late delivery";
     if (type === "Late delivery") { cmpImage = null; }
@@ -1142,20 +1130,38 @@ function openComplaintForm(orderId) {
   document.getElementById("cmpSubmit").onclick = async () => {
     const type = typeSel.value;
     const detail = document.querySelector("#modalBody [name=detail]").value.trim();
-    const refundReason = type === "Refund request"
-      ? document.querySelector("#modalBody [name=refundReason]").value
-      : null;
     if (!detail) { toast(t("cmp.describe"), "danger"); return; }
     if (type === "Wrong item" && !cmpImage) { toast(t("cmp.photo_required"), "danger"); return; }
-    if (type === "Refund request" && !refundReason) { toast(t("cmp.refund_reason_required"), "danger"); return; }
     try {
-      await Complaints.create({
+      const created = await Complaints.create({
         orderId, type, detail,
         image: type === "Late delivery" ? null : cmpImage,
-        refundReason,
       });
       toast(t("cmp.sent"), "success");
-      closeModal(); renderTracking();
+      closeModal();
+      // Follow-up: ask if the customer wants a refund. Independent of the
+      // complaint type — they might want one even for a "late delivery".
+      openRefundPrompt(created.id);
+    } catch (e) { toast(e.message, "danger"); }
+  };
+}
+
+function openRefundPrompt(complaintId) {
+  openModal(t("cmp.refund_prompt_title"), `
+    <div class="muted">${t("cmp.refund_prompt_body")}</div>
+    <div class="muted mt8" style="font-size:12px;">${t("cmp.refund_prompt_note")}</div>
+    <div class="btnrow mt12">
+      <button class="primary" id="rfYes">${t("cmp.refund_prompt_yes")}</button>
+      <button class="ghost" id="rfNo">${t("cmp.refund_prompt_no")}</button>
+    </div>
+  `);
+  document.getElementById("rfNo").onclick = () => { closeModal(); renderTracking(); };
+  document.getElementById("rfYes").onclick = async () => {
+    try {
+      await Complaints.requestRefund(complaintId);
+      toast(t("cmp.refund_sent"), "success");
+      closeModal();
+      renderTracking();
     } catch (e) { toast(e.message, "danger"); }
   };
 }

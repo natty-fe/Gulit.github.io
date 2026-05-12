@@ -179,7 +179,7 @@ async function drawComplaintsForBranch() {
         </div>
       </div>
       <div class="muted mt8">${c.detail}</div>
-      ${c.refundReason ? `<div class="muted mt8" style="font-size:12px;"><b>${t("cmp.refund_reason")}:</b> ${t(`cmp.refund_reason.${c.refundReason}`, c.refundReason)}</div>` : ""}
+      ${c.wantsRefund ? `<div class="mt8" style="font-size:12px;font-weight:800;color:var(--accent);">💰 ${t("cmp.refund_requested")}</div>` : ""}
       ${c.image ? `<img src="${c.image}" alt="" class="complaint-photo" />` : ""}
       <div class="actions">
         <button class="addbtn" data-decide="${c.id}" data-decision="approved">${t("br.approve_refund")}</button>
@@ -344,6 +344,7 @@ function notifTitleCommittee(n) {
     });
     case "COMPLAINT_OPEN":       return t("notif.complaint_open",      { shop: d.shopName || "", type: d.type || "" });
     case "COMPLAINT_ESCALATED":  return t("notif.complaint_escalated", { id: (d.complaintId || "").slice(-6).toUpperCase(), type: d.type || "" });
+    case "REFUND_REQUESTED":     return t("notif.refund_requested",    { from: d.fromName || "", shop: d.shopName || "", type: d.type || "" });
     case "INVENTORY_NEW":        return t("notif.inventory_new", {
       shop: d.shopName || "", product: d.productName || "",
       price: etb(d.price ?? 0), qty: d.qty ?? 0,
@@ -536,7 +537,7 @@ async function drawEscalations() {
         </div>
       </div>
       <div class="muted mt8">${c.detail}</div>
-      ${c.refundReason ? `<div class="muted mt8" style="font-size:12px;"><b>${t("cmp.refund_reason")}:</b> ${t(`cmp.refund_reason.${c.refundReason}`, c.refundReason)}</div>` : ""}
+      ${c.wantsRefund ? `<div class="mt8" style="font-size:12px;font-weight:800;color:var(--accent);">💰 ${t("cmp.refund_requested")}</div>` : ""}
       ${c.image ? `<img src="${c.image}" alt="" class="complaint-photo" />` : ""}
       <div class="actions">
         <button class="addbtn" data-decide="${c.id}" data-decision="approved">${t("br.approve_refund")}</button>
@@ -589,6 +590,7 @@ async function drawMainOverview() {
             <div class="meta">${t("br.from")}: <b>${c.fromName}</b> · ${t("br.shop_label")}: <b>${shopName({ name: c.shopName })}</b></div>
             <div class="meta">${dateShort(c.createdAt)} · ${statusBadge(c.status)}</div>
             ${c.detail ? `<div class="muted mt8">${escapeHtml(c.detail)}</div>` : ""}
+            ${c.wantsRefund ? `<div class="mt8" style="font-size:12px;font-weight:800;color:var(--accent);">💰 ${t("cmp.refund_requested")}</div>` : ""}
             ${c.image ? `<img src="${c.image}" alt="" class="complaint-photo" />` : ""}
             ${c.decisionNote ? `<div class="muted mt8">"${escapeHtml(c.decisionNote)}"</div>` : ""}
           </div>

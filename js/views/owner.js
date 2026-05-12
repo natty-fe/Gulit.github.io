@@ -493,6 +493,7 @@ function notifTitle(n) {
     });
     case "COMPLAINT_OPEN":       return t("notif.complaint_open",       { shop: d.shopName || "", type: d.type || "" });
     case "COMPLAINT_ESCALATED":  return t("notif.complaint_escalated",  { id: (d.complaintId || "").slice(-6).toUpperCase(), type: d.type || "" });
+    case "REFUND_REQUESTED":     return t("notif.refund_requested_owner", { type: d.type || "", id: (d.orderId || "").slice(-6).toUpperCase() });
     case "LOCATION_BRANCH_APPROVED":
     case "LOCATION_APPROVED":
     case "LOCATION_REJECTED":    return t(`notif.${n.type.toLowerCase()}`, {

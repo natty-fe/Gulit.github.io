@@ -491,25 +491,22 @@ export const Deliveries = {
 
 // ------------------ COMPLAINTS / REFUNDS ------------------
 export const Complaints = {
-  async create({ orderId, type, detail, image, refundReason }) {
+  async create({ orderId, type, detail, image }) {
     const u = Auth.require(["customer"]);
     const order = DB.byId("orders", orderId);
     if (!order) throw new Error("Order not found.");
     if (order.customerId !== u.id) throw new Error("Not your order.");
     // Photo is only required for "Wrong item" complaints; for everything
-    // else it's optional (you can't photograph a missing item, etc.).
+    // else it's optional (you can't photograph a missing item or late
+    // delivery; quality is recommended but not enforced).
     if (type === "Wrong item" && !image) {
       throw new Error("A photo is required for a wrong-item complaint.");
-    }
-    // Refund requests need a sub-reason so the committee can route the case.
-    if (type === "Refund request" && !refundReason) {
-      throw new Error("Please choose a refund reason.");
     }
     const shop = DB.byId("shops", order.shopId);
     const c = DB.insert("complaints", {
       orderId, type: type || "Other", detail: detail || "",
       image: image || null,
-      refundReason: refundReason || null,
+      wantsRefund: false,
       fromId: u.id, fromName: u.name,
       shopId: shop.id, shopName: shop.name,
       branchCommitteeId: shop.branchCommitteeId,
@@ -527,6 +524,34 @@ export const Complaints = {
     audit(u.id, "COMPLAINT_CREATED", "complaint", c.id, { orderId, type });
     return c;
   },
+  // Customer marks a complaint as wanting a refund. Notifies the owner of
+  // the shop and the branch committee so refund processing can begin.
+  async requestRefund(complaintId) {
+    const u = Auth.require(["customer"]);
+    const c = DB.byId("complaints", complaintId);
+    if (!c) throw new Error("Complaint not found.");
+    if (c.fromId !== u.id) throw new Error("Not your complaint.");
+    if (c.wantsRefund) return c;
+    const updated = DB.update("complaints", complaintId, { wantsRefund: true });
+    const shop = DB.byId("shops", c.shopId);
+    if (shop?.ownerId) {
+      notify({
+        recipientType: "user", recipientId: shop.ownerId, type: "REFUND_REQUESTED",
+        title: "Refund requested",
+        data: { complaintId, orderId: c.orderId, shopName: c.shopName, type: c.type },
+      });
+    }
+    if (c.branchCommitteeId) {
+      notify({
+        recipientType: "committee", recipientId: c.branchCommitteeId, type: "REFUND_REQUESTED",
+        title: "Refund requested",
+        data: { complaintId, fromName: c.fromName, shopName: c.shopName, type: c.type },
+      });
+    }
+    audit(u.id, "REFUND_REQUESTED", "complaint", complaintId, {});
+    return updated;
+  },
+
   async list({ branchCommitteeId, status, mainOnly } = {}) {
     await sleep();
     let rows = DB.all("complaints");
