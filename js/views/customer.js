@@ -1106,17 +1106,29 @@ function openRateDelivery(courierId) {
   };
 }
 
-function openComplaintForm(orderId) {
+async function openComplaintForm(orderId) {
   let cmpImage = null;
+  // Pre-load the order so we can compute the 6-hour wait window for the
+  // "Never arrived" option.
+  const order = await Orders.byId(orderId);
+  const orderHours = order ? (Date.now() - new Date(order.createdAt).getTime()) / 3600000 : Infinity;
+  const NEVER_ARRIVED_WAIT_HOURS = 6;
+  const naReady = orderHours >= NEVER_ARRIVED_WAIT_HOURS;
+  const naHoursLeft = Math.max(0, NEVER_ARRIVED_WAIT_HOURS - orderHours).toFixed(1);
+  const naLabel = naReady
+    ? t("cmp.type.never_arrived")
+    : t("cmp.type.never_arrived_locked", { h: naHoursLeft });
+
   openModal(t("cmp.modal_title"), `
-    ${formField({ label: t("cmp.type"), name: "type", type: "select", options: [
-      { value: "Missing item",   label: t("cmp.type.missing") },
-      { value: "Late delivery",  label: t("cmp.type.late") },
-      { value: "Never arrived",  label: t("cmp.type.never_arrived") },
-      { value: "Wrong item",     label: t("cmp.type.wrong") },
-      { value: "Quality",        label: t("cmp.type.quality") },
-      { value: "Other",          label: t("cmp.type.other") },
-    ]})}
+    <div class="fieldlabel">${t("cmp.type")}</div>
+    <select name="type" id="cmpTypeSel">
+      <option value="Missing item">${t("cmp.type.missing")}</option>
+      <option value="Late delivery">${t("cmp.type.late")}</option>
+      <option value="Never arrived"${naReady ? "" : " disabled"}>${naLabel}</option>
+      <option value="Wrong item">${t("cmp.type.wrong")}</option>
+      <option value="Quality">${t("cmp.type.quality")}</option>
+      <option value="Other">${t("cmp.type.other")}</option>
+    </select>
 
     ${formField({ label: t("cmp.detail"), name: "detail", type: "textarea", placeholder: t("cmp.detail_ph"), required: true })}
 
@@ -1139,7 +1151,7 @@ function openComplaintForm(orderId) {
     <div class="btnrow mt12"><button class="primary" id="cmpSubmit">${t("cmp.submit")}</button><button class="ghost" id="cmpCancel">${t("cancel")}</button></div>
   `);
 
-  const typeSel = document.querySelector("#modalBody [name=type]");
+  const typeSel = document.getElementById("cmpTypeSel");
   const photoWrap = document.getElementById("cmpPhotoWrap");
   const photoLabel = document.getElementById("cmpPhotoLabel");
   const photoHint = document.getElementById("cmpPhotoHint");

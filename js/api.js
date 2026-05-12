@@ -503,6 +503,16 @@ export const Complaints = {
     if ((type === "Wrong item" || type === "Quality") && !image) {
       throw new Error("A photo is required for this complaint type.");
     }
+    // "Order never arrived" can only be filed after the customer has waited
+    // at least 6 hours since placing the order. Stops accidental clicks
+    // right after checkout.
+    if (type === "Never arrived") {
+      const hoursOld = (Date.now() - new Date(order.createdAt).getTime()) / 3600000;
+      if (hoursOld < 6) {
+        const hLeft = Math.max(0, 6 - hoursOld).toFixed(1);
+        throw new Error(`Please wait at least 6 hours before filing this complaint (~${hLeft}h left).`);
+      }
+    }
     const shop = DB.byId("shops", order.shopId);
     const c = DB.insert("complaints", {
       orderId, type: type || "Other", detail: detail || "",
