@@ -848,8 +848,7 @@ export async function renderTracking() {
       <div class="progress"><div class="bar" style="width:${progressPct(o.status)}%"></div></div>
       <div class="flex mt12" style="flex-wrap:wrap;gap:6px;">
         <button class="viewbtn" data-detail="${o.id}">${t("details")}</button>
-        ${o.status !== "completed" && o.status !== "cancelled" && o.status !== "refunded" ?
-          `<button class="ghost" data-complain="${o.id}">${t("track.complain")}</button>` : ""}
+        ${canComplainNow(o) ? `<button class="ghost" data-complain="${o.id}">${t("track.complain")}</button>` : ""}
       </div>
     </div>
   `).join("");
@@ -973,6 +972,19 @@ function progressPct(status) {
             cancelled: 100, refunded: 100 })[status] || 10;
 }
 
+// Customers can file complaints while an order is in progress, and for a
+// 4-hour window after it completes. Cancelled / refunded orders are closed.
+const COMPLAINT_WINDOW_HOURS = 4;
+function canComplainNow(o) {
+  if (!o) return false;
+  if (o.status === "cancelled" || o.status === "refunded") return false;
+  if (o.status !== "completed" && o.status !== "delivered") return true;
+  const ts = o.completedAt || o.updatedAt || o.createdAt;
+  if (!ts) return true;
+  const hoursSince = (Date.now() - new Date(ts).getTime()) / (1000 * 60 * 60);
+  return hoursSince <= COMPLAINT_WINDOW_HOURS;
+}
+
 async function openOrderDetail(orderId) {
   const o = await Orders.byId(orderId);
   if (!o) return;
@@ -1037,7 +1049,7 @@ async function openOrderDetail(orderId) {
         ${delivery && delivery.courierId ? `<button class="addbtn" data-rate-courier="${delivery.courierId}">${t("track.rate_delivery")}</button>` : ""}
       </div>
     ` : ""}
-    ${o.status !== "completed" && o.status !== "cancelled" && o.status !== "refunded" ? `
+    ${canComplainNow(o) ? `
       <hr/>
       <div class="btnrow"><button class="ghost" data-complain-inline="${o.id}">${myComplaints.length ? t("track.complain_again") : t("track.complain")}</button></div>
     ` : ""}
@@ -1098,11 +1110,12 @@ function openComplaintForm(orderId) {
   let cmpImage = null;
   openModal(t("cmp.modal_title"), `
     ${formField({ label: t("cmp.type"), name: "type", type: "select", options: [
-      { value: "Missing item",  label: t("cmp.type.missing") },
-      { value: "Late delivery", label: t("cmp.type.late") },
-      { value: "Wrong item",    label: t("cmp.type.wrong") },
-      { value: "Quality",       label: t("cmp.type.quality") },
-      { value: "Other",         label: t("cmp.type.other") },
+      { value: "Missing item",   label: t("cmp.type.missing") },
+      { value: "Late delivery",  label: t("cmp.type.late") },
+      { value: "Never arrived",  label: t("cmp.type.never_arrived") },
+      { value: "Wrong item",     label: t("cmp.type.wrong") },
+      { value: "Quality",        label: t("cmp.type.quality") },
+      { value: "Other",          label: t("cmp.type.other") },
     ]})}
 
     ${formField({ label: t("cmp.detail"), name: "detail", type: "textarea", placeholder: t("cmp.detail_ph"), required: true })}
@@ -1136,13 +1149,13 @@ function openComplaintForm(orderId) {
 
   const syncForType = () => {
     const type = typeSel.value;
-    // Late delivery has nothing to photograph — hide the whole photo block.
-    photoWrap.hidden = type === "Late delivery";
-    if (type === "Late delivery") { cmpImage = null; }
+    // Late delivery and Never arrived have nothing concrete to photograph.
+    const noPhoto = type === "Late delivery" || type === "Never arrived";
+    photoWrap.hidden = noPhoto;
+    if (noPhoto) { cmpImage = null; }
     // Wrong item and Quality need a photo as evidence; the rest don't.
     const required = type === "Wrong item" || type === "Quality";
     photoLabel.textContent = required ? `${t("cmp.photo_label")} *` : `${t("cmp.photo_label")} (${t("optional")})`;
-    // Per-type hint so the customer knows what to actually photograph.
     const hintKey = {
       "Missing item":  "cmp.photo_hint.missing",
       "Wrong item":    "cmp.photo_hint.wrong",
@@ -1178,9 +1191,10 @@ function openComplaintForm(orderId) {
     if (!detail) { toast(t("cmp.describe"), "danger"); return; }
     if ((type === "Wrong item" || type === "Quality") && !cmpImage) { toast(t("cmp.photo_required"), "danger"); return; }
     try {
+      const noPhotoType = type === "Late delivery" || type === "Never arrived";
       const created = await Complaints.create({
         orderId, type, detail,
-        image: type === "Late delivery" ? null : cmpImage,
+        image: noPhotoType ? null : cmpImage,
       });
       toast(t("cmp.sent"), "success");
       closeModal();

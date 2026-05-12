@@ -480,10 +480,11 @@ export const Deliveries = {
     if (!d) throw new Error("Delivery not found.");
     if (d.courierId !== u.id) throw new Error("Not your delivery.");
     if (String(otp).trim() !== String(d.otp)) throw new Error("OTP does not match.");
+    const now = new Date().toISOString();
     const next = DB.update("deliveries", deliveryId, {
-      status: "delivered", confirmedAt: new Date().toISOString(),
+      status: "delivered", confirmedAt: now,
     });
-    DB.update("orders", d.orderId, { status: "completed" });
+    DB.update("orders", d.orderId, { status: "completed", completedAt: now });
     audit(u.id, "DELIVERY_CONFIRMED", "delivery", deliveryId, { orderId: d.orderId });
     return next;
   },
