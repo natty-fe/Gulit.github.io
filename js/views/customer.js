@@ -801,12 +801,20 @@ export async function renderTracking() {
   const u = state.user;
   if (!u) { location.hash = "#/auth"; return; }
   const v = view();
-  v.innerHTML = `<section class="page"><div class="card">
-    <div class="hd"><div><h2>${t("track.title")}</h2><div class="muted">${t("track.subtitle")}</div></div>
-      <button class="viewbtn" data-link="home">${t("track.home")}</button>
+  v.innerHTML = `<section class="page">
+    <div class="card" id="trackLiveCard" hidden>
+      <div class="hd"><div><h2>${t("track.live_title")}</h2><div class="muted" id="trackLiveSub"></div></div></div>
+      <div class="bd">
+        <div class="livemap" id="trackLiveMap"></div>
+      </div>
     </div>
-    <div class="bd" id="trackBody">${t("loading")}</div>
-  </div></section>`;
+    <div class="card mt12">
+      <div class="hd"><div><h2>${t("track.title")}</h2><div class="muted">${t("track.subtitle")}</div></div>
+        <button class="viewbtn" data-link="home">${t("track.home")}</button>
+      </div>
+      <div class="bd" id="trackBody">${t("loading")}</div>
+    </div>
+  </section>`;
 
   const orders = await Orders.list({ customerId: u.id });
   if (orders.length === 0) {
@@ -834,7 +842,117 @@ export async function renderTracking() {
 
   document.querySelectorAll("[data-detail]").forEach(b => b.addEventListener("click", () => openOrderDetail(b.dataset.detail)));
   document.querySelectorAll("[data-complain]").forEach(b => b.addEventListener("click", () => openComplaintForm(b.dataset.complain)));
+
+  // Find the first active delivery (assigned / accepted / picked_up / en_route)
+  // and show a live tracking map for it. Position is interpolated from the
+  // shop to the customer's sub-city, with a status- and time-based offset
+  // plus a small wobble so it feels alive.
+  const ACTIVE = ["assigned", "accepted", "picked_up", "en_route"];
+  let liveOrder = null;
+  let liveDelivery = null;
+  for (const o of orders) {
+    if (!o.deliveryId) continue;
+    const d = await Deliveries.byId(o.deliveryId);
+    if (d && ACTIVE.includes(d.status)) { liveOrder = o; liveDelivery = d; break; }
+  }
+  if (liveOrder && liveDelivery) {
+    await initTrackingMap(liveOrder, liveDelivery);
+  } else {
+    stopTrackingMap();
+  }
 }
+
+// Module-scoped Leaflet instance + animation timer so we can tear them down
+// when navigating away or rendering again.
+let _trackMap = null;
+let _trackInterval = null;
+
+function stopTrackingMap() {
+  if (_trackInterval) { clearInterval(_trackInterval); _trackInterval = null; }
+  if (_trackMap) { _trackMap.remove(); _trackMap = null; }
+  const card = document.getElementById("trackLiveCard");
+  if (card) card.hidden = true;
+}
+
+async function initTrackingMap(order, delivery) {
+  stopTrackingMap();
+  const el = document.getElementById("trackLiveMap");
+  const card = document.getElementById("trackLiveCard");
+  if (!el || typeof L === "undefined") return;
+
+  const shop = await Shops.byId(order.shopId);
+  const shopCenter = SUB_CITY_COORDS[shop?.subCity] || ADDIS_CENTER;
+  const custCenter = SUB_CITY_COORDS[order.customerSubCity] || ADDIS_CENTER;
+  card.hidden = false;
+  document.getElementById("trackLiveSub").textContent = t("track.live_sub", {
+    id: order.id.slice(-6).toUpperCase(),
+    status: t(`status.${delivery.status}`, delivery.status),
+  });
+
+  const bounds = L.latLngBounds([shopCenter, custCenter]).pad(0.4);
+  _trackMap = L.map(el, { scrollWheelZoom: false, attributionControl: true }).fitBounds(bounds);
+  L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    { maxZoom: 19, attribution: "Imagery © Esri" }
+  ).addTo(_trackMap);
+  L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",
+    { maxZoom: 19 }
+  ).addTo(_trackMap);
+
+  const pinIcon = (bg, glyph) => L.divIcon({
+    className: "track-pin",
+    html: `<div style="background:${bg};width:34px;height:34px;border-radius:50%;border:3px solid #fff;display:grid;place-items:center;color:#fff;font-size:16px;box-shadow:0 4px 10px rgba(0,0,0,.25);">${glyph}</div>`,
+    iconSize: [34, 34], iconAnchor: [17, 17],
+  });
+  L.marker(shopCenter, { icon: pinIcon("#6b8e4e", "🏪") }).addTo(_trackMap)
+    .bindPopup(`<b>${shopName(shop)}</b><br/>${subCityLabel(shop?.subCity || "")}`);
+  L.marker(custCenter, { icon: pinIcon("#c97b5e", "🏠") }).addTo(_trackMap)
+    .bindPopup(`<b>${t("track.your_address")}</b><br/>${subCityLabel(order.customerSubCity)}`);
+  L.polyline([shopCenter, custCenter], { color: "#fff", weight: 3, dashArray: "6 8", opacity: .7 }).addTo(_trackMap);
+
+  const courierIcon = L.divIcon({
+    className: "track-courier",
+    html: `<div style="background:#fbbf24;width:38px;height:38px;border-radius:50%;border:3px solid #fff;display:grid;place-items:center;color:#fff;font-size:18px;box-shadow:0 6px 14px rgba(0,0,0,.35);">🛵</div>`,
+    iconSize: [38, 38], iconAnchor: [19, 19],
+  });
+  const baseT = {
+    assigned:  0.02,
+    accepted:  0.05,
+    picked_up: 0.20,
+    en_route:  0.55,
+  }[delivery.status] ?? 0.5;
+
+  const dispatchedAt = new Date(delivery.updatedAt || delivery.createdAt || Date.now()).getTime();
+  const computePos = () => {
+    const elapsed = (Date.now() - dispatchedAt) / 60000; // minutes
+    let t = baseT;
+    if (delivery.status === "en_route") {
+      t = Math.min(0.95, 0.55 + (elapsed / 20) * 0.4);
+    } else if (delivery.status === "picked_up") {
+      t = Math.min(0.45, 0.20 + (elapsed / 15) * 0.25);
+    }
+    // Tiny wobble so the marker feels live between full status updates.
+    t = Math.max(0.02, Math.min(0.98, t + (Math.random() - 0.5) * 0.015));
+    return [
+      shopCenter[0] + (custCenter[0] - shopCenter[0]) * t,
+      shopCenter[1] + (custCenter[1] - shopCenter[1]) * t,
+    ];
+  };
+  const courierMarker = L.marker(computePos(), { icon: courierIcon }).addTo(_trackMap)
+    .bindPopup(`<b>${t("track.live_courier")}</b><br/>${t("track.live_eta")}: ${delivery.eta || "—"}`);
+
+  _trackInterval = setInterval(() => {
+    courierMarker.setLatLng(computePos());
+  }, 5000);
+
+  setTimeout(() => _trackMap?.invalidateSize(), 60);
+}
+
+// When the user navigates away from /track, stop the animation.
+window.addEventListener("hashchange", () => {
+  if (!location.hash.startsWith("#/track")) stopTrackingMap();
+});
 
 function progressPct(status) {
   return ({ created: 15, paid: 30, accepted: 45, preparing: 60, dispatched: 80, delivered: 95, completed: 100,

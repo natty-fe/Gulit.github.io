@@ -332,6 +332,11 @@ const STR = {
     "track.eta": "ETA",
     "track.confirmed_at": "Confirmed at {date}.",
     "track.share_otp": "Share this OTP with the courier on arrival",
+    "track.live_title": "Live delivery tracking",
+    "track.live_sub": "Order {id} · courier is {status}",
+    "track.your_address": "Your address",
+    "track.live_courier": "Your courier",
+    "track.live_eta": "ETA",
 
     // ---- complaint ----
     "cmp.modal_title": "Submit complaint",
@@ -847,6 +852,11 @@ const STR = {
     "track.eta": "የሚደርስበት ጊዜ",
     "track.confirmed_at": "የተረጋገጠው {date}።",
     "track.share_otp": "ይህን ኮድ ሲደርስ ለአስረካቢው ያካፍሉ",
+    "track.live_title": "ቀጥታ የአመጣጥ ክትትል",
+    "track.live_sub": "ትዕዛዝ {id} · አስረካቢው {status}",
+    "track.your_address": "የእርስዎ አድራሻ",
+    "track.live_courier": "የእርስዎ አስረካቢ",
+    "track.live_eta": "የሚደርስበት ጊዜ",
 
     // ---- complaint ----
     "cmp.modal_title": "ቅሬታ ያስገቡ",
