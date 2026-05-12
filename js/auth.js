@@ -263,8 +263,12 @@ export const Auth = {
 
   async logout() {
     if (isSupabaseEnabled()) {
-      try { await getSupabase().auth.signOut(); } catch { /* ignore */ }
       _cachedUser = null;
+      // Local-scope sign out: clears the device's session tokens immediately
+      // without hitting /logout on the server. ~50ms instead of 1-2s. The
+      // refresh token stays valid server-side until it expires, which is
+      // fine for a demo.
+      try { await getSupabase().auth.signOut({ scope: "local" }); } catch { /* ignore */ }
       return;
     }
     const token = localStorage.getItem(TOKEN_KEY);
