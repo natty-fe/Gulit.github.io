@@ -82,16 +82,27 @@ export async function forgotPassword(req, res) {
     password_reset_expires_at: new Date(Date.now() + RESET_TOKEN_MINUTES * 60 * 1000).toISOString(),
   });
   await writeAuditLog(user.id, "PASSWORD_RESET_REQUESTED", "user", user.id);
-  let emailSent = false;
+  let emailResult = { sent: false, reason: "Email service was not attempted." };
   try {
-    const result = await sendPasswordResetEmail(user, resetToken);
-    emailSent = Boolean(result.sent);
+    emailResult = await sendPasswordResetEmail(user, resetToken);
+    console.info("Password reset email result:", {
+      sent: Boolean(emailResult.sent),
+      provider: emailResult.provider || "none",
+      reason: emailResult.reason || null,
+      to: user.email,
+    });
   } catch (err) {
+    emailResult = { sent: false, reason: err.message };
     console.warn("Password reset email failed:", err.message);
   }
+  const emailSent = Boolean(emailResult.sent);
 
   res.json({
-    message: emailSent ? "Password reset email sent." : genericMessage,
+    message: emailSent
+      ? "Password reset email sent."
+      : `Reset token was created, but email was not sent: ${emailResult.reason || "Email service failed."}`,
+    emailSent,
+    emailProvider: emailResult.provider || null,
     ...(process.env.NODE_ENV !== "production" ? { resetToken, expiresInMinutes: RESET_TOKEN_MINUTES } : {}),
   });
 }

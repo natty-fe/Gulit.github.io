@@ -235,24 +235,28 @@ function openForgotPassword() {
     if (!identifier) { toast(t("auth.enter_creds"), "danger"); return; }
     const originalText = requestBtn.textContent;
     requestBtn.disabled = true;
-    requestBtn.textContent = "Sending...";
+    requestBtn.textContent = t("auth.reset_sending");
     resetStep.innerHTML = `<div class="muted reset-message">${t("auth.reset_sending")}</div>`;
     try {
       const result = await Auth.requestPasswordReset({ identifier });
+      const emailFailed = result.emailSent === false;
       const tokenField = result.resetToken
         ? formField({ label: t("auth.reset_token"), name: "resetToken", value: result.resetToken, required: true })
         : formField({ label: t("auth.reset_token"), name: "resetToken", required: true });
+      const resetForm = !emailFailed || result.resetToken ? `
+          ${tokenField}
+          ${formField({ label: t("auth.new_password"), name: "resetPassword", type: "password", required: true })}
+          ${formField({ label: t("auth.password_confirm"), name: "resetPasswordConfirm", type: "password", required: true })}
+          <div class="btnrow mt12">
+            <button class="primary" id="completeResetBtn">${t("auth.reset_complete_btn")}</button>
+          </div>
+        ` : "";
       resetStep.innerHTML = `
-        <div class="muted reset-message">${result.message || t("auth.reset_sent")}</div>
-        <div class="muted reset-message">${t("auth.reset_email_hint")}</div>
-        ${tokenField}
-        ${formField({ label: t("auth.new_password"), name: "resetPassword", type: "password", required: true })}
-        ${formField({ label: t("auth.password_confirm"), name: "resetPasswordConfirm", type: "password", required: true })}
-        <div class="btnrow mt12">
-          <button class="primary" id="completeResetBtn">${t("auth.reset_complete_btn")}</button>
-        </div>
+        <div class="${emailFailed ? "reset-error" : "muted reset-message"}">${result.message || (emailFailed ? t("auth.reset_email_failed") : t("auth.reset_sent"))}</div>
+        ${emailFailed ? "" : `<div class="muted reset-message">${t("auth.reset_email_hint")}</div>`}
+        ${resetForm}
       `;
-      document.getElementById("completeResetBtn").onclick = async () => {
+      document.getElementById("completeResetBtn")?.addEventListener("click", async () => {
         const token = document.querySelector("#modalBody [name=resetToken]").value.trim();
         const password = document.querySelector("#modalBody [name=resetPassword]").value;
         const confirm = document.querySelector("#modalBody [name=resetPasswordConfirm]").value;
@@ -264,8 +268,8 @@ function openForgotPassword() {
         } catch (e) {
           toast(e.message, "danger");
         }
-      };
-      toast(t("auth.reset_sent"), "success");
+      });
+      toast(emailFailed ? (result.message || t("auth.reset_email_failed")) : t("auth.reset_sent"), emailFailed ? "danger" : "success");
     } catch (e) {
       resetStep.innerHTML = `<div class="reset-error">${e.message}</div>`;
       toast(e.message, "danger");
