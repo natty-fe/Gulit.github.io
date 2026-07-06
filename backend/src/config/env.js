@@ -21,6 +21,8 @@ export const env = {
   smtpUser: process.env.SMTP_USER,
   smtpPass: process.env.SMTP_PASS,
   smtpFrom: process.env.SMTP_FROM || process.env.SMTP_USER,
+  brevoApiKey: process.env.BREVO_API_KEY,
+  brevoFrom: process.env.BREVO_FROM || process.env.EMAIL_FROM || process.env.SMTP_FROM || process.env.SMTP_USER,
   resendApiKey: process.env.RESEND_API_KEY,
   emailFrom: process.env.EMAIL_FROM || process.env.SMTP_FROM || process.env.SMTP_USER,
   frontendUrl: process.env.FRONTEND_URL || "http://localhost:8080",

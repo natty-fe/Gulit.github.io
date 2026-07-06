@@ -14,8 +14,26 @@ function isResendConfigured() {
   return Boolean(env.resendApiKey && env.emailFrom);
 }
 
+function isBrevoConfigured() {
+  return Boolean(env.brevoApiKey && env.brevoFrom);
+}
+
 function isSmtpConfigured() {
   return Boolean(env.smtpHost && env.smtpPort && env.smtpUser && env.smtpPass && env.smtpFrom);
+}
+
+function parseSender(value) {
+  const match = String(value || "").match(/^\s*(.*?)\s*<([^>]+)>\s*$/);
+  if (match) {
+    return {
+      name: match[1] || "Gulit",
+      email: match[2],
+    };
+  }
+  return {
+    name: "Gulit",
+    email: value,
+  };
 }
 
 function getTransporter() {
@@ -62,6 +80,32 @@ async function sendWithResend({ to, subject, text, html }) {
   return { sent: true, provider: "resend" };
 }
 
+async function sendWithBrevo({ to, subject, text, html }) {
+  const sender = parseSender(env.brevoFrom);
+  const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "api-key": env.brevoApiKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      sender,
+      to: [{ email: to }],
+      subject,
+      textContent: text,
+      htmlContent: html,
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Brevo email failed with status ${response.status}: ${body}`);
+  }
+
+  return { sent: true, provider: "brevo" };
+}
+
 async function sendWithSmtp({ to, subject, text, html }) {
   const tx = getTransporter();
   if (!tx) return { sent: false, reason: "Email is not configured." };
@@ -78,6 +122,10 @@ async function sendWithSmtp({ to, subject, text, html }) {
 
 export async function sendMail({ to, subject, text, html }) {
   if (!to) return { sent: false, reason: "Recipient email is missing." };
+
+  if (isBrevoConfigured()) {
+    return sendWithBrevo({ to, subject, text, html });
+  }
 
   if (isResendConfigured()) {
     return sendWithResend({ to, subject, text, html });
