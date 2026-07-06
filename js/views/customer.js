@@ -52,8 +52,8 @@ function drawAuthForm(mode) {
       <div class="btnrow">
         <button class="primary" id="loginBtn">${t("auth.signin_btn")}</button>
       </div>
-      <div class="btnrow" style="justify-content:flex-end;margin-top:8px;">
-        <button class="ghost" id="forgotPasswordBtn">${t("auth.forgot_password")}</button>
+      <div class="forgot-row">
+        <button class="forgot-link" id="forgotPasswordBtn" type="button">${t("auth.forgot_password")}</button>
       </div>
     `;
     document.getElementById("loginBtn").addEventListener("click", onLogin);

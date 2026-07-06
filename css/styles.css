@@ -667,6 +667,30 @@ input:focus, select:focus, textarea:focus{
   color: var(--muted);
 }
 .tab.active{ background: var(--surface); color: var(--primary); box-shadow: var(--shadow2); }
+.forgot-row{
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+.forgot-link{
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  padding: 3px 0;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+  box-shadow: none;
+  cursor: pointer;
+}
+.forgot-link:hover{
+  text-decoration: underline;
+}
+.forgot-link:focus-visible{
+  outline: 2px solid var(--primary-ring);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
 
 /* =====================================================================
    SHOPS / CASES / DELIVERY CARDS
@@ -1156,4 +1180,272 @@ hr{ border: none; border-top: 1px solid var(--border); margin: 12px 0; }
   font-weight: 800;
   background: var(--border);
   color: var(--muted);
+}
+
+/* =====================================================================
+   RESPONSIVE FIXES
+   ===================================================================== */
+@media (max-width: 760px){
+  html, body{
+    width: 100%;
+    min-width: 0;
+  }
+
+  #app{
+    max-width: none;
+    width: 100%;
+    padding-bottom: 96px;
+  }
+
+  main#view{
+    padding: 10px;
+  }
+
+  .topbar-inner{
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .brand{
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .logo{
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+  }
+
+  .brand h1{
+    font-size: 16px;
+    letter-spacing: .08em;
+    white-space: nowrap;
+  }
+
+  .tag{
+    display: none;
+  }
+
+  .topbar-actions{
+    gap: 6px;
+    flex-shrink: 0;
+  }
+
+  .smallbtn,
+  button.primary,
+  button.ghost,
+  button.danger{
+    min-height: 44px;
+  }
+
+  .iconbtn{
+    width: 38px;
+    height: 38px;
+  }
+
+  .pill{
+    max-width: 130px;
+    padding: 6px 8px;
+  }
+
+  .pill .userName,
+  .pill .userRole{
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .authwrap{
+    min-height: auto;
+    place-items: start center;
+    padding: 8px 0 22px;
+  }
+
+  .authcard{
+    width: 100%;
+    border-radius: 16px;
+  }
+
+  .authhero{
+    padding: 14px;
+  }
+
+  .authhero h2{
+    font-size: 18px;
+    letter-spacing: 0;
+  }
+
+  .authhero p{
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .authbody{
+    padding: 12px;
+  }
+
+  .tabs{
+    gap: 4px;
+  }
+
+  .tab{
+    padding: 10px 8px;
+    font-size: 12px;
+  }
+
+  .btnrow{
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .btnrow button{
+    width: 100%;
+  }
+
+  .overlay{
+    place-items: start center;
+    overflow-y: auto;
+    padding: 10px;
+  }
+
+  .modal{
+    width: 100%;
+    max-height: calc(100dvh - 20px);
+    border-radius: 16px;
+    margin: auto 0;
+  }
+
+  .modal .mhd{
+    padding: 12px;
+  }
+
+  .modal .mbd{
+    padding: 12px;
+  }
+
+  .xbtn{
+    width: 40px;
+    height: 40px;
+  }
+
+  .toast{
+    width: calc(100% - 24px);
+    max-width: 520px;
+    bottom: 78px;
+    border-radius: 16px;
+    text-align: center;
+    line-height: 1.35;
+  }
+
+  .pitem,
+  .shopcard{
+    grid-template-columns: 48px 1fr;
+    align-items: start;
+  }
+
+  .pitem > :last-child,
+  .shopcard > :last-child{
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .pimg,
+  .avatar{
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+  }
+
+  .pricebox{
+    text-align: left;
+    align-items: stretch;
+  }
+
+  .addbtn,
+  .viewbtn{
+    width: 100%;
+    min-height: 40px;
+  }
+
+  .searchwrap,
+  .row,
+  .bulkfooter,
+  .avatar-picker,
+  .image-picker{
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .right{
+    text-align: left;
+  }
+
+  .card .hd{
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .card .hd select{
+    width: 100% !important;
+  }
+
+  .stat{
+    min-width: 100%;
+  }
+
+  .bottomnav-inner{
+    padding: 8px;
+    gap: 6px;
+    overflow-x: auto;
+    justify-content: flex-start;
+    scrollbar-width: none;
+  }
+
+  .bottomnav-inner::-webkit-scrollbar{
+    display: none;
+  }
+
+  .navitem{
+    min-width: 74px;
+    flex: 0 0 auto;
+    padding: 9px 8px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 420px){
+  .brand h1{
+    font-size: 14px;
+  }
+
+  .smallbtn{
+    padding: 9px 10px;
+    font-size: 12px;
+  }
+
+  .iconbtn{
+    width: 36px;
+    height: 36px;
+  }
+
+  input,
+  select,
+  textarea{
+    font-size: 16px;
+  }
+
+  .authhero{
+    display: none;
+  }
+
+  .authcard{
+    border-radius: 14px;
+  }
+
+  .theme-grid{
+    grid-template-columns: 1fr;
+  }
 }
