@@ -1,7 +1,14 @@
 import nodemailer from "nodemailer";
+import dns from "node:dns";
 import { env } from "../config/env.js";
 
+dns.setDefaultResultOrder("ipv4first");
+
 let transporter = null;
+
+function lookupIpv4(hostname, options, callback) {
+  dns.lookup(hostname, { ...options, family: 4 }, callback);
+}
 
 function isResendConfigured() {
   return Boolean(env.resendApiKey && env.emailFrom);
@@ -18,6 +25,11 @@ function getTransporter() {
     host: env.smtpHost,
     port: env.smtpPort,
     secure: env.smtpPort === 465,
+    family: 4,
+    lookup: lookupIpv4,
+    tls: {
+      servername: env.smtpHost,
+    },
     auth: {
       user: env.smtpUser,
       pass: env.smtpPass,
