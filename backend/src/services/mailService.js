@@ -3,12 +3,16 @@ import { env } from "../config/env.js";
 
 let transporter = null;
 
-function isMailConfigured() {
+function isResendConfigured() {
+  return Boolean(env.resendApiKey && env.emailFrom);
+}
+
+function isSmtpConfigured() {
   return Boolean(env.smtpHost && env.smtpPort && env.smtpUser && env.smtpPass && env.smtpFrom);
 }
 
 function getTransporter() {
-  if (!isMailConfigured()) return null;
+  if (!isSmtpConfigured()) return null;
   if (transporter) return transporter;
   transporter = nodemailer.createTransport({
     host: env.smtpHost,
@@ -22,9 +26,33 @@ function getTransporter() {
   return transporter;
 }
 
-export async function sendMail({ to, subject, text, html }) {
+async function sendWithResend({ to, subject, text, html }) {
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${env.resendApiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: env.emailFrom,
+      to,
+      subject,
+      text,
+      html,
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Resend email failed with status ${response.status}: ${body}`);
+  }
+
+  return { sent: true, provider: "resend" };
+}
+
+async function sendWithSmtp({ to, subject, text, html }) {
   const tx = getTransporter();
-  if (!tx || !to) return { sent: false, reason: "SMTP is not configured." };
+  if (!tx) return { sent: false, reason: "Email is not configured." };
 
   await tx.sendMail({
     from: env.smtpFrom,
@@ -33,7 +61,21 @@ export async function sendMail({ to, subject, text, html }) {
     text,
     html,
   });
-  return { sent: true };
+  return { sent: true, provider: "smtp" };
+}
+
+export async function sendMail({ to, subject, text, html }) {
+  if (!to) return { sent: false, reason: "Recipient email is missing." };
+
+  if (isResendConfigured()) {
+    return sendWithResend({ to, subject, text, html });
+  }
+
+  if (isSmtpConfigured()) {
+    return sendWithSmtp({ to, subject, text, html });
+  }
+
+  return { sent: false, reason: "Email is not configured." };
 }
 
 export async function sendWelcomeEmail(user) {

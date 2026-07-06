@@ -82,6 +82,8 @@ CORS_ORIGIN=http://localhost:8080,https://natty-fe.github.io
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 FRONTEND_URL=http://localhost:8080
+RESEND_API_KEY=your-resend-api-key
+EMAIL_FROM="Gulit <onboarding@resend.dev>"
 SMTP_HOST=smtp-relay.brevo.com
 SMTP_PORT=587
 SMTP_USER=your-brevo-smtp-login
@@ -122,14 +124,12 @@ GitHub Pages hosts only the static frontend. The Express API must run on a Node 
    - start command: `npm start`
    - health check: `/health`
 4. Add the secret environment variables in Render:
-   - `JWT_SECRET`
-   - `SUPABASE_URL`
-   - `SUPABASE_SERVICE_ROLE_KEY`
-   - `SMTP_HOST`
-   - `SMTP_PORT`
-   - `SMTP_USER`
-   - `SMTP_PASS`
-   - `SMTP_FROM`
+  - `JWT_SECRET`
+  - `SUPABASE_URL`
+  - `SUPABASE_SERVICE_ROLE_KEY`
+   - `RESEND_API_KEY`
+   - `EMAIL_FROM`
+   - Optional SMTP fallback: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
 5. After Render deploys, copy the backend URL, for example:
    `https://gulit-api.onrender.com`
 6. In the GitHub Pages frontend, set the API URL from the browser console once:
@@ -146,6 +146,25 @@ For a permanent frontend setting, add this before `js/main.js` in `index.html`:
   window.GULIT_API_BASE_URL = "https://gulit-api.onrender.com/api";
 </script>
 ```
+
+## Forgot Password Email
+
+The backend sends forgot-password messages from `POST /api/auth/forgot-password`.
+
+Recommended free setup:
+
+1. Create a Resend account.
+2. Create an API key in Resend.
+3. Add these variables in Render:
+
+```text
+RESEND_API_KEY=your-resend-api-key
+EMAIL_FROM=Gulit <onboarding@resend.dev>
+```
+
+For testing, Resend's default sender can be used. For real users, verify your own sender/domain in Resend and set `EMAIL_FROM` to that verified sender.
+
+Brevo SMTP variables are still supported as a fallback, but Resend is preferred because it uses HTTPS API email sending and does not need SMTP IP allowlisting.
 
 ## Running
 
