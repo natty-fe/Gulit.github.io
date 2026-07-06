@@ -1,0 +1,400 @@
+// js/seed.js
+// Reference data only: committees, products, regulated price ranges.
+// User accounts, shops, and inventory are all created at runtime by the
+// signup / shop registration / inventory flows — there are no demo accounts.
+
+import { DB } from "./db.js";
+import { hashPassword } from "./auth.js";
+
+export const SUB_CITIES = [
+  "Bole", "Kirkos", "Arada", "Yeka", "Lideta", "Akaki Kality", "Addis Ketema",
+  "Gulele", "Nifas Silk-Lafto", "Kolfe Keranio", "Lemi Kura",
+];
+
+export const CATEGORIES = ["All", "Vegetables", "Grains", "Cereals", "Fruits", "Protein", "Spices"];
+
+const PRODUCTS = [
+  { id: "prd_onion",    name: "Onion",        nameAm: "ሽንኩርት",       category: "Vegetables", unit: "kg",    icon: "onion",   image: "assets/products/onion.webp" },
+  { id: "prd_tomato",   name: "Tomato",       nameAm: "ቲማቲም",       category: "Vegetables", unit: "kg",    icon: "tomato",  image: "assets/products/tomato.webp" },
+  { id: "prd_potato",   name: "Potato",       nameAm: "ድንች",         category: "Vegetables", unit: "kg",    icon: "potato",  image: "assets/products/potato.jpeg" },
+  { id: "prd_carrot",   name: "Carrot",       nameAm: "ካሮት",         category: "Vegetables", unit: "kg",    icon: "carrot",  image: "assets/products/carrot.jpeg" },
+  { id: "prd_pepper",   name: "Green Pepper", nameAm: "ቃሪያ",         category: "Vegetables", unit: "kg",    icon: "pepper",  image: "assets/products/pepper.jpeg" },
+  { id: "prd_cabbage",  name: "Cabbage",      nameAm: "ጥቅል ጎመን",     category: "Vegetables", unit: "kg",    icon: "cabbage", image: "assets/products/cabbage.jpeg" },
+  { id: "prd_egg",      name: "Egg (tray)",   nameAm: "እንቁላል (ትሬ)",  category: "Protein",    unit: "tray",  icon: "egg",     image: "assets/products/egg.jpeg" },
+  { id: "prd_teff",     name: "Teff",         nameAm: "ጤፍ",          category: "Grains",     unit: "kg",    icon: "grain",   image: "assets/products/teff.webp" },
+  { id: "prd_rice",     name: "Rice",         nameAm: "ሩዝ",          category: "Cereals",    unit: "kg",    icon: "grain",   image: "assets/products/rice.jpeg" },
+  { id: "prd_lentils",  name: "Lentils",      nameAm: "ምስር",         category: "Grains",     unit: "kg",    icon: "grain",   image: "assets/products/lentils.webp" },
+  { id: "prd_banana",   name: "Banana",       nameAm: "ሙዝ",          category: "Fruits",     unit: "dozen", icon: "banana",  image: "assets/products/banana.jpeg" },
+  { id: "prd_berbere",  name: "Berbere",      nameAm: "በርበሬ",        category: "Spices",     unit: "pack",  icon: "spice",   image: "assets/products/berbere.jpeg" },
+];
+
+// Initial regulated price bands (ETB). setBy is null because no main-committee
+// user exists at seed time; the first registered main user can override these
+// from the regulated-ranges panel.
+const PRICE_RANGES = [
+  { productId: "prd_onion",   min: 2.50, max: 4.50 },
+  { productId: "prd_tomato",  min: 3.00, max: 5.00 },
+  { productId: "prd_potato",  min: 2.80, max: 4.50 },
+  { productId: "prd_carrot",  min: 2.50, max: 4.20 },
+  { productId: "prd_pepper",  min: 3.50, max: 6.00 },
+  { productId: "prd_cabbage", min: 2.40, max: 3.80 },
+  { productId: "prd_egg",     min: 75.00, max: 110.00 },
+  { productId: "prd_teff",    min: 65.00, max: 95.00 },
+  { productId: "prd_rice",    min: 60.00, max: 95.00 },
+  { productId: "prd_lentils", min: 50.00, max: 80.00 },
+  { productId: "prd_banana",  min: 12.00, max: 22.00 },
+  { productId: "prd_berbere", min: 40.00, max: 65.00 },
+];
+
+export async function runSeed({ force = false } = {}) {
+  DB.ensure();
+  if (!force && DB.getMeta("seeded")) return;
+
+  if (force) DB.hardReset();
+  DB.ensure();
+
+  // ---- Committees (governance structure) ----
+  const mainCommittee = DB.insert("committees", {
+    type: "main",
+    name: "Addis Ababa Main Committee",
+    jurisdiction: "Addis Ababa",
+  });
+
+  const branchByCity = {};
+  for (const sc of SUB_CITIES) {
+    const b = DB.insert("committees", {
+      type: "branch",
+      name: `${sc} Branch Committee`,
+      jurisdiction: sc,
+      parentId: mainCommittee.id,
+    });
+    branchByCity[sc] = b.id;
+  }
+
+  // ---- Catalog ----
+  for (const p of PRODUCTS) DB.insert("products", { ...p });
+
+  // ---- Initial regulated price bands ----
+  for (const pr of PRICE_RANGES) {
+    DB.insert("priceRanges", {
+      productId: pr.productId,
+      minPrice: pr.min,
+      maxPrice: pr.max,
+      effectiveDate: new Date().toISOString(),
+      setBy: null,
+    });
+  }
+
+  // ---- Demo staff accounts (everyone except customer) ----
+  await insertDemoStaff({ mainCommitteeId: mainCommittee.id, branchByCity });
+
+  // ---- Demo shops + inventory for every owner ----
+  seedDemoShopsAndInventory({ branchByCity });
+
+  DB.setMeta("seeded", true);
+  DB.setMeta("seedVersion", 9);
+}
+
+// All demo staff share this password so the demo flow stays simple.
+const DEMO_STAFF_PASSWORD = "demo1234";
+
+const DEMO_STAFF = [
+  { name: "Abebe Kebede",   email: "abebe@gmail.com",       phone: "+251911000001", role: "owner",    subCity: "Bole", workId: "SO-00001", faydaFan: "1000000000000001" },
+  { name: "Yonas Tadesse",  email: "yonas@gmail.com",       phone: "+251911000002", role: "delivery", subCity: "Bole", workId: "D-000001", faydaFan: "1000000000000002" },
+  { name: "Mulugeta Alemu", email: "branch.bole@gmail.com", phone: "+251911000003", role: "branch",   subCity: "Bole", workId: "BC-0001",  faydaFan: "1000000000000003" },
+  { name: "Sara Tesfaye",   email: "main@gmail.com",        phone: "+251911000004", role: "main",     subCity: "Addis Ababa", workId: "MC-001", faydaFan: "1000000000000004" },
+];
+
+// Larger demo cohort: one branch member per sub-city (Bole's already in
+// DEMO_STAFF) and four shop owners per sub-city. Generated programmatically
+// so the data stays consistent and easy to extend.
+const ETHIOPIAN_FIRST_NAMES = [
+  "Hana", "Daniel", "Eden", "Solomon", "Mekdes", "Selam", "Henok", "Rahel", "Bereket", "Senait",
+  "Dawit", "Marta", "Tewodros", "Almaz", "Helen", "Zelalem", "Bethel", "Nahom", "Frehiwot", "Mesfin",
+  "Tirsit", "Yared", "Lily", "Robel", "Birtukan", "Samson", "Eyerusalem", "Dereje", "Lulit", "Kalkidan",
+  "Bemnet", "Yohanna", "Samuel", "Alemnesh", "Wendwosen", "Tibebu", "Helina", "Gelila", "Beza", "Hiwot",
+  "Endalk", "Aster", "Genet", "Berhanu", "Meron", "Saba", "Hawi", "Joseph", "Hilina", "Kidist",
+  "Maeza", "Mahder", "Yabsira", "Naod", "Eyob",
+];
+const ETHIOPIAN_LAST_NAMES = [
+  "Bekele", "Hailu", "Mihret", "Wolde", "Mengistu", "Girma", "Worku", "Demissie", "Abate", "Lemma",
+  "Ayele", "Gebre", "Asfaw", "Tolossa", "Habte",
+];
+
+const EXTRA_STAFF = generateExtraStaff();
+
+function generateExtraStaff() {
+  const accounts = [];
+  const usedEmails = new Set(DEMO_STAFF.map((a) => a.email));
+  const usedFans = new Set(DEMO_STAFF.map((a) => a.faydaFan));
+  let ownerSeq = 2;     // SO-00001 already taken
+  let branchSeq = 2;    // BC-0001 already taken (Bole)
+  let fanSeed = 1000000000000005;
+  let phoneSeed = 251911000005;
+  let nameIdx = 0;
+
+  function pickName() {
+    const f = ETHIOPIAN_FIRST_NAMES[nameIdx % ETHIOPIAN_FIRST_NAMES.length];
+    const l = ETHIOPIAN_LAST_NAMES[Math.floor(nameIdx / ETHIOPIAN_FIRST_NAMES.length) % ETHIOPIAN_LAST_NAMES.length];
+    nameIdx++;
+    return `${f} ${l}`;
+  }
+  function makeEmailFromName(name) {
+    const base = name.toLowerCase().replace(/\s+/g, ".");
+    let candidate = `${base}@gmail.com`;
+    let n = 2;
+    while (usedEmails.has(candidate)) candidate = `${base}.${n++}@gmail.com`;
+    usedEmails.add(candidate);
+    return candidate;
+  }
+  function makeFan() {
+    while (usedFans.has(String(fanSeed))) fanSeed++;
+    const fan = String(fanSeed).padStart(16, "0");
+    usedFans.add(fan);
+    fanSeed++;
+    return fan;
+  }
+  function makePhone() { return `+${phoneSeed++}`; }
+
+  for (const subCity of SUB_CITIES) {
+    if (subCity !== "Bole") {
+      const slug = subCity.toLowerCase().replace(/[^a-z]+/g, "");
+      const email = `branch.${slug}@gmail.com`;
+      usedEmails.add(email);
+      accounts.push({
+        name: pickName(),
+        email,
+        phone: makePhone(),
+        role: "branch",
+        subCity,
+        workId: `BC-${String(branchSeq++).padStart(4, "0")}`,
+        faydaFan: makeFan(),
+      });
+    }
+    const ownersToAdd = subCity === "Bole" ? 3 : 4;
+    for (let i = 0; i < ownersToAdd; i++) {
+      const name = pickName();
+      accounts.push({
+        name,
+        email: makeEmailFromName(name),
+        phone: makePhone(),
+        role: "owner",
+        subCity,
+        workId: `SO-${String(ownerSeq++).padStart(5, "0")}`,
+        faydaFan: makeFan(),
+      });
+    }
+  }
+  return accounts;
+}
+
+async function insertDemoStaff({ mainCommitteeId, branchByCity }) {
+  const passwordHash = await hashPassword(DEMO_STAFF_PASSWORD);
+  for (const a of [...DEMO_STAFF, ...EXTRA_STAFF]) {
+    if (DB.find("users", (u) => u.email === a.email)) continue;
+    let committeeId = null;
+    if (a.role === "branch") committeeId = branchByCity[a.subCity] || null;
+    if (a.role === "main")   committeeId = mainCommitteeId;
+    DB.insert("users", { ...a, committeeId, passwordHash });
+  }
+}
+
+// Auto-create one approved shop per demo owner, stocked with every product
+// at an in-band random price. Idempotent: skips owners who already have a
+// shop. Used by both fresh-install seed and the v5→v6 migration.
+function seedDemoShopsAndInventory({ branchByCity }) {
+  const owners = DB.filter("users", (u) => u.role === "owner");
+  const products = DB.all("products");
+  const ranges = DB.all("priceRanges");
+
+  for (const owner of owners) {
+    if (DB.find("shops", (s) => s.ownerId === owner.id)) continue;
+    const branchId = branchByCity[owner.subCity];
+    if (!branchId) continue;
+
+    const firstName = (owner.name || "").split(" ")[0] || "Shop";
+    // Synthetic CBE account number derived from the owner index so each
+    // demo shop has a plausible-looking unique account customers can pay to.
+    const accNumber = `1000${String(1000000000 + (owner.workId?.replace(/\D/g, "") | 0)).slice(-10)}`;
+    const shop = DB.insert("shops", {
+      ownerId: owner.id,
+      name: `${firstName}'s ${owner.subCity} Market`,
+      subCity: owner.subCity,
+      branchCommitteeId: branchId,
+      status: "approved",
+      approvedAt: new Date().toISOString(),
+      rating: 0,
+      reviews: [],
+      paymentAccounts: [
+        { id: `pay_${owner.id}_cbe`, bankName: "Commercial Bank of Ethiopia", accountName: owner.name, accountNumber: accNumber },
+      ],
+    });
+
+    for (const p of products) {
+      const r = ranges.find((x) => x.productId === p.id);
+      let price = 0;
+      if (r) {
+        const ratio = 0.3 + Math.random() * 0.5;
+        price = Number((r.minPrice + (r.maxPrice - r.minPrice) * ratio).toFixed(2));
+      }
+      DB.insert("inventory", {
+        shopId: shop.id,
+        productId: p.id,
+        qty: 30 + Math.floor(Math.random() * 70),
+        price,
+        oldPrice: Number((price * 1.6).toFixed(2)),
+        status: "approved",
+      });
+    }
+  }
+}
+
+// Backfill keys added after the initial seed so existing browser installs
+// pick them up without needing a hard reset.
+const PRODUCT_NAMES_AM_BACKFILL = {
+  prd_onion:   "ሽንኩርት",
+  prd_tomato:  "ቲማቲም",
+  prd_potato:  "ድንች",
+  prd_carrot:  "ካሮት",
+  prd_pepper:  "ቃሪያ",
+  prd_cabbage: "ጥቅል ጎመን",
+  prd_egg:     "እንቁላል (ትሬ)",
+  prd_teff:    "ጤፍ",
+  prd_rice:    "ሩዝ",
+  prd_lentils: "ምስር",
+  prd_banana:  "ሙዝ",
+  prd_berbere: "በርበሬ",
+};
+
+const DEMO_EMAILS = new Set([
+  "hana@example.com",
+  "abebe@example.com",
+  "yonas@example.com",
+  "branch@example.com",
+  "main@example.com",
+]);
+
+export async function runMigrations() {
+  DB.ensure();
+  const v = DB.getMeta("seedVersion") || 0;
+
+  // v1 → v2: products gained a nameAm field; backfill from the static map.
+  if (v < 2) {
+    const products = DB.all("products");
+    for (const p of products) {
+      if (p.nameAm) continue;
+      const nameAm = PRODUCT_NAMES_AM_BACKFILL[p.id];
+      if (nameAm) DB.update("products", p.id, { nameAm });
+    }
+    DB.setMeta("seedVersion", 2);
+  }
+
+  // v2 → v3: drop the seeded demo accounts and their dependent shops/
+  // inventory/sessions so existing browser installs match new ones (no
+  // pre-baked accounts; the operator creates their own).
+  if (v < 3) {
+    const demoUsers = DB.filter("users", (u) => DEMO_EMAILS.has(u.email));
+    const demoUserIds = new Set(demoUsers.map((u) => u.id));
+
+    if (demoUserIds.size) {
+      // Sessions for those users
+      for (const s of DB.all("sessions")) {
+        if (demoUserIds.has(s.userId)) DB.remove("sessions", s.id);
+      }
+      // Shops owned by the demo owner
+      const demoShops = DB.filter("shops", (s) => demoUserIds.has(s.ownerId));
+      const demoShopIds = new Set(demoShops.map((s) => s.id));
+      for (const i of DB.all("inventory")) {
+        if (demoShopIds.has(i.shopId)) DB.remove("inventory", i.id);
+      }
+      for (const s of demoShops) DB.remove("shops", s.id);
+      // Users themselves
+      for (const u of demoUsers) DB.remove("users", u.id);
+    }
+    DB.setMeta("seedVersion", 3);
+  }
+
+  // v3 → v4: re-introduce a small set of demo staff accounts (one per
+  // non-customer role) so the demo is testable without registering five
+  // accounts by hand. Customer is intentionally not seeded.
+  if (v < 4) {
+    const committees = DB.all("committees");
+    const main = committees.find((c) => c.type === "main");
+    const branchByCity = {};
+    for (const c of committees) {
+      if (c.type === "branch") branchByCity[c.jurisdiction] = c.id;
+    }
+    if (main) {
+      await insertDemoStaff({ mainCommitteeId: main.id, branchByCity });
+    }
+    DB.setMeta("seedVersion", 4);
+  }
+
+  // v4 → v5: extend the demo cohort to one branch member + four owners per
+  // sub-city. Same insertDemoStaff helper, which skips entries already
+  // present (matched by email).
+  if (v < 5) {
+    const committees = DB.all("committees");
+    const main = committees.find((c) => c.type === "main");
+    const branchByCity = {};
+    for (const c of committees) {
+      if (c.type === "branch") branchByCity[c.jurisdiction] = c.id;
+    }
+    if (main) {
+      await insertDemoStaff({ mainCommitteeId: main.id, branchByCity });
+    }
+    DB.setMeta("seedVersion", 5);
+  }
+
+  // v5 → v6: pre-stock every demo owner with an approved shop carrying every
+  // product. Idempotent — skips owners that already have a shop.
+  if (v < 6) {
+    const branchByCity = {};
+    for (const c of DB.all("committees")) {
+      if (c.type === "branch") branchByCity[c.jurisdiction] = c.id;
+    }
+    seedDemoShopsAndInventory({ branchByCity });
+    DB.setMeta("seedVersion", 6);
+  }
+
+  // v6 → v7: inventory rows gained a status field. Backfill every existing
+  // row to status:"approved" so they stay live for customers. New listings
+  // created from now on will start as "pending" and need branch approval.
+  if (v < 7) {
+    for (const i of DB.all("inventory")) {
+      if (!i.status) DB.update("inventory", i.id, { status: "approved" });
+    }
+    DB.setMeta("seedVersion", 7);
+  }
+
+  // v7 → v8: products gained an `image` field pointing at real photos under
+  // assets/products/. Backfill the 12 seeded products by id.
+  if (v < 8) {
+    const imageById = Object.fromEntries(PRODUCTS.map((p) => [p.id, p.image]));
+    for (const p of DB.all("products")) {
+      if (p.image) continue;
+      const url = imageById[p.id];
+      if (url) DB.update("products", p.id, { image: url });
+    }
+    DB.setMeta("seedVersion", 8);
+  }
+
+  // v8 → v9: shops gained a paymentAccounts array. Backfill a single CBE
+  // account on every existing shop so the demo's pay-now flow has somewhere
+  // to send the customer.
+  if (v < 9) {
+    for (const s of DB.all("shops")) {
+      if (Array.isArray(s.paymentAccounts) && s.paymentAccounts.length) continue;
+      const owner = DB.byId("users", s.ownerId);
+      const accountName = owner?.name || s.name;
+      const workIdDigits = (owner?.workId || "0").replace(/\D/g, "") || "0";
+      const accNumber = `1000${String(1000000000 + Number(workIdDigits)).slice(-10)}`;
+      DB.update("shops", s.id, {
+        paymentAccounts: [
+          { id: `pay_${s.id}_cbe`, bankName: "Commercial Bank of Ethiopia", accountName, accountNumber: accNumber },
+        ],
+      });
+    }
+    DB.setMeta("seedVersion", 9);
+  }
+}
