@@ -226,18 +226,25 @@ function openForgotPassword() {
   `);
 
   const idInput = document.querySelector("#modalBody [name=resetIdentifier]");
+  const requestBtn = document.getElementById("requestResetBtn");
+  const resetStep = document.getElementById("resetStep");
   idInput?.addEventListener("input", () => { idInput.value = idInput.value.toLowerCase(); });
   document.getElementById("resetCancelBtn").onclick = () => closeModal();
-  document.getElementById("requestResetBtn").onclick = async () => {
+  requestBtn.onclick = async () => {
     const identifier = idInput.value.trim().toLowerCase();
     if (!identifier) { toast(t("auth.enter_creds"), "danger"); return; }
+    const originalText = requestBtn.textContent;
+    requestBtn.disabled = true;
+    requestBtn.textContent = "Sending...";
+    resetStep.innerHTML = `<div class="muted reset-message">${t("auth.reset_sending")}</div>`;
     try {
       const result = await Auth.requestPasswordReset({ identifier });
       const tokenField = result.resetToken
         ? formField({ label: t("auth.reset_token"), name: "resetToken", value: result.resetToken, required: true })
         : formField({ label: t("auth.reset_token"), name: "resetToken", required: true });
-      document.getElementById("resetStep").innerHTML = `
-        <div class="muted" style="font-size:12px;">${result.message || t("auth.reset_sent")}</div>
+      resetStep.innerHTML = `
+        <div class="muted reset-message">${result.message || t("auth.reset_sent")}</div>
+        <div class="muted reset-message">${t("auth.reset_email_hint")}</div>
         ${tokenField}
         ${formField({ label: t("auth.new_password"), name: "resetPassword", type: "password", required: true })}
         ${formField({ label: t("auth.password_confirm"), name: "resetPasswordConfirm", type: "password", required: true })}
@@ -260,7 +267,11 @@ function openForgotPassword() {
       };
       toast(t("auth.reset_sent"), "success");
     } catch (e) {
+      resetStep.innerHTML = `<div class="reset-error">${e.message}</div>`;
       toast(e.message, "danger");
+    } finally {
+      requestBtn.disabled = false;
+      requestBtn.textContent = originalText;
     }
   };
 }
