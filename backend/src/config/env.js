@@ -10,7 +10,10 @@ export const env = {
   nodeEnv: process.env.NODE_ENV || "development",
   jwtSecret: process.env.JWT_SECRET || "replace-with-a-long-random-secret",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "1d",
-  corsOrigin: process.env.CORS_ORIGIN || "http://localhost:8080",
+  corsOrigins: (process.env.CORS_ORIGIN || "http://localhost:8080")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
   supabaseUrl: process.env.SUPABASE_URL,
   supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
   smtpHost: process.env.SMTP_HOST,

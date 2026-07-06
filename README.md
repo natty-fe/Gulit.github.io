@@ -78,16 +78,22 @@ PORT=3000
 NODE_ENV=development
 JWT_SECRET=replace-with-a-long-random-secret
 JWT_EXPIRES_IN=1d
-CORS_ORIGIN=http://localhost:8080
+CORS_ORIGIN=http://localhost:8080,https://natty-fe.github.io
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+FRONTEND_URL=http://localhost:8080
+SMTP_HOST=smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_USER=your-brevo-smtp-login
+SMTP_PASS=your-brevo-smtp-key
+SMTP_FROM="Gulit <your-verified-sender@example.com>"
 ```
 
 Frontend API URL:
 
 ```js
 // js/api-config.js
-export const API_BASE_URL = override || (isLocal ? "http://localhost:3000/api" : "/api");
+export const API_BASE_URL = override || (isLocal ? "http://localhost:3000/api" : "");
 ```
 
 For GitHub Pages, the frontend is static and cannot run Express by itself. Deploy the `backend/` folder to a Node host such as Render, Railway, Fly.io, or a VPS, then set the API URL before `js/main.js` loads:
@@ -102,6 +108,43 @@ For quick testing from the browser console, you can also run:
 
 ```js
 localStorage.setItem("gulit:v1:apiBaseUrl", "https://your-backend.example.com/api");
+```
+
+## Deploying With GitHub Pages + Render
+
+GitHub Pages hosts only the static frontend. The Express API must run on a Node host.
+
+1. Push this repository to GitHub.
+2. In Render, create a new **Blueprint** or **Web Service** from the repository.
+3. If using the included `render.yaml`, Render reads:
+   - root directory: `backend`
+   - build command: `npm install`
+   - start command: `npm start`
+   - health check: `/health`
+4. Add the secret environment variables in Render:
+   - `JWT_SECRET`
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `SMTP_HOST`
+   - `SMTP_PORT`
+   - `SMTP_USER`
+   - `SMTP_PASS`
+   - `SMTP_FROM`
+5. After Render deploys, copy the backend URL, for example:
+   `https://gulit-api.onrender.com`
+6. In the GitHub Pages frontend, set the API URL from the browser console once:
+
+```js
+localStorage.setItem("gulit:v1:apiBaseUrl", "https://gulit-api.onrender.com/api");
+location.reload();
+```
+
+For a permanent frontend setting, add this before `js/main.js` in `index.html`:
+
+```html
+<script>
+  window.GULIT_API_BASE_URL = "https://gulit-api.onrender.com/api";
+</script>
 ```
 
 ## Running

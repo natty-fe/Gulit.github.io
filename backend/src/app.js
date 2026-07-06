@@ -9,7 +9,15 @@ import { errorHandler, notFoundHandler } from "./middleware/errorMiddleware.js";
 const app = express();
 
 app.use(helmet());
-app.use(cors({ origin: env.corsOrigin, credentials: true }));
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || env.corsOrigins.includes("*") || env.corsOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error("Not allowed by CORS."));
+  },
+  credentials: true,
+}));
 app.use(express.json({ limit: "2mb" }));
 app.use(morgan(env.nodeEnv === "production" ? "combined" : "dev"));
 

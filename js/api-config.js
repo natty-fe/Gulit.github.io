@@ -11,4 +11,4 @@ const isLocal =
   globalThis.location?.hostname === "localhost" ||
   globalThis.location?.hostname === "127.0.0.1";
 
-export const API_BASE_URL = override || (isLocal ? "http://localhost:3000/api" : "/api");
+export const API_BASE_URL = override || (isLocal ? "http://localhost:3000/api" : "");
