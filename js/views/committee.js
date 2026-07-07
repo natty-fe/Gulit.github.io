@@ -5,7 +5,7 @@ import { Audit, Complaints, Inventory, LocationChanges, Notifications, PriceRang
 import { state } from "../state.js";
 import {
   toast, openModal, closeModal, etb, dateShort, timeShort, statusBadge, iconSvg, formField, t,
-  productName, shopName, subCityLabel, unitLabel,
+  productName, shopName, subCityLabel, unitLabel, productImageHtml, imageFileToDataUrl,
 } from "./shared.js";
 
 const view = () => document.getElementById("view");
@@ -482,7 +482,7 @@ async function drawPriceRanges() {
         const branchOnly = r && branchIds.has(r.setBy);
         return `
           <div class="pitem">
-            <div class="pimg"><svg viewBox="0 0 24 24" width="32" height="32" fill="none"><path d="M3 12h18M12 3v18" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="color:var(--primary)"/></svg></div>
+            <div class="pimg">${productImageHtml(p)}</div>
             <div>
               <div class="ptitle">${productName(p)}${branchOnly ? ` <span class="needs-review">${t("mc.needs_review")}</span>` : ""}</div>
               <div class="psub">${t(`cat.${p.category}`, p.category)} · ${p.unit}</div>
@@ -505,17 +505,50 @@ async function drawPriceRanges() {
 function openSetRange(productId, ranges, products) {
   const product = products.find(p => p.id === productId);
   const range = ranges.find(r => r.productId === productId);
+  let selectedImage = product?.image || "";
+  const preview = () => {
+    const el = document.getElementById("mcProductImagePreview");
+    if (!el) return;
+    el.innerHTML = productImageHtml({ ...product, image: selectedImage || null });
+  };
   openModal(t("mc.set_modal", { name: productName(product) }), `
+    <div class="fieldlabel">${t("own.product_image")}</div>
+    <div class="image-picker">
+      <div class="image-preview" id="mcProductImagePreview"></div>
+      <div class="image-picker-side">
+        <div class="muted" style="font-size:12px;">${t("own.product_image_hint")}</div>
+        <input type="file" id="mcProductUpload" accept="image/*" hidden />
+        <button type="button" class="viewbtn" id="mcProductUploadBtn">📷 ${t("own.upload_image")}</button>
+        <button type="button" class="ghost" id="mcProductClearImg">${t("own.clear_image")}</button>
+      </div>
+    </div>
     ${formField({ label: t("mc.min_price"), name: "min", type: "number", value: range?.minPrice || 0 })}
     ${formField({ label: t("mc.max_price"), name: "max", type: "number", value: range?.maxPrice || 0 })}
     <div class="muted mt8" style="font-size:12px;">${t("mc.set_note")}</div>
     <div class="btnrow"><button class="primary" id="rngSave">${t("save")}</button><button class="ghost" id="rngCancel">${t("cancel")}</button></div>
   `);
+  preview();
+  document.getElementById("mcProductUploadBtn").onclick = () => document.getElementById("mcProductUpload").click();
+  document.getElementById("mcProductClearImg").onclick = () => {
+    selectedImage = "";
+    preview();
+  };
+  document.getElementById("mcProductUpload").onchange = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      selectedImage = await imageFileToDataUrl(file, { maxSize: 480, quality: 0.85 });
+      preview();
+    } catch (e) {
+      toast(e.message, "danger");
+    }
+  };
   document.getElementById("rngCancel").onclick = () => closeModal();
   document.getElementById("rngSave").onclick = async () => {
     const min = Number(document.querySelector("#modalBody [name=min]").value);
     const max = Number(document.querySelector("#modalBody [name=max]").value);
     try {
+      await Products.update(productId, { image: selectedImage || null });
       await PriceRanges.set({ productId, minPrice: min, maxPrice: max });
       toast(t("mc.range_updated"), "success");
       closeModal();

@@ -127,6 +127,17 @@ function cacheProductLocal(product) {
   return DB.insert("products", p);
 }
 
+function productPayloadForBackend(patch = {}) {
+  const out = {};
+  if (patch.name !== undefined) out.name = patch.name;
+  if (patch.nameAm !== undefined) out.name_am = patch.nameAm;
+  if (patch.category !== undefined) out.category = patch.category;
+  if (patch.unit !== undefined) out.unit = patch.unit;
+  if (patch.icon !== undefined) out.icon = patch.icon;
+  if (patch.image !== undefined) out.image = patch.image;
+  return out;
+}
+
 function productMatches({ q = "", category = "All" } = {}) {
   const ql = String(q || "").trim().toLowerCase();
   return (p) => {
@@ -253,6 +264,24 @@ export const Products = {
     await sleep();
     return normalizeProduct(DB.byId("products", id));
   },
+  async update(id, patch = {}) {
+    Auth.require(["main"]);
+    if (!id) throw new Error("Product id required.");
+    if (isBackendApiEnabled()) {
+      try {
+        return cacheProductLocal(await apiRequest(`/products/${encodeURIComponent(id)}`, {
+          method: "PUT",
+          body: productPayloadForBackend(patch),
+        }));
+      } catch (err) {
+        console.warn("Backend product update unavailable; updating local catalog.", err.message);
+      }
+    }
+    await sleep();
+    const existing = DB.byId("products", id);
+    if (!existing) throw new Error("Product not found.");
+    return normalizeProduct(DB.update("products", id, patch));
+  },
 };
 
 export const PriceRanges = {
@@ -272,11 +301,23 @@ export const PriceRanges = {
     const u = Auth.require(["main"]);
     if (!productId) throw new Error("productId required");
     if (!(minPrice >= 0) || !(maxPrice > minPrice)) throw new Error("Invalid price range.");
+    const min = Number(minPrice);
+    const max = Number(maxPrice);
     const row = DB.insert("priceRanges", {
-      productId, minPrice: Number(minPrice), maxPrice: Number(maxPrice),
+      productId, minPrice: min, maxPrice: max,
       effectiveDate: new Date().toISOString(), setBy: u.id,
     });
-    audit(u.id, "PRICE_RANGE_SET", "priceRange", row.id, { productId, minPrice, maxPrice });
+    let adjustedListings = 0;
+    for (const inv of DB.filter("inventory", (i) => i.productId === productId)) {
+      const current = Number(inv.price);
+      if (!Number.isFinite(current)) continue;
+      const clamped = Number(Math.min(max, Math.max(min, current)).toFixed(2));
+      if (clamped !== Number(current.toFixed(2))) {
+        DB.update("inventory", inv.id, { price: clamped, oldPrice: current });
+        adjustedListings++;
+      }
+    }
+    audit(u.id, "PRICE_RANGE_SET", "priceRange", row.id, { productId, minPrice: min, maxPrice: max, adjustedListings });
     return row;
   },
 };
@@ -418,7 +459,7 @@ export const Inventory = {
     if (shop.ownerId !== u.id) throw new Error("You don't own this shop.");
     const range = await PriceRanges.byProduct(productId);
     if (range && (price < range.minPrice || price > range.maxPrice)) {
-      throw new Error(`Price ${price} outside regulated range ${range.minPrice}–${range.maxPrice}.`);
+      throw new Error(`Out of price range. Allowed range is ${range.minPrice} to ${range.maxPrice} ETB.`);
     }
     const product = DB.byId("products", productId);
     const priceChanged = (prev) =>

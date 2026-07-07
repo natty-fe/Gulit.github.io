@@ -354,6 +354,10 @@ function confirmRemoveListing(invId, productLabel, shopId) {
 
 function openInventoryEditor(shopId, productId, existing, ranges) {
   const range = ranges.find(r => r.productId === productId);
+  const priceRangeError = (price) =>
+    range && (price < range.minPrice || price > range.maxPrice)
+      ? t("own.price_out_of_range", { min: etb(range.minPrice), max: etb(range.maxPrice) })
+      : "";
   openModal(existing ? t("own.inv_update") : t("own.inv_add"), `
     ${range ? `<div class="muted">${t("own.allowed_range", { min: etb(range.minPrice), max: etb(range.maxPrice) })}</div>` : ""}
     ${formField({ label: t("own.qty_label"), name: "qty", type: "number", value: String(existing?.qty || 10) })}
@@ -366,6 +370,8 @@ function openInventoryEditor(shopId, productId, existing, ranges) {
     const qty = Number(document.querySelector("#modalBody [name=qty]").value);
     const price = Number(document.querySelector("#modalBody [name=price]").value);
     try {
+      const rangeError = priceRangeError(price);
+      if (rangeError) throw new Error(rangeError);
       await Inventory.upsert({ id: existing?.id, shopId, productId, qty, price });
       toast(t("own.inv_saved"), "success");
       closeModal();
@@ -485,6 +491,9 @@ async function openBulkInventoryEditor(shopId) {
       let saved = 0;
       for (const row of dirty) {
         try {
+          if (row.range && (row.price < row.range.minPrice || row.price > row.range.maxPrice)) {
+            throw new Error(t("own.price_out_of_range", { min: etb(row.range.minPrice), max: etb(row.range.maxPrice) }));
+          }
           await Inventory.upsert({
             id: row.invId, shopId,
             productId: row.product.id,
