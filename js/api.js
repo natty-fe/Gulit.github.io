@@ -85,6 +85,8 @@ function normalizeProduct(p) {
   return {
     ...p,
     nameAm: p.nameAm ?? p.name_am,
+    minPrice: p.minPrice ?? p.min_price,
+    maxPrice: p.maxPrice ?? p.max_price,
     createdAt: p.createdAt ?? p.created_at,
     updatedAt: p.updatedAt ?? p.updated_at,
   };
@@ -135,6 +137,8 @@ function productPayloadForBackend(patch = {}) {
   if (patch.unit !== undefined) out.unit = patch.unit;
   if (patch.icon !== undefined) out.icon = patch.icon;
   if (patch.image !== undefined) out.image = patch.image;
+  if (patch.minPrice !== undefined) out.min_price = patch.minPrice;
+  if (patch.maxPrice !== undefined) out.max_price = patch.maxPrice;
   return out;
 }
 
@@ -189,6 +193,46 @@ function currentInventoryRows(rows = [], { onlyApproved = false } = {}) {
     if (!existing || rowTime(existing) <= rowTime(row)) byListing.set(key, row);
   }
   return [...byListing.values()];
+}
+
+function latestPriceRangeMap() {
+  const productRanges = DB.all("products")
+    .map(normalizeProduct)
+    .filter((p) => p.id && p.minPrice !== undefined && p.maxPrice !== undefined)
+    .map((p) => ({
+      id: `product_range_${p.id}`,
+      productId: p.id,
+      minPrice: Number(p.minPrice),
+      maxPrice: Number(p.maxPrice),
+      effectiveDate: p.updatedAt || p.createdAt || new Date(0).toISOString(),
+      setBy: "product",
+    }))
+    .filter((r) => Number.isFinite(r.minPrice) && Number.isFinite(r.maxPrice) && r.maxPrice > r.minPrice);
+  const all = [...DB.all("priceRanges"), ...productRanges]
+    .sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
+  const map = new Map();
+  for (const r of all) if (!map.has(r.productId)) map.set(r.productId, r);
+  return map;
+}
+
+function priceInsideRange(price, range) {
+  const value = Number(price);
+  return !!range && Number.isFinite(value) && value >= Number(range.minPrice) && value <= Number(range.maxPrice);
+}
+
+function approveEligibleInventoryRows() {
+  const ranges = latestPriceRangeMap();
+  for (const inv of DB.filter("inventory", (i) => i.status === "pending")) {
+    const shop = DB.byId("shops", inv.shopId);
+    const product = DB.byId("products", inv.productId);
+    const range = ranges.get(inv.productId);
+    if (!shop || shop.status !== "approved" || !product || !priceInsideRange(inv.price, range)) continue;
+    DB.update("inventory", inv.id, {
+      status: "approved",
+      decisionNote: "Auto-approved because the listing uses an existing product inside the committee range.",
+      decidedAt: new Date().toISOString(),
+    });
+  }
 }
 
 function audit(actorId, action, entity, entityId, details = {}) {
@@ -287,8 +331,43 @@ export const Products = {
 export const PriceRanges = {
   async list() {
     await sleep();
+    approveEligibleInventoryRows();
     // For each product, return the most recent effective range.
-    const all = DB.all("priceRanges").sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
+    let backendRanges = [];
+    if (isBackendApiEnabled()) {
+      try {
+        const products = await apiRequest("/products");
+        backendRanges = products
+          .map(normalizeProduct)
+          .filter((p) => p.id && p.minPrice !== undefined && p.maxPrice !== undefined)
+          .map((p) => ({
+            id: `product_range_${p.id}`,
+            productId: p.id,
+            minPrice: Number(p.minPrice),
+            maxPrice: Number(p.maxPrice),
+            effectiveDate: p.updatedAt || p.createdAt || new Date(0).toISOString(),
+            setBy: "backend",
+          }))
+          .filter((r) => Number.isFinite(r.minPrice) && Number.isFinite(r.maxPrice) && r.maxPrice > r.minPrice);
+        products.forEach(cacheProductLocal);
+      } catch (err) {
+        console.warn("Backend price ranges unavailable; using local ranges.", err.message);
+      }
+    }
+    const productRanges = DB.all("products")
+      .map(normalizeProduct)
+      .filter((p) => p.id && p.minPrice !== undefined && p.maxPrice !== undefined)
+      .map((p) => ({
+        id: `product_range_${p.id}`,
+        productId: p.id,
+        minPrice: Number(p.minPrice),
+        maxPrice: Number(p.maxPrice),
+        effectiveDate: p.updatedAt || p.createdAt || new Date(0).toISOString(),
+        setBy: "product",
+      }))
+      .filter((r) => Number.isFinite(r.minPrice) && Number.isFinite(r.maxPrice) && r.maxPrice > r.minPrice);
+    const all = [...DB.all("priceRanges"), ...productRanges, ...backendRanges]
+      .sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
     const map = new Map();
     for (const r of all) if (!map.has(r.productId)) map.set(r.productId, r);
     return [...map.values()];
@@ -307,15 +386,27 @@ export const PriceRanges = {
       productId, minPrice: min, maxPrice: max,
       effectiveDate: new Date().toISOString(), setBy: u.id,
     });
+    await Products.update(productId, { minPrice: min, maxPrice: max });
     let adjustedListings = 0;
     for (const inv of DB.filter("inventory", (i) => i.productId === productId)) {
       const current = Number(inv.price);
       if (!Number.isFinite(current)) continue;
       const clamped = Number(Math.min(max, Math.max(min, current)).toFixed(2));
+      const shop = DB.byId("shops", inv.shopId);
+      const shouldApprove = shop?.status === "approved";
+      const patch = {};
       if (clamped !== Number(current.toFixed(2))) {
-        DB.update("inventory", inv.id, { price: clamped, oldPrice: current });
+        patch.price = clamped;
+        patch.oldPrice = current;
         adjustedListings++;
       }
+      if (shouldApprove && inv.status !== "approved") {
+        patch.status = "approved";
+        patch.decisionBy = u.id;
+        patch.decisionNote = "Auto-approved after committee price range update.";
+        patch.decidedAt = new Date().toISOString();
+      }
+      if (Object.keys(patch).length) DB.update("inventory", inv.id, patch);
     }
     audit(u.id, "PRICE_RANGE_SET", "priceRange", row.id, { productId, minPrice: min, maxPrice: max, adjustedListings });
     return row;
@@ -457,11 +548,14 @@ export const Inventory = {
     const shop = DB.byId("shops", shopId);
     if (!shop) throw new Error("Shop not found.");
     if (shop.ownerId !== u.id) throw new Error("You don't own this shop.");
+    if (shop.status !== "approved") throw new Error("Shop must be approved before listing products.");
+    const product = DB.byId("products", productId);
+    if (!product) throw new Error("Product not found.");
     const range = await PriceRanges.byProduct(productId);
+    if (!range) throw new Error("Main committee has not set a price range for this product yet.");
     if (range && (price < range.minPrice || price > range.maxPrice)) {
       throw new Error(`Out of price range. Allowed range is ${range.minPrice} to ${range.maxPrice} ETB.`);
     }
-    const product = DB.byId("products", productId);
     const priceChanged = (prev) =>
       prev && Number(prev.price).toFixed(2) !== Number(price).toFixed(2);
 
@@ -498,26 +592,38 @@ export const Inventory = {
     if (id) {
       const existing = DB.byId("inventory", id);
       if (!existing) throw new Error("Inventory item not found.");
-      const next = DB.update("inventory", id, { qty: Number(qty), price: Number(price) });
+      const next = DB.update("inventory", id, {
+        qty: Number(qty), price: Number(price),
+        status: "approved",
+        decisionNote: existing.status === "pending" ? "Auto-approved because the price is inside the committee range." : existing.decisionNote,
+        decidedAt: existing.decidedAt || new Date().toISOString(),
+      });
       firePriceChange(existing);
-      audit(u.id, "INVENTORY_UPDATED", "inventory", id, { qty, price });
+      audit(u.id, "INVENTORY_UPDATED", "inventory", id, { qty, price, status: "approved" });
       return next;
     } else {
       // If shop already has the product, update; otherwise create.
       const existing = DB.find("inventory", (i) => i.shopId === shopId && i.productId === productId);
       if (existing) {
-        const next = DB.update("inventory", existing.id, { qty: Number(qty), price: Number(price) });
+        const next = DB.update("inventory", existing.id, {
+          qty: Number(qty), price: Number(price),
+          status: "approved",
+          decisionNote: existing.status === "pending" ? "Auto-approved because the price is inside the committee range." : existing.decisionNote,
+          decidedAt: existing.decidedAt || new Date().toISOString(),
+        });
         firePriceChange(existing);
-        audit(u.id, "INVENTORY_UPDATED", "inventory", existing.id, { qty, price });
+        audit(u.id, "INVENTORY_UPDATED", "inventory", existing.id, { qty, price, status: "approved" });
         return next;
       }
       const inserted = DB.insert("inventory", {
         shopId, productId, qty: Number(qty), price: Number(price),
         oldPrice: Number((Number(price) * 1.6).toFixed(2)),
-        status: "pending",
+        status: "approved",
+        decisionNote: "Auto-approved because the price is inside the committee range.",
+        decidedAt: new Date().toISOString(),
       });
       fireNewListing();
-      audit(u.id, "INVENTORY_CREATED", "inventory", inserted.id, { qty, price });
+      audit(u.id, "INVENTORY_CREATED", "inventory", inserted.id, { qty, price, status: "approved" });
       return inserted;
     }
   },
@@ -612,6 +718,7 @@ export const Inventory = {
 
   async listPending({ branchCommitteeId } = {}) {
     await sleep();
+    approveEligibleInventoryRows();
     const rows = DB.filter("inventory", (i) => i.status === "pending");
     const products = DB.all("products");
     const shops = DB.all("shops");

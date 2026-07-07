@@ -29,6 +29,8 @@ create table if not exists public.products (
   unit text,
   icon text,
   image text,
+  min_price numeric,
+  max_price numeric,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
