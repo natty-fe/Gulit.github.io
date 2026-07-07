@@ -61,6 +61,25 @@ function _localCurrentUser() {
   return user ? Auth.publicUser(user) : null;
 }
 
+function _recordLocalPresence(user) {
+  if (!user?.id) return;
+  const now = new Date().toISOString();
+  const token = getApiToken() || `backend_${user.id}`;
+  const existing = DB.find("sessions", (s) => s.userId === user.id);
+  if (existing) {
+    DB.update("sessions", existing.id, { token, userId: user.id, lastSeen: now });
+    return;
+  }
+  DB.insert("sessions", { token, userId: user.id, lastSeen: now });
+}
+
+function _removeLocalPresence(userId) {
+  if (!userId) return;
+  for (const s of DB.all("sessions")) {
+    if (s.userId === userId) DB.remove("sessions", s.id);
+  }
+}
+
 // Bridge between backend identities and the localStorage demo data. The
 // demo seed creates owners/couriers in localStorage with their own ids, and
 // shops/deliveries/orders are linked to those ids. When the same person
@@ -106,6 +125,7 @@ export const Auth = {
       const { user } = await apiRequest("/auth/me");
       _cachedUser = user ? _userToAppShape(user) : null;
       if (_cachedUser) _adoptLocalDemoData(_cachedUser);
+      if (_cachedUser) _recordLocalPresence(_cachedUser);
     } catch {
       setApiToken(null);
       _cachedUser = null;
@@ -143,6 +163,7 @@ export const Auth = {
       setApiToken(result.token);
       _cachedUser = _userToAppShape(result.user);
       if (_cachedUser) _adoptLocalDemoData(_cachedUser);
+      if (_cachedUser) _recordLocalPresence(_cachedUser);
       return { token: result.token, user: _cachedUser };
     }
 
@@ -179,6 +200,7 @@ export const Auth = {
       setApiToken(result.token);
       _cachedUser = _userToAppShape(result.user);
       _adoptLocalDemoData(_cachedUser);
+      _recordLocalPresence(_cachedUser);
       return { token: result.token, user: _cachedUser };
     }
 
@@ -244,10 +266,12 @@ export const Auth = {
     if (!password) throw new Error("Password required.");
 
     if (isBackendApiEnabled()) {
+      const cur = _cachedUser;
       await apiRequest("/users/me", {
         method: "DELETE",
         body: { password, confirmName },
       });
+      _removeLocalPresence(cur?.id);
       setApiToken(null);
       _cachedUser = null;
       return;
@@ -267,6 +291,7 @@ export const Auth = {
 
   async logout() {
     if (isBackendApiEnabled()) {
+      _removeLocalPresence(_cachedUser?.id);
       _cachedUser = null;
       setApiToken(null);
       return;

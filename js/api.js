@@ -136,6 +136,32 @@ function productMatches({ q = "", category = "All" } = {}) {
   };
 }
 
+function shopMatches({ subCity, status } = {}) {
+  return (s) => (!subCity || s.subCity === subCity) && (!status || s.status === status);
+}
+
+function shopDisplayKey(shop) {
+  const s = normalizeShop(shop);
+  const name = String(s?.name || "").trim().toLowerCase();
+  const city = String(s?.subCity || "").trim().toLowerCase();
+  return name && city ? `${name}|${city}` : s?.id;
+}
+
+function mergeShops(localRows = [], backendRows = []) {
+  const byKey = new Map();
+  for (const row of localRows) {
+    const shop = normalizeShop(row);
+    const key = shopDisplayKey(shop);
+    if (key && !byKey.has(key)) byKey.set(key, shop);
+  }
+  for (const row of backendRows) {
+    const shop = cacheShopLocal(row);
+    const key = shopDisplayKey(shop);
+    if (key) byKey.set(key, shop);
+  }
+  return [...byKey.values()];
+}
+
 function audit(actorId, action, entity, entityId, details = {}) {
   DB.insert("auditLogs", {
     actorId, action, entity, entityId,
@@ -240,12 +266,18 @@ export const PriceRanges = {
 // ------------------ SHOPS ------------------
 export const Shops = {
   async list({ subCity, status = "approved" } = {}) {
+    const localRows = DB.all("shops").map(normalizeShop);
     if (isBackendApiEnabled()) {
-      const rows = await apiRequest(`/shops${queryString({ subCity, status })}`);
-      return rows.map(cacheShopLocal).filter(Boolean);
+      let backendRows = [];
+      try {
+        backendRows = await apiRequest(`/shops${queryString({ subCity, status })}`);
+      } catch (err) {
+        console.warn("Backend shop list unavailable; using local cache.", err.message);
+      }
+      return mergeShops(localRows, backendRows).filter(shopMatches({ subCity, status }));
     }
     await sleep();
-    return DB.filter("shops", (s) => (!subCity || s.subCity === subCity) && (!status || s.status === status));
+    return localRows.filter(shopMatches({ subCity, status }));
   },
   async byId(id) {
     if (isBackendApiEnabled()) {
@@ -259,12 +291,18 @@ export const Shops = {
     return DB.byId("shops", id);
   },
   async byOwner(ownerId) {
+    const localRows = DB.filter("shops", (s) => s.ownerId === ownerId).map(normalizeShop);
     if (isBackendApiEnabled()) {
-      const rows = await apiRequest(`/shops${queryString({ ownerId, status: "" })}`);
-      return rows.map(cacheShopLocal).filter(Boolean);
+      let backendRows = [];
+      try {
+        backendRows = await apiRequest(`/shops${queryString({ ownerId, status: "" })}`);
+      } catch (err) {
+        console.warn("Backend owner shops unavailable; using local cache.", err.message);
+      }
+      return mergeShops(localRows, backendRows).filter((s) => s.ownerId === ownerId);
     }
     await sleep();
-    return DB.filter("shops", (s) => s.ownerId === ownerId);
+    return localRows;
   },
   async register({ ownerId, name, subCity, paymentAccounts = [] }) {
     const u = Auth.require(["owner", "branch", "main"]);
@@ -1038,8 +1076,16 @@ export const Users = {
   // whether they currently have a session token (not signed out yet).
   async listAll() {
     Auth.require(["main"]);
+    if (isBackendApiEnabled()) {
+      try {
+        const rows = await apiRequest("/users");
+        rows.forEach(cacheUserLocal);
+      } catch (err) {
+        console.warn("Backend users unavailable; using local cache.", err.message);
+      }
+    }
     await sleep();
-    const users = DB.all("users");
+    const users = DB.all("users").map(normalizeUser);
     const sessions = DB.all("sessions");
     const sessionByUser = new Map();
     for (const s of sessions) {
