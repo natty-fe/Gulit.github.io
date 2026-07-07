@@ -13,7 +13,7 @@ Frontend
   -> Supabase PostgreSQL
 ```
 
-The browser doesn't talk to Supabase directly anymore. Auth, authorization, validation, password hashing, JWTs, logging, and all database access live in the Express backend.
+The browser doesn't talk to Supabase directly. Auth, authorization, validation, password hashing, JWTs, logging, and all database access live in the Express backend.
 
 ## Tech Stack
 
