@@ -1,6 +1,6 @@
 # GULIT - Multilingual Agricultural Marketplace
 
-Gulit is a multilingual agricultural marketplace for customers, shop owners, delivery staff, branch committees, and the main committee. The frontend is a plain HTML/CSS/JavaScript application, and the project now includes a Node.js + Express REST API using MVC architecture in front of Supabase PostgreSQL.
+Gulit is a multilingual agricultural marketplace built for customers, shop owners, delivery staff, branch committees, and the main committee. The frontend is plain HTML/CSS/JavaScript, and it now talks to a Node.js + Express REST API (MVC-style) sitting in front of Supabase PostgreSQL.
 
 ## Architecture
 
@@ -13,16 +13,16 @@ Frontend
   -> Supabase PostgreSQL
 ```
 
-The browser no longer needs to call Supabase directly. Authentication, authorization, validation, password hashing, JWT handling, logging, and database access are owned by the Express backend.
+The browser doesn't talk to Supabase directly anymore. Auth, authorization, validation, password hashing, JWTs, logging, and all database access live in the Express backend.
 
-## Technology Stack
+## Tech Stack
 
 - Frontend: HTML, CSS, JavaScript ES modules
 - Backend: Node.js, Express.js
 - Database: Supabase PostgreSQL
-- Auth: bcrypt password hashing and JWT
+- Auth: bcrypt for password hashing, JWT for sessions
 - Security: Helmet, CORS, input validation, environment variables
-- Logging: Morgan request logging plus audit log records
+- Logging: Morgan for requests, plus audit log records
 - Validation: express-validator
 
 ## Folder Structure
@@ -71,7 +71,7 @@ Then fill in `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and a strong `JWT_SECR
 
 ## Environment Variables
 
-Backend variables:
+Backend:
 
 ```text
 PORT=3000
@@ -98,7 +98,7 @@ Frontend API URL:
 export const API_BASE_URL = override || (isLocal ? "http://localhost:3000/api" : "");
 ```
 
-For GitHub Pages, the frontend is static and cannot run Express by itself. Deploy the `backend/` folder to a Node host such as Render, Railway, Fly.io, or a VPS, then set the API URL before `js/main.js` loads:
+GitHub Pages only serves static files, so it can't run Express on its own. Deploy the `backend/` folder to a Node host like Render, Railway, Fly.io, or a VPS, then point the frontend at it before `js/main.js` loads:
 
 ```html
 <script>
@@ -106,7 +106,7 @@ For GitHub Pages, the frontend is static and cannot run Express by itself. Deplo
 </script>
 ```
 
-For quick testing from the browser console, you can also run:
+For quick testing from the browser console, this also works:
 
 ```js
 localStorage.setItem("gulit:v1:apiBaseUrl", "https://your-backend.example.com/api");
@@ -114,32 +114,32 @@ localStorage.setItem("gulit:v1:apiBaseUrl", "https://your-backend.example.com/ap
 
 ## Deploying With GitHub Pages + Render
 
-GitHub Pages hosts only the static frontend. The Express API must run on a Node host.
+GitHub Pages hosts the static frontend only — the Express API needs to run on a Node host.
 
 1. Push this repository to GitHub.
 2. In Render, create a new **Blueprint** or **Web Service** from the repository.
-3. If using the included `render.yaml`, Render reads:
+3. If you're using the included `render.yaml`, Render will read:
    - root directory: `backend`
    - build command: `npm install`
    - start command: `npm start`
    - health check: `/health`
-4. Add the secret environment variables in Render:
-  - `JWT_SECRET`
-  - `SUPABASE_URL`
-  - `SUPABASE_SERVICE_ROLE_KEY`
+4. Add these secret environment variables in Render:
+   - `JWT_SECRET`
+   - `SUPABASE_URL`
+   - `SUPABASE_SERVICE_ROLE_KEY`
    - `RESEND_API_KEY`
    - `EMAIL_FROM`
    - Optional SMTP fallback: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
-5. After Render deploys, copy the backend URL, for example:
+5. Once Render deploys, grab the backend URL, e.g.:
    `https://gulit-api.onrender.com`
-6. In the GitHub Pages frontend, set the API URL from the browser console once:
+6. From the GitHub Pages frontend, point it at that backend once via the browser console:
 
 ```js
 localStorage.setItem("gulit:v1:apiBaseUrl", "https://gulit-api.onrender.com/api");
 location.reload();
 ```
 
-For a permanent frontend setting, add this before `js/main.js` in `index.html`:
+To make that permanent, add this before `js/main.js` in `index.html`:
 
 ```html
 <script>
@@ -149,12 +149,12 @@ For a permanent frontend setting, add this before `js/main.js` in `index.html`:
 
 ## Forgot Password Email
 
-The backend sends forgot-password messages from `POST /api/auth/forgot-password`.
+The backend sends forgot-password emails from `POST /api/auth/forgot-password`.
 
 Recommended free setup:
 
 1. Create a Resend account.
-2. Create an API key in Resend.
+2. Generate an API key in Resend.
 3. Add these variables in Render:
 
 ```text
@@ -162,9 +162,9 @@ RESEND_API_KEY=your-resend-api-key
 EMAIL_FROM=Gulit <onboarding@resend.dev>
 ```
 
-For testing, Resend's default sender can be used. For real users, verify your own sender/domain in Resend and set `EMAIL_FROM` to that verified sender.
+Resend's default sender works fine for testing. For real users, verify your own sender/domain in Resend and point `EMAIL_FROM` at it.
 
-Brevo SMTP variables are still supported as a fallback, but Resend is preferred because it uses HTTPS API email sending and does not need SMTP IP allowlisting.
+Brevo SMTP is still supported as a fallback, but Resend is the better default since it sends over HTTPS and skips SMTP IP allowlisting entirely.
 
 ## Running
 
@@ -181,7 +181,7 @@ Start the frontend from the project root:
 python -m http.server 8080
 ```
 
-Open:
+Then open:
 
 ```text
 http://localhost:8080
@@ -189,7 +189,7 @@ http://localhost:8080
 
 ## Database Schema
 
-Run `backend/schema.sql` in Supabase SQL Editor. It creates backend-facing relational tables for:
+Run `backend/schema.sql` in the Supabase SQL Editor. It creates the backend-facing relational tables:
 
 - `users`
 - `products`
@@ -198,7 +198,7 @@ Run `backend/schema.sql` in Supabase SQL Editor. It creates backend-facing relat
 - `complaints`
 - `audit_logs`
 
-The previous `supabase-migration.sql` remains available for the earlier Supabase profile migration, but the Express API uses `backend/schema.sql`.
+`supabase-migration.sql` is still around for the earlier Supabase profile migration, but the Express API runs on `backend/schema.sql`.
 
 ## REST API
 
@@ -259,21 +259,38 @@ DELETE /api/users/me
 
 ## Security Notes
 
-- Passwords are hashed with bcrypt before storage.
-- JWTs are signed by the backend and verified by protected routes.
+- Passwords are hashed with bcrypt before they're stored.
+- JWTs are signed by the backend and verified on every protected route.
 - Role authorization is enforced with `authorizeRole(...)`.
-- Helmet is enabled.
-- CORS is restricted by `CORS_ORIGIN`.
-- Validation errors return HTTP 400 with useful details.
-- Sensitive Supabase service-role credentials must stay only in backend `.env`.
+- Helmet is on.
+- CORS is locked down via `CORS_ORIGIN`.
+- Validation errors come back as HTTP 400 with useful details.
+- Supabase service-role credentials should never leave the backend `.env`.
 
-## Extra Features Preserved
+## Features That Existed Before This Update
 
-- Multiple user roles
-- Responsive UI
-- Bilingual interface
-- Shop approval workflow
-- Order and delivery workflow
-- Complaint handling
-- Audit logging
-- Product browsing and regulated marketplace flows
+These were already part of Gulit before the Express + Supabase backend was added, and they all still work the same way from a user's perspective.
+
+**Multiple user roles**
+Customers, shop owners, delivery staff, branch committees, and the main committee each get their own view and permissions. The app behaves differently depending on who's logged in.
+
+**Responsive UI**
+The layout adjusts to phones, tablets, and desktops, so people can browse and manage orders from whatever device they have on hand.
+
+**Bilingual interface**
+The whole app can switch between two languages, so both language groups in the target market can use it comfortably.
+
+**Shop approval workflow**
+New shops don't go live automatically. A committee member has to review and approve them first, which keeps the marketplace from filling up with unverified sellers.
+
+**Order and delivery workflow**
+Orders move through clear stages, from placed to delivered, and delivery staff have their own screens to track and update what they're carrying.
+
+**Complaint handling**
+Customers can file complaints about orders or shops, and committees have a place to review and act on them instead of things getting lost in chat or email.
+
+**Audit logging**
+Key actions get recorded, so there's a trail to check later if something needs to be investigated or double-checked.
+
+**Product browsing and regulated marketplace flows**
+Shoppers can browse listings like a normal marketplace, but certain product types follow extra rules to keep the marketplace compliant with agricultural regulations.
