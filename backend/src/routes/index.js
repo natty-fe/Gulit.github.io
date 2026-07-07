@@ -5,6 +5,7 @@ import orderRoutes from "./orderRoutes.js";
 import complaintRoutes from "./complaintRoutes.js";
 import shopRoutes from "./shopRoutes.js";
 import userRoutes from "./userRoutes.js";
+import inventoryRoutes from "./inventoryRoutes.js";
 
 const router = Router();
 
@@ -14,5 +15,6 @@ router.use("/orders", orderRoutes);
 router.use("/complaints", complaintRoutes);
 router.use("/shops", shopRoutes);
 router.use("/users", userRoutes);
+router.use("/inventory", inventoryRoutes);
 
 export default router;

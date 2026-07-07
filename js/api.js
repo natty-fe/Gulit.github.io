@@ -80,6 +80,21 @@ function normalizeComplaint(c) {
   };
 }
 
+function normalizeInventory(i) {
+  if (!i) return i;
+  return {
+    ...i,
+    shopId: i.shopId ?? i.shop_id,
+    productId: i.productId ?? i.product_id,
+    oldPrice: i.oldPrice ?? i.old_price,
+    decisionBy: i.decisionBy ?? i.decision_by,
+    decisionNote: i.decisionNote ?? i.decision_note,
+    decidedAt: i.decidedAt ?? i.decided_at,
+    createdAt: i.createdAt ?? i.created_at,
+    updatedAt: i.updatedAt ?? i.updated_at,
+  };
+}
+
 function normalizeProduct(p) {
   if (!p) return p;
   return {
@@ -127,6 +142,14 @@ function cacheProductLocal(product) {
     });
   }
   return DB.insert("products", p);
+}
+
+function cacheInventoryLocal(item) {
+  const inv = normalizeInventory(item);
+  if (!inv?.id) return null;
+  const existing = DB.byId("inventory", inv.id);
+  if (existing) return DB.update("inventory", inv.id, { ...existing, ...inv });
+  return DB.insert("inventory", inv);
 }
 
 function productPayloadForBackend(patch = {}) {
@@ -234,6 +257,15 @@ function findInventoryShop(inv, approvedShops = []) {
   if (!shop || shop.status !== "approved") return null;
   if (approvedShops.length && !approvedShops.some((s) => s.subCity === shop.subCity)) return null;
   return shop;
+}
+
+function inventoryPayloadForBackend({ shopId, productId, qty, price }) {
+  return {
+    shopId,
+    productId,
+    qty: Number(qty),
+    price: Number(price),
+  };
 }
 
 function latestPriceRangeMap() {
@@ -575,19 +607,40 @@ export const Shops = {
 // ------------------ INVENTORY ------------------
 export const Inventory = {
   async byShop(shopId, { onlyApproved = false } = {}) {
+    let backendRows = [];
+    if (isBackendApiEnabled()) {
+      try {
+        backendRows = await apiRequest(`/inventory${queryString({ shopId, status: onlyApproved ? "approved" : "" })}`);
+        backendRows.forEach(cacheInventoryLocal);
+      } catch (err) {
+        console.warn("Backend inventory by shop unavailable; using local inventory.", err.message);
+      }
+    }
     await sleep();
     approveEligibleInventoryRows();
     const aliases = shopAliasIds(shopId);
+    const rows = [...DB.all("inventory").map(normalizeInventory), ...backendRows.map(normalizeInventory)];
     const items = currentInventoryRows(
-      DB.filter("inventory", (i) => aliases.has(i.shopId)),
+      rows.filter((i) => aliases.has(i.shopId)),
       { onlyApproved }
     );
     const products = DB.all("products");
     return items.map((i) => ({ ...i, product: products.find((p) => p.id === i.productId) || null }));
   },
   async byId(id) {
+    if (isBackendApiEnabled()) {
+      try {
+        const backendInv = await apiRequest(`/inventory/${encodeURIComponent(id)}`);
+        const inv = cacheInventoryLocal(backendInv);
+        const product = DB.byId("products", inv.productId);
+        const shop = DB.byId("shops", inv.shopId);
+        return { ...inv, product, shop };
+      } catch (err) {
+        console.warn("Backend inventory lookup unavailable; using local inventory.", err.message);
+      }
+    }
     await sleep();
-    const inv = DB.byId("inventory", id);
+    const inv = normalizeInventory(DB.byId("inventory", id));
     if (!inv) return null;
     const product = DB.byId("products", inv.productId);
     const shop = DB.byId("shops", inv.shopId);
@@ -639,6 +692,28 @@ export const Inventory = {
       });
     };
 
+    if (isBackendApiEnabled()) {
+      try {
+        const payload = inventoryPayloadForBackend({ shopId, productId, qty, price });
+        let saved = null;
+        if (id) {
+          try {
+            saved = await apiRequest(`/inventory/${encodeURIComponent(id)}`, { method: "PUT", body: payload });
+          } catch {
+            saved = await apiRequest("/inventory", { method: "POST", body: payload });
+          }
+        } else {
+          saved = await apiRequest("/inventory", { method: "POST", body: payload });
+        }
+        const cached = cacheInventoryLocal(saved);
+        if (!id) fireNewListing();
+        audit(u.id, id ? "INVENTORY_UPDATED" : "INVENTORY_CREATED", "inventory", cached.id, { qty, price, status: "approved" });
+        return cached;
+      } catch (err) {
+        console.warn("Backend inventory save unavailable; saving local inventory.", err.message);
+      }
+    }
+
     if (id) {
       const existing = DB.byId("inventory", id);
       if (!existing) throw new Error("Inventory item not found.");
@@ -682,7 +757,16 @@ export const Inventory = {
     // Pending or rejected inventory rows are hidden from customers.
     await sleep();
     const shops = await Shops.list({ subCity, status: "approved" });
-    const inventory = DB.all("inventory");
+    let backendRows = [];
+    if (isBackendApiEnabled()) {
+      try {
+        backendRows = await apiRequest(`/inventory${queryString({ status: "approved" })}`);
+        backendRows.forEach(cacheInventoryLocal);
+      } catch (err) {
+        console.warn("Backend inventory browse unavailable; using local inventory.", err.message);
+      }
+    }
+    const inventory = [...DB.all("inventory").map(normalizeInventory), ...backendRows.map(normalizeInventory)];
     const ranges = await PriceRanges.list();
     const products = DB.all("products");
     const ql = q.trim().toLowerCase();
@@ -744,11 +828,18 @@ export const Inventory = {
   // approval queue entries.
   async remove(id) {
     const u = Auth.require(["owner"]);
-    const inv = DB.byId("inventory", id);
+    const inv = normalizeInventory(DB.byId("inventory", id));
     if (!inv) throw new Error("Listing not found.");
     const shop = DB.byId("shops", inv.shopId);
     if (!shop || shop.ownerId !== u.id) throw new Error("Not your listing.");
     const product = DB.byId("products", inv.productId);
+    if (isBackendApiEnabled()) {
+      try {
+        await apiRequest(`/inventory/${encodeURIComponent(id)}`, { method: "DELETE" });
+      } catch (err) {
+        console.warn("Backend inventory remove unavailable; removing local inventory.", err.message);
+      }
+    }
     DB.remove("inventory", id);
     audit(u.id, "INVENTORY_REMOVED", "inventory", id, {});
     if (shop.branchCommitteeId) {

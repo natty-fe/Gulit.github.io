@@ -52,6 +52,22 @@ create table if not exists public.shops (
   updated_at timestamptz default now()
 );
 
+create table if not exists public.inventory (
+  id text primary key default gen_random_uuid()::text,
+  shop_id uuid references public.shops(id) on delete cascade,
+  product_id text references public.products(id) on delete cascade,
+  qty numeric not null default 0 check (qty >= 0),
+  price numeric not null default 0 check (price >= 0),
+  old_price numeric,
+  status text not null default 'approved',
+  decision_by uuid references public.users(id),
+  decision_note text,
+  decided_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now(),
+  unique (shop_id, product_id)
+);
+
 create table if not exists public.orders (
   id uuid primary key default gen_random_uuid(),
   customer_id uuid references public.users(id),
@@ -99,6 +115,9 @@ create table if not exists public.audit_logs (
 
 create index if not exists idx_users_role on public.users(role);
 create index if not exists idx_shops_owner_id on public.shops(owner_id);
+create index if not exists idx_inventory_shop_id on public.inventory(shop_id);
+create index if not exists idx_inventory_product_id on public.inventory(product_id);
+create index if not exists idx_inventory_status on public.inventory(status);
 create index if not exists idx_orders_customer_id on public.orders(customer_id);
 create index if not exists idx_orders_shop_id on public.orders(shop_id);
 create index if not exists idx_complaints_order_id on public.complaints(order_id);
