@@ -85,14 +85,8 @@ export async function runSeed({ force = false } = {}) {
     });
   }
 
-  // ---- Demo staff accounts (everyone except customer) ----
-  await insertDemoStaff({ mainCommitteeId: mainCommittee.id, branchByCity });
-
-  // ---- Demo shops + inventory for every owner ----
-  seedDemoShopsAndInventory({ branchByCity });
-
   DB.setMeta("seeded", true);
-  DB.setMeta("seedVersion", 9);
+  DB.setMeta("seedVersion", 10);
 }
 
 // All demo staff share this password so the demo flow stays simple.
@@ -272,7 +266,33 @@ const DEMO_EMAILS = new Set([
   "yonas@example.com",
   "branch@example.com",
   "main@example.com",
+  ...DEMO_STAFF.map((u) => u.email),
+  ...EXTRA_STAFF.map((u) => u.email),
 ]);
+
+function removeDemoUsersAndData() {
+  const demoUsers = DB.filter("users", (u) => DEMO_EMAILS.has(u.email));
+  const demoUserIds = new Set(demoUsers.map((u) => u.id));
+  if (!demoUserIds.size) return;
+
+  for (const s of DB.all("sessions")) {
+    if (demoUserIds.has(s.userId)) DB.remove("sessions", s.id);
+  }
+
+  const demoShops = DB.filter("shops", (s) => demoUserIds.has(s.ownerId));
+  const demoShopIds = new Set(demoShops.map((s) => s.id));
+  for (const i of DB.all("inventory")) {
+    if (demoShopIds.has(i.shopId)) DB.remove("inventory", i.id);
+  }
+  for (const o of DB.all("orders")) {
+    if (demoShopIds.has(o.shopId) || demoUserIds.has(o.customerId)) DB.remove("orders", o.id);
+  }
+  for (const c of DB.all("complaints")) {
+    if (demoShopIds.has(c.shopId) || demoUserIds.has(c.fromId)) DB.remove("complaints", c.id);
+  }
+  for (const s of demoShops) DB.remove("shops", s.id);
+  for (const u of demoUsers) DB.remove("users", u.id);
+}
 
 export async function runMigrations() {
   DB.ensure();
@@ -293,24 +313,7 @@ export async function runMigrations() {
   // inventory/sessions so existing browser installs match new ones (no
   // pre-baked accounts; the operator creates their own).
   if (v < 3) {
-    const demoUsers = DB.filter("users", (u) => DEMO_EMAILS.has(u.email));
-    const demoUserIds = new Set(demoUsers.map((u) => u.id));
-
-    if (demoUserIds.size) {
-      // Sessions for those users
-      for (const s of DB.all("sessions")) {
-        if (demoUserIds.has(s.userId)) DB.remove("sessions", s.id);
-      }
-      // Shops owned by the demo owner
-      const demoShops = DB.filter("shops", (s) => demoUserIds.has(s.ownerId));
-      const demoShopIds = new Set(demoShops.map((s) => s.id));
-      for (const i of DB.all("inventory")) {
-        if (demoShopIds.has(i.shopId)) DB.remove("inventory", i.id);
-      }
-      for (const s of demoShops) DB.remove("shops", s.id);
-      // Users themselves
-      for (const u of demoUsers) DB.remove("users", u.id);
-    }
+    removeDemoUsersAndData();
     DB.setMeta("seedVersion", 3);
   }
 
@@ -318,15 +321,6 @@ export async function runMigrations() {
   // non-customer role) so the demo is testable without registering five
   // accounts by hand. Customer is intentionally not seeded.
   if (v < 4) {
-    const committees = DB.all("committees");
-    const main = committees.find((c) => c.type === "main");
-    const branchByCity = {};
-    for (const c of committees) {
-      if (c.type === "branch") branchByCity[c.jurisdiction] = c.id;
-    }
-    if (main) {
-      await insertDemoStaff({ mainCommitteeId: main.id, branchByCity });
-    }
     DB.setMeta("seedVersion", 4);
   }
 
@@ -334,26 +328,12 @@ export async function runMigrations() {
   // sub-city. Same insertDemoStaff helper, which skips entries already
   // present (matched by email).
   if (v < 5) {
-    const committees = DB.all("committees");
-    const main = committees.find((c) => c.type === "main");
-    const branchByCity = {};
-    for (const c of committees) {
-      if (c.type === "branch") branchByCity[c.jurisdiction] = c.id;
-    }
-    if (main) {
-      await insertDemoStaff({ mainCommitteeId: main.id, branchByCity });
-    }
     DB.setMeta("seedVersion", 5);
   }
 
   // v5 → v6: pre-stock every demo owner with an approved shop carrying every
   // product. Idempotent — skips owners that already have a shop.
   if (v < 6) {
-    const branchByCity = {};
-    for (const c of DB.all("committees")) {
-      if (c.type === "branch") branchByCity[c.jurisdiction] = c.id;
-    }
-    seedDemoShopsAndInventory({ branchByCity });
     DB.setMeta("seedVersion", 6);
   }
 
@@ -396,5 +376,12 @@ export async function runMigrations() {
       });
     }
     DB.setMeta("seedVersion", 9);
+  }
+
+  // v9 -> v10: remove all seeded demo staff accounts and their generated
+  // shops/listings from browsers that already received the old demo cohort.
+  if (v < 10) {
+    removeDemoUsersAndData();
+    DB.setMeta("seedVersion", 10);
   }
 }
