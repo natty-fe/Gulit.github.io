@@ -71,6 +71,42 @@ function normalizeComplaint(c) {
   };
 }
 
+function normalizeProduct(p) {
+  if (!p) return p;
+  return {
+    ...p,
+    nameAm: p.nameAm ?? p.name_am,
+    createdAt: p.createdAt ?? p.created_at,
+    updatedAt: p.updatedAt ?? p.updated_at,
+  };
+}
+
+function cacheProductLocal(product) {
+  const p = normalizeProduct(product);
+  if (!p?.id) return null;
+  const existing = DB.byId("products", p.id);
+  if (existing) {
+    return DB.update("products", p.id, {
+      ...p,
+      nameAm: p.nameAm || existing.nameAm,
+      unit: p.unit || existing.unit,
+      icon: p.icon || existing.icon,
+      image: p.image || existing.image,
+    });
+  }
+  return DB.insert("products", p);
+}
+
+function productMatches({ q = "", category = "All" } = {}) {
+  const ql = String(q || "").trim().toLowerCase();
+  return (p) => {
+    const haystack = `${p.name || ""} ${p.nameAm || ""} ${p.category || ""}`.toLowerCase();
+    const okCat = category === "All" || p.category === category;
+    const okQ = !ql || haystack.includes(ql);
+    return okCat && okQ;
+  };
+}
+
 function audit(actorId, action, entity, entityId, details = {}) {
   DB.insert("auditLogs", {
     actorId, action, entity, entityId,
@@ -107,24 +143,42 @@ function sanitizePaymentAccounts(list) {
 // ------------------ PRODUCTS & PRICING ------------------
 export const Products = {
   async list({ q = "", category = "All" } = {}) {
+    const byId = new Map(DB.all("products").map((p) => [p.id, normalizeProduct(p)]));
     if (isBackendApiEnabled()) {
-      return apiRequest(`/products${queryString({ q, category })}`);
+      try {
+        const backendProducts = await apiRequest("/products");
+        for (const row of backendProducts) {
+          const product = cacheProductLocal(row);
+          if (!product) continue;
+          const current = byId.get(product.id) || {};
+          byId.set(product.id, {
+            ...current,
+            ...normalizeProduct(product),
+            nameAm: product.nameAm || current.nameAm,
+            icon: product.icon || current.icon,
+            image: product.image || current.image,
+            unit: product.unit || current.unit,
+          });
+        }
+      } catch (err) {
+        console.warn("Backend product catalog unavailable; using local catalog.", err.message);
+      }
+      return [...byId.values()].filter(productMatches({ q, category }));
     }
     await sleep();
-    const all = DB.all("products");
-    const ql = q.trim().toLowerCase();
-    return all.filter((p) => {
-      const okCat = category === "All" || p.category === category;
-      const okQ = !ql || p.name.toLowerCase().includes(ql) || p.category.toLowerCase().includes(ql);
-      return okCat && okQ;
-    });
+    return [...byId.values()].filter(productMatches({ q, category }));
   },
   async byId(id) {
     if (isBackendApiEnabled()) {
-      return apiRequest(`/products/${encodeURIComponent(id)}`);
+      try {
+        const backendProduct = await apiRequest(`/products/${encodeURIComponent(id)}`);
+        return cacheProductLocal(backendProduct);
+      } catch (err) {
+        console.warn("Backend product lookup unavailable; using local catalog.", err.message);
+      }
     }
     await sleep();
-    return DB.byId("products", id);
+    return normalizeProduct(DB.byId("products", id));
   },
 };
 
