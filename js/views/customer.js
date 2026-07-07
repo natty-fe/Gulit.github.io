@@ -1090,7 +1090,13 @@ export async function renderTracking() {
     </div>
   `).join("");
 
-  document.querySelectorAll("[data-detail]").forEach(b => b.addEventListener("click", () => openOrderDetail(b.dataset.detail)));
+  document.querySelectorAll("[data-detail]").forEach(b => b.addEventListener("click", async () => {
+    try {
+      await openOrderDetail(b.dataset.detail);
+    } catch (e) {
+      toast(e.message || "Could not open order details.", "danger");
+    }
+  }));
   document.querySelectorAll("[data-complain]").forEach(b => b.addEventListener("click", () => openComplaintForm(b.dataset.complain)));
 
   // Find the first active delivery (assigned / accepted / picked_up / en_route)

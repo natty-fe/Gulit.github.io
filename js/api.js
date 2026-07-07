@@ -249,7 +249,11 @@ export const Shops = {
   },
   async byId(id) {
     if (isBackendApiEnabled()) {
-      return cacheShopLocal(await apiRequest(`/shops/${encodeURIComponent(id)}`));
+      try {
+        return cacheShopLocal(await apiRequest(`/shops/${encodeURIComponent(id)}`));
+      } catch (err) {
+        console.warn("Backend shop lookup unavailable; using local cache.", err.message);
+      }
     }
     await sleep();
     return DB.byId("shops", id);
