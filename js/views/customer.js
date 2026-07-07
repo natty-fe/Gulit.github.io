@@ -15,6 +15,21 @@ import { SUB_CITIES, CATEGORIES } from "../seed.js";
 const view = () => document.getElementById("view");
 
 // ------------------ AUTH ------------------
+function bindEnterSubmit(scope, buttonSelectorOrGetter) {
+  if (!scope || scope.dataset.enterSubmitBound === "true") return;
+  scope.dataset.enterSubmitBound = "true";
+  scope.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return;
+    if (event.target?.tagName === "TEXTAREA") return;
+    const button = typeof buttonSelectorOrGetter === "function"
+      ? buttonSelectorOrGetter()
+      : scope.querySelector(buttonSelectorOrGetter);
+    if (!button || button.disabled) return;
+    event.preventDefault();
+    button.click();
+  });
+}
+
 export async function renderAuth() {
   const v = view();
   v.innerHTML = `
@@ -40,12 +55,17 @@ export async function renderAuth() {
     v.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x === t));
     drawAuthForm(t.dataset.tab);
   }));
+  bindEnterSubmit(v.querySelector("#authForm"), () => {
+    const form = document.getElementById("authForm");
+    return form?.querySelector(form.dataset.submitButton || "");
+  });
   drawAuthForm("login");
 }
 
 function drawAuthForm(mode) {
   const wrap = document.getElementById("authForm");
   if (mode === "login") {
+    wrap.dataset.submitButton = "#loginBtn";
     wrap.innerHTML = `
       ${formField({ label: t("auth.identifier"), name: "identifier", required: true })}
       ${formField({ label: t("auth.password"), name: "password", type: "password", required: true })}
@@ -63,6 +83,7 @@ function drawAuthForm(mode) {
     const idInput = document.querySelector("#authForm [name=identifier]");
     idInput?.addEventListener("input", () => { idInput.value = idInput.value.toLowerCase(); });
   } else {
+    wrap.dataset.submitButton = "#signupBtn";
     wrap.innerHTML = `
       ${formField({ label: t("auth.fullname"), name: "name", required: true, placeholder: t("auth.fullname_ph") })}
       ${formField({ label: t("auth.email"), name: "email", placeholder: t("auth.email_ph") })}
@@ -229,6 +250,9 @@ function openForgotPassword() {
   const idInput = document.querySelector("#modalBody [name=resetIdentifier]");
   const requestBtn = document.getElementById("requestResetBtn");
   const resetStep = document.getElementById("resetStep");
+  bindEnterSubmit(document.getElementById("modalBody"), () => (
+    document.getElementById("completeResetBtn") || document.getElementById("requestResetBtn")
+  ));
   idInput?.addEventListener("input", () => { idInput.value = idInput.value.toLowerCase(); });
   document.getElementById("resetCancelBtn").onclick = () => closeModal();
   requestBtn.onclick = async () => {
@@ -315,7 +339,12 @@ async function onSignup() {
     });
     state.setUser(user);
     toast(t("auth.account_created", { name: user.name }), "success");
-    location.hash = defaultRouteFor(user.role);
+    const nextRoute = defaultRouteFor(user.role);
+    if (location.hash === nextRoute) {
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    } else {
+      location.hash = nextRoute;
+    }
   } catch (e) {
     toast(e.message, "danger");
   }
