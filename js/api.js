@@ -37,6 +37,14 @@ function normalizeShop(s) {
   };
 }
 
+function cacheShopLocal(shop) {
+  const s = normalizeShop(shop);
+  if (!s?.id) return null;
+  const existing = DB.byId("shops", s.id);
+  if (existing) return DB.update("shops", s.id, { ...existing, ...s });
+  return DB.insert("shops", s);
+}
+
 function normalizeOrder(o) {
   if (!o) return o;
   return {
@@ -213,14 +221,14 @@ export const Shops = {
   async list({ subCity, status = "approved" } = {}) {
     if (isBackendApiEnabled()) {
       const rows = await apiRequest(`/shops${queryString({ subCity, status })}`);
-      return rows.map(normalizeShop);
+      return rows.map(cacheShopLocal).filter(Boolean);
     }
     await sleep();
     return DB.filter("shops", (s) => (!subCity || s.subCity === subCity) && (!status || s.status === status));
   },
   async byId(id) {
     if (isBackendApiEnabled()) {
-      return normalizeShop(await apiRequest(`/shops/${encodeURIComponent(id)}`));
+      return cacheShopLocal(await apiRequest(`/shops/${encodeURIComponent(id)}`));
     }
     await sleep();
     return DB.byId("shops", id);
@@ -228,7 +236,7 @@ export const Shops = {
   async byOwner(ownerId) {
     if (isBackendApiEnabled()) {
       const rows = await apiRequest(`/shops${queryString({ ownerId, status: "" })}`);
-      return rows.map(normalizeShop);
+      return rows.map(cacheShopLocal).filter(Boolean);
     }
     await sleep();
     return DB.filter("shops", (s) => s.ownerId === ownerId);
@@ -236,7 +244,7 @@ export const Shops = {
   async register({ ownerId, name, subCity, paymentAccounts = [] }) {
     const u = Auth.require(["owner", "branch", "main"]);
     if (isBackendApiEnabled()) {
-      return normalizeShop(await apiRequest("/shops", {
+      return cacheShopLocal(await apiRequest("/shops", {
         method: "POST",
         body: { ownerId: ownerId || u.id, name, subCity, paymentAccounts },
       }));
