@@ -163,6 +163,23 @@ function mergeShops(localRows = [], backendRows = []) {
   return [...byKey.values()];
 }
 
+function rowTime(row) {
+  const value = row?.updatedAt || row?.updated_at || row?.createdAt || row?.created_at || "";
+  const time = value ? new Date(value).getTime() : 0;
+  return Number.isFinite(time) ? time : 0;
+}
+
+function currentInventoryRows(rows = [], { onlyApproved = false } = {}) {
+  const byListing = new Map();
+  for (const row of rows) {
+    if (onlyApproved && row.status !== "approved") continue;
+    const key = `${row.shopId}|${row.productId}`;
+    const existing = byListing.get(key);
+    if (!existing || rowTime(existing) <= rowTime(row)) byListing.set(key, row);
+  }
+  return [...byListing.values()];
+}
+
 function audit(actorId, action, entity, entityId, details = {}) {
   DB.insert("auditLogs", {
     actorId, action, entity, entityId,
@@ -379,8 +396,9 @@ export const Shops = {
 export const Inventory = {
   async byShop(shopId, { onlyApproved = false } = {}) {
     await sleep();
-    const items = DB.filter("inventory", (i) =>
-      i.shopId === shopId && (!onlyApproved || i.status === "approved")
+    const items = currentInventoryRows(
+      DB.filter("inventory", (i) => i.shopId === shopId),
+      { onlyApproved }
     );
     const products = DB.all("products");
     return items.map((i) => ({ ...i, product: products.find((p) => p.id === i.productId) || null }));
@@ -472,8 +490,7 @@ export const Inventory = {
     const ranges = await PriceRanges.list();
     const ql = q.trim().toLowerCase();
     const out = [];
-    for (const inv of inventory) {
-      if (inv.status !== "approved") continue;
+    for (const inv of currentInventoryRows(inventory, { onlyApproved: true })) {
       const shop = shops.find((s) => s.id === inv.shopId);
       if (!shop) continue;
       const product = products.find((p) => p.id === inv.productId);
@@ -596,7 +613,7 @@ export const Orders = {
     for (const it of items) {
       const inv = DB.byId("inventory", it.inventoryId);
       if (!inv) throw new Error("Inventory item missing.");
-      if (inv.status && inv.status !== "approved") throw new Error("Listing is not available for purchase.");
+      if (inv.status !== "approved") throw new Error("Listing is not available for purchase.");
       const shop = DB.byId("shops", inv.shopId);
       if (!shop || shop.status !== "approved") throw new Error("Shop unavailable.");
       const product = DB.byId("products", inv.productId);

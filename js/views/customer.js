@@ -803,6 +803,31 @@ export function cartCount() {
   return Object.values(getCart()).reduce((a, b) => a + b, 0);
 }
 
+async function currentCartItems() {
+  const original = { ...getCart() };
+  const nextCart = {};
+  let changed = false;
+
+  for (const [id, qty] of Object.entries(original)) {
+    const inv = await fetchInventoryWithProduct(id);
+    if (!inv) {
+      changed = true;
+      continue;
+    }
+    if (inv.id !== id) changed = true;
+    nextCart[inv.id] = (nextCart[inv.id] || 0) + qty;
+  }
+
+  if (changed) setCart(nextCart);
+
+  const items = [];
+  for (const [id, qty] of Object.entries(nextCart)) {
+    const inv = await fetchInventoryWithProduct(id);
+    if (inv) items.push({ inv, qty });
+  }
+  return items;
+}
+
 export async function renderCart() {
   const v = view();
   v.innerHTML = `<section class="page"><div class="card">
@@ -820,10 +845,11 @@ export async function renderCart() {
     return;
   }
 
-  const items = [];
-  for (const id of ids) {
-    const inv = await fetchInventoryWithProduct(id);
-    if (inv) items.push({ inv, qty: cart[id] });
+  const items = await currentCartItems();
+  if (items.length === 0) {
+    document.getElementById("cartBody").innerHTML =
+      `<div class="empty">${t("cart.empty")} <a data-link="home">${t("cart.empty_browse")}</a>.</div>`;
+    return;
   }
   const total = items.reduce((a, x) => a + x.qty * x.inv.price, 0);
   document.getElementById("cartBody").innerHTML = `
@@ -860,7 +886,11 @@ export async function renderCart() {
 }
 
 async function fetchInventoryWithProduct(invId) {
-  return await Inventory.byId(invId);
+  const inv = await Inventory.byId(invId);
+  if (!inv || inv.status !== "approved" || inv.shop?.status !== "approved") return null;
+  const current = (await Inventory.byShop(inv.shopId, { onlyApproved: true }))
+    .find((row) => row.productId === inv.productId);
+  return current || null;
 }
 
 // ------------------ CHECKOUT ------------------
@@ -876,11 +906,8 @@ export async function renderCheckout() {
   const cart = getCart();
   const ids = Object.keys(cart);
   if (ids.length === 0) { document.getElementById("checkoutBody").innerHTML = `<div class="empty">${t("cart.empty")}</div>`; return; }
-  const items = [];
-  for (const id of ids) {
-    const inv = await fetchInventoryWithProduct(id);
-    if (inv) items.push({ inv, qty: cart[id] });
-  }
+  const items = await currentCartItems();
+  if (items.length === 0) { document.getElementById("checkoutBody").innerHTML = `<div class="empty">${t("cart.empty")}</div>`; return; }
   const total = items.reduce((a, x) => a + x.qty * x.inv.price, 0);
 
   document.getElementById("checkoutBody").innerHTML = `
