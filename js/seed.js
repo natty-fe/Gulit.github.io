@@ -96,7 +96,7 @@ export async function runSeed({ force = false } = {}) {
 }
 
 // All demo staff share this password so the demo flow stays simple.
-const DEMO_STAFF_PASSWORD = "demo1234";
+const DEMO_STAFF_PASSWORD = "Demo1234";
 
 const DEMO_STAFF = [
   { name: "Abebe Kebede",   email: "abebe@gmail.com",       phone: "+251911000001", role: "owner",    subCity: "Bole", workId: "SO-00001", faydaFan: "1000000000000001" },

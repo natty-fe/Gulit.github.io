@@ -69,7 +69,8 @@ function drawAuthForm(mode) {
       <div class="muted" style="font-size:12px;margin-top:6px;">${t("auth.email_accepted_hint", { list: ALLOWED_EMAIL_DOMAINS.join(", ") })}</div>
       <div id="emailStatus" class="field-status" style="font-size:12px;margin-top:4px;"></div>
       ${formField({ label: t("auth.phone"), name: "phone", placeholder: t("auth.phone_ph") })}
-      ${formField({ label: t("auth.password"), name: "password", type: "password", required: true })}
+      ${formField({ label: t("auth.password"), name: "password", type: "password", placeholder: t("auth.password_ph"), required: true })}
+      <div class="muted password-hint">${t("auth.password_hint")}</div>
       ${formField({ label: t("auth.password_confirm"), name: "passwordConfirm", type: "password", required: true })}
       ${formField({ label: t("auth.role"), name: "role", type: "select", value: "customer", options: [
         { value: "customer", label: t("role.customer") },
@@ -245,7 +246,8 @@ function openForgotPassword() {
         : formField({ label: t("auth.reset_token"), name: "resetToken", required: true });
       const resetForm = !emailFailed || result.resetToken ? `
           ${tokenField}
-          ${formField({ label: t("auth.new_password"), name: "resetPassword", type: "password", required: true })}
+          ${formField({ label: t("auth.new_password"), name: "resetPassword", type: "password", placeholder: t("auth.password_ph"), required: true })}
+          <div class="muted password-hint">${t("auth.password_hint")}</div>
           ${formField({ label: t("auth.password_confirm"), name: "resetPasswordConfirm", type: "password", required: true })}
           <div class="btnrow mt12">
             <button class="primary" id="completeResetBtn">${t("auth.reset_complete_btn")}</button>
@@ -1757,7 +1759,8 @@ async function openProfileEditor() {
     ` : ""}
     <hr/>
     ${formField({ label: t("acc.current_password"), name: "currentPassword", type: "password" })}
-    ${formField({ label: t("acc.new_password"), name: "newPassword", type: "password" })}
+    ${formField({ label: t("acc.new_password"), name: "newPassword", type: "password", placeholder: t("auth.password_ph") })}
+    <div class="muted password-hint">${t("auth.password_hint")}</div>
     ${formField({ label: t("acc.confirm_new_password"), name: "newPasswordConfirm", type: "password" })}
     <div class="btnrow">
       <button class="primary" id="profSave">${t("save")}</button>

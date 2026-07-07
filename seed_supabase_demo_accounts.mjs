@@ -1,7 +1,7 @@
 // seed_supabase_demo_accounts.mjs
-// Bulk-create the 57 demo staff accounts (the same ones in
-// Gulit-Demo-Credentials.pdf) directly into your Supabase project so they
-// work cross-device.
+// Bulk-create/update the 57 demo staff accounts (the same ones in
+// Gulit-Demo-Credentials.pdf) directly into the backend public.users table
+// so they work cross-device.
 //
 // USAGE
 // -----
@@ -21,15 +21,23 @@
 //        $env:SUPABASE_SERVICE_ROLE_KEY = "eyJhbGciOi..."
 //        node seed_supabase_demo_accounts.mjs
 //
-//   3. The script idempotently creates each user (skips any that already
-//      exist) and inserts the matching profile row. Run multiple times
-//      safely.
+//   3. The script idempotently creates or updates each backend user. Run
+//      multiple times safely.
 //
-// REQUIREMENTS: Node 18+ (uses built-in fetch). No npm install needed.
+// REQUIREMENTS: Node 18+ and backend dependencies installed.
+
+import { createRequire } from "module";
+import { fileURLToPath } from "url";
+
+const require = createRequire(new URL("./backend/package.json", import.meta.url));
+const bcrypt = require("bcrypt");
+const dotenv = require("dotenv");
+
+dotenv.config({ path: fileURLToPath(new URL("./backend/.env", import.meta.url)) });
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const PASSWORD = "demo1234";
+const PASSWORD = "Demo1234";
 
 if (!SUPABASE_URL || !SERVICE_KEY) {
   console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env var.");
@@ -124,7 +132,7 @@ const ACCOUNTS = [
 ];
 
 async function adminFetch(path, init = {}) {
-  return fetch(`${SUPABASE_URL}${path}`, {
+  return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...init,
     headers: {
       apikey: SERVICE_KEY,
@@ -135,65 +143,98 @@ async function adminFetch(path, init = {}) {
   });
 }
 
-async function findUserIdByEmail(email) {
-  // Supabase admin /users API supports filtering by email (page-based).
-  const r = await adminFetch(`/auth/v1/admin/users?filter=email.eq.${encodeURIComponent(email)}`);
-  if (!r.ok) return null;
-  const data = await r.json();
-  return (data.users || []).find(u => u.email === email)?.id || null;
+function encodeFilter(value) {
+  return encodeURIComponent(String(value));
 }
 
-async function createUser(email, password) {
-  const r = await adminFetch(`/auth/v1/admin/users`, {
-    method: "POST",
-    body: JSON.stringify({ email, password, email_confirm: true }),
-  });
-  const body = await r.json();
-  if (!r.ok) {
-    if (body.msg?.includes("already") || body.error_code === "email_exists") return null;
-    throw new Error(`${email}: ${JSON.stringify(body)}`);
+async function parseResponse(r) {
+  if (r.status === 204) return null;
+  const text = await r.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
   }
-  return body.id || body.user?.id;
 }
 
-async function upsertProfile(id, a) {
-  const row = {
-    id,
+async function assertOk(r, label) {
+  if (!r.ok) {
+    const body = await parseResponse(r);
+    throw new Error(`${label}: ${typeof body === "string" ? body : JSON.stringify(body)}`);
+  }
+  return parseResponse(r);
+}
+
+async function findBackendUser(a) {
+  const filters = [
+    `email.eq.${encodeFilter(a.email)}`,
+    `phone.eq.${encodeFilter(a.phone)}`,
+    `work_id.eq.${encodeFilter(a.workId)}`,
+    `fayda_fan.eq.${encodeFilter(a.faydaFan)}`,
+  ];
+  const r = await adminFetch(`users?select=*&or=(${filters.join(",")})&limit=1`);
+  const rows = await assertOk(r, `find ${a.email}`);
+  return rows?.[0] || null;
+}
+
+function demoUserRow(a, passwordHash) {
+  return {
     name: a.name,
+    email: a.email,
     phone: a.phone,
+    password_hash: passwordHash,
     role: a.role,
     sub_city: a.subCity,
     committee_id: a.committeeId || null,
     work_id: a.workId,
     fayda_fan: a.faydaFan,
   };
-  const r = await adminFetch(`/rest/v1/profiles?on_conflict=id`, {
+}
+
+async function insertBackendUser(a, passwordHash) {
+  const r = await adminFetch("users", {
     method: "POST",
-    headers: { Prefer: "resolution=merge-duplicates" },
-    body: JSON.stringify(row),
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify(demoUserRow(a, passwordHash)),
   });
-  if (!r.ok) throw new Error(`profile ${a.email}: ${await r.text()}`);
+  const rows = await assertOk(r, `insert ${a.email}`);
+  return rows?.[0] || null;
+}
+
+async function updateBackendUser(id, a, passwordHash) {
+  const r = await adminFetch(`users?id=eq.${encodeFilter(id)}`, {
+    method: "PATCH",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify({
+      ...demoUserRow(a, passwordHash),
+      password_reset_token_hash: null,
+      password_reset_expires_at: null,
+      updated_at: new Date().toISOString(),
+    }),
+  });
+  const rows = await assertOk(r, `update ${a.email}`);
+  return rows?.[0] || null;
 }
 
 (async () => {
-  let created = 0, existed = 0, failed = 0;
+  const passwordHash = await bcrypt.hash(PASSWORD, 12);
+  let created = 0, updated = 0, failed = 0;
   for (const a of ACCOUNTS) {
     try {
-      let id = await findUserIdByEmail(a.email);
-      if (id) {
-        existed++;
+      const existing = await findBackendUser(a);
+      if (existing) {
+        await updateBackendUser(existing.id, a, passwordHash);
+        updated++;
       } else {
-        id = await createUser(a.email, PASSWORD);
-        if (!id) { existed++; id = await findUserIdByEmail(a.email); }
-        else created++;
+        await insertBackendUser(a, passwordHash);
+        created++;
       }
-      if (!id) throw new Error("no id");
-      await upsertProfile(id, a);
       console.log(`OK  ${a.email}  (${a.role}, ${a.workId})`);
     } catch (e) {
       failed++;
       console.error(`ERR ${a.email}: ${e.message}`);
     }
   }
-  console.log(`\nDone. created=${created} existed=${existed} failed=${failed}`);
+  console.log(`\nDone. created=${created} updated=${updated} failed=${failed}`);
 })();
