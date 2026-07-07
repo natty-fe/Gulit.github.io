@@ -142,6 +142,22 @@ function productPayloadForBackend(patch = {}) {
   return out;
 }
 
+function fullProductPayloadForBackend(id, patch = {}) {
+  const existing = normalizeProduct(DB.byId("products", id) || {});
+  const merged = { ...existing, ...patch, id };
+  return {
+    id,
+    name: merged.name || id,
+    name_am: merged.nameAm || merged.name_am || null,
+    category: merged.category || "Other",
+    unit: merged.unit || null,
+    icon: merged.icon || null,
+    image: merged.image || null,
+    ...(merged.minPrice !== undefined ? { min_price: merged.minPrice } : {}),
+    ...(merged.maxPrice !== undefined ? { max_price: merged.maxPrice } : {}),
+  };
+}
+
 function productMatches({ q = "", category = "All" } = {}) {
   const ql = String(q || "").trim().toLowerCase();
   return (p) => {
@@ -318,7 +334,14 @@ export const Products = {
           body: productPayloadForBackend(patch),
         }));
       } catch (err) {
-        console.warn("Backend product update unavailable; updating local catalog.", err.message);
+        try {
+          return cacheProductLocal(await apiRequest("/products", {
+            method: "POST",
+            body: fullProductPayloadForBackend(id, patch),
+          }));
+        } catch (createErr) {
+          console.warn("Backend product upsert unavailable; updating local catalog.", createErr.message || err.message);
+        }
       }
     }
     await sleep();
@@ -496,7 +519,7 @@ export const Shops = {
       const path = status === "approved"
         ? `/shops/${encodeURIComponent(shopId)}/approve`
         : `/shops/${encodeURIComponent(shopId)}`;
-      return normalizeShop(await apiRequest(path, {
+      return cacheShopLocal(await apiRequest(path, {
         method: "PUT",
         body: { status, statusReason: reason },
       }));

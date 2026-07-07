@@ -15,12 +15,7 @@ import { SUB_CITIES, CATEGORIES } from "../seed.js";
 const view = () => document.getElementById("view");
 
 async function customerVisibleShops(subCity) {
-  const [shops, listings] = await Promise.all([
-    Shops.list({ subCity, status: "approved" }),
-    Inventory.listingsForBrowse({ subCity }),
-  ]);
-  const shopIdsWithListings = new Set(listings.map((row) => row.shop?.id || row.shopId).filter(Boolean));
-  return shops.filter((shop) => shopIdsWithListings.has(shop.id));
+  return Shops.list({ subCity, status: "approved" });
 }
 
 // ------------------ AUTH ------------------
