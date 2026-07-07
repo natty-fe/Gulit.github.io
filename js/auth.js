@@ -73,6 +73,14 @@ function _recordLocalPresence(user) {
   DB.insert("sessions", { token, userId: user.id, lastSeen: now });
 }
 
+function _markLocalSignedOut(userId) {
+  if (!userId) return;
+  const now = new Date().toISOString();
+  for (const s of DB.all("sessions")) {
+    if (s.userId === userId) DB.update("sessions", s.id, { signedOutAt: now });
+  }
+}
+
 function _removeLocalPresence(userId) {
   if (!userId) return;
   for (const s of DB.all("sessions")) {
@@ -291,7 +299,7 @@ export const Auth = {
 
   async logout() {
     if (isBackendApiEnabled()) {
-      _removeLocalPresence(_cachedUser?.id);
+      _markLocalSignedOut(_cachedUser?.id);
       _cachedUser = null;
       setApiToken(null);
       return;
@@ -299,7 +307,7 @@ export const Auth = {
     const token = localStorage.getItem(TOKEN_KEY);
     if (token) {
       const s = DB.find("sessions", (x) => x.token === token);
-      if (s) DB.remove("sessions", s.id);
+      if (s) DB.update("sessions", s.id, { signedOutAt: new Date().toISOString() });
     }
     localStorage.removeItem(TOKEN_KEY);
   },

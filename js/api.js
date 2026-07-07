@@ -11,6 +11,7 @@ import { apiRequest, isBackendApiEnabled } from "./http.js";
 
 // Tiny artificial latency to mimic network calls (and let UI show loading).
 const sleep = (ms = 80) => new Promise((r) => setTimeout(r, ms));
+const ACTIVE_USER_WINDOW_MS = 30 * 60 * 1000;
 
 function queryString(params = {}) {
   const qs = new URLSearchParams();
@@ -463,7 +464,7 @@ export const Inventory = {
     // Aggregate inventory across approved shops in a sub-city for customer browsing.
     // Pending or rejected inventory rows are hidden from customers.
     await sleep();
-    const shops = DB.filter("shops", (s) => s.status === "approved" && (!subCity || s.subCity === subCity));
+    const shops = await Shops.list({ subCity, status: "approved" });
     const products = DB.all("products");
     const inventory = DB.all("inventory");
     const ranges = await PriceRanges.list();
@@ -1073,7 +1074,7 @@ export const Users = {
   },
 
   // Main-committee admin view: every user with an "active" flag derived from
-  // whether they currently have a session token (not signed out yet).
+  // whether they were seen recently on this browser/device.
   async listAll() {
     Auth.require(["main"]);
     if (isBackendApiEnabled()) {
@@ -1094,10 +1095,13 @@ export const Users = {
     }
     return users.map((u) => {
       const session = sessionByUser.get(u.id);
+      const lastSeen = session?.lastSeen || u.updatedAt || u.updated_at || null;
+      const lastSeenMs = lastSeen ? new Date(lastSeen).getTime() : 0;
+      const recentlySeen = Number.isFinite(lastSeenMs) && Date.now() - lastSeenMs <= ACTIVE_USER_WINDOW_MS;
       return {
         ...Auth.publicUser(u),
-        active: !!session,
-        lastSeen: session?.lastSeen || u.updatedAt || null,
+        active: recentlySeen,
+        lastSeen,
       };
     });
   },

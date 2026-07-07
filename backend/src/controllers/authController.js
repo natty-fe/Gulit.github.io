@@ -63,8 +63,15 @@ export async function login(req, res) {
   const ok = passwordHash ? await bcrypt.compare(password, passwordHash) : false;
   if (!ok) throw httpError(401, "Invalid email/phone or password.");
 
+  let seenUser = user;
+  try {
+    seenUser = await UserModel.update(user.id, { updated_at: new Date().toISOString() }) || user;
+  } catch (err) {
+    console.warn("Failed to update user last-seen timestamp:", err.message);
+  }
+
   await writeAuditLog(user.id, "LOGIN", "user", user.id);
-  res.json({ token: signToken(user), user: publicUser(user) });
+  res.json({ token: signToken(seenUser), user: publicUser(seenUser) });
 }
 
 export async function forgotPassword(req, res) {
