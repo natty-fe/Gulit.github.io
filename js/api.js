@@ -377,9 +377,11 @@ export const Shops = {
 
 // ------------------ INVENTORY ------------------
 export const Inventory = {
-  async byShop(shopId) {
+  async byShop(shopId, { onlyApproved = false } = {}) {
     await sleep();
-    const items = DB.filter("inventory", (i) => i.shopId === shopId);
+    const items = DB.filter("inventory", (i) =>
+      i.shopId === shopId && (!onlyApproved || i.status === "approved")
+    );
     const products = DB.all("products");
     return items.map((i) => ({ ...i, product: products.find((p) => p.id === i.productId) || null }));
   },
@@ -471,7 +473,7 @@ export const Inventory = {
     const ql = q.trim().toLowerCase();
     const out = [];
     for (const inv of inventory) {
-      if (inv.status && inv.status !== "approved") continue;
+      if (inv.status !== "approved") continue;
       const shop = shops.find((s) => s.id === inv.shopId);
       if (!shop) continue;
       const product = products.find((p) => p.id === inv.productId);

@@ -14,6 +14,15 @@ import { SUB_CITIES, CATEGORIES } from "../seed.js";
 
 const view = () => document.getElementById("view");
 
+async function customerVisibleShops(subCity) {
+  const [shops, listings] = await Promise.all([
+    Shops.list({ subCity, status: "approved" }),
+    Inventory.listingsForBrowse({ subCity }),
+  ]);
+  const shopIdsWithListings = new Set(listings.map((row) => row.shop?.id || row.shopId).filter(Boolean));
+  return shops.filter((shop) => shopIdsWithListings.has(shop.id));
+}
+
 // ------------------ AUTH ------------------
 function bindEnterSubmit(scope, buttonSelectorOrGetter) {
   if (!scope || scope.dataset.enterSubmitBound === "true") return;
@@ -507,7 +516,7 @@ async function initLiveMap(subCity) {
   L.marker(center, { icon: centerIcon }).addTo(_leafletMap)
     .bindPopup(`<b>${subCityLabel(subCity)}</b><br/>${dirLink(center[0], center[1])}`);
 
-  const shops = await Shops.list({ subCity });
+  const shops = await customerVisibleShops(subCity);
   shops.forEach((s, i) => {
     const c = SUB_CITY_COORDS[s.subCity] || center;
     // Spiral the markers around the center so they're visually distinct.
@@ -625,7 +634,7 @@ async function drawShops() {
   const subCity = state.get("filterSubCity") || state.user?.subCity || "Bole";
   const grid = document.getElementById("shopsList");
   if (!grid) return;
-  const shops = await Shops.list({ subCity });
+  const shops = await customerVisibleShops(subCity);
   if (shops.length === 0) {
     grid.innerHTML = `<div class="empty">${t("home.no_shops", { city: subCityLabel(subCity) })}</div>`;
     return;
@@ -659,7 +668,7 @@ export async function renderShops() {
       </div>
     </section>
   `;
-  const shops = await Shops.list({ subCity });
+  const shops = await customerVisibleShops(subCity);
   const el = document.getElementById("shopsAll");
   if (shops.length === 0) { el.innerHTML = `<div class="empty">${t("shops.no_approved", { city: subCityLabel(subCity) })}</div>`; return; }
   el.innerHTML = shops.map((s, i) => `
@@ -680,7 +689,7 @@ export async function renderShops() {
 async function openShopModal(shopId) {
   const shop = await Shops.byId(shopId);
   if (!shop) return;
-  const inv = await Inventory.byShop(shopId);
+  const inv = await Inventory.byShop(shopId, { onlyApproved: true });
   const sample = inv.slice(0, 6);
   openModal(`${shopName(shop)} · ${t("profile")}`, `
     <div class="row">
