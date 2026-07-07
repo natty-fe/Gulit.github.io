@@ -203,12 +203,37 @@ function rowTime(row) {
 function currentInventoryRows(rows = [], { onlyApproved = false } = {}) {
   const byListing = new Map();
   for (const row of rows) {
-    if (onlyApproved && row.status !== "approved") continue;
+    if (onlyApproved && !isLiveInventoryRow(row)) continue;
     const key = `${row.shopId}|${row.productId}`;
     const existing = byListing.get(key);
     if (!existing || rowTime(existing) <= rowTime(row)) byListing.set(key, row);
   }
   return [...byListing.values()];
+}
+
+function isLiveInventoryRow(row) {
+  return row?.status === "approved" || row?.status === "active" || row?.status === undefined || row?.status === null || row?.status === "";
+}
+
+function shopAliasIds(shopId) {
+  const target = normalizeShop(DB.byId("shops", shopId));
+  if (!target) return new Set([shopId]);
+  const key = shopDisplayKey(target);
+  const ids = new Set([shopId, target.id]);
+  for (const row of DB.all("shops")) {
+    const shop = normalizeShop(row);
+    if (shop.id && shopDisplayKey(shop) === key) ids.add(shop.id);
+  }
+  return ids;
+}
+
+function findInventoryShop(inv, approvedShops = []) {
+  let shop = approvedShops.find((s) => s.id === inv.shopId);
+  if (shop) return shop;
+  shop = normalizeShop(DB.byId("shops", inv.shopId));
+  if (!shop || shop.status !== "approved") return null;
+  if (approvedShops.length && !approvedShops.some((s) => s.subCity === shop.subCity)) return null;
+  return shop;
 }
 
 function latestPriceRangeMap() {
@@ -238,7 +263,7 @@ function priceInsideRange(price, range) {
 
 function approveEligibleInventoryRows() {
   const ranges = latestPriceRangeMap();
-  for (const inv of DB.filter("inventory", (i) => i.status === "pending")) {
+  for (const inv of DB.filter("inventory", (i) => i.status === "pending" || !i.status)) {
     const shop = DB.byId("shops", inv.shopId);
     const product = DB.byId("products", inv.productId);
     const range = ranges.get(inv.productId);
@@ -551,8 +576,10 @@ export const Shops = {
 export const Inventory = {
   async byShop(shopId, { onlyApproved = false } = {}) {
     await sleep();
+    approveEligibleInventoryRows();
+    const aliases = shopAliasIds(shopId);
     const items = currentInventoryRows(
-      DB.filter("inventory", (i) => i.shopId === shopId),
+      DB.filter("inventory", (i) => aliases.has(i.shopId)),
       { onlyApproved }
     );
     const products = DB.all("products");
@@ -655,13 +682,13 @@ export const Inventory = {
     // Pending or rejected inventory rows are hidden from customers.
     await sleep();
     const shops = await Shops.list({ subCity, status: "approved" });
-    const products = DB.all("products");
     const inventory = DB.all("inventory");
     const ranges = await PriceRanges.list();
+    const products = DB.all("products");
     const ql = q.trim().toLowerCase();
     const out = [];
     for (const inv of currentInventoryRows(inventory, { onlyApproved: true })) {
-      const shop = shops.find((s) => s.id === inv.shopId);
+      const shop = findInventoryShop(inv, shops);
       if (!shop) continue;
       const product = products.find((p) => p.id === inv.productId);
       if (!product) continue;
