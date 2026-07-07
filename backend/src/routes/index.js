@@ -6,6 +6,7 @@ import complaintRoutes from "./complaintRoutes.js";
 import shopRoutes from "./shopRoutes.js";
 import userRoutes from "./userRoutes.js";
 import inventoryRoutes from "./inventoryRoutes.js";
+import deliveryRoutes from "./deliveryRoutes.js";
 
 const router = Router();
 
@@ -16,5 +17,6 @@ router.use("/complaints", complaintRoutes);
 router.use("/shops", shopRoutes);
 router.use("/users", userRoutes);
 router.use("/inventory", inventoryRoutes);
+router.use("/deliveries", deliveryRoutes);
 
 export default router;

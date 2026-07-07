@@ -95,6 +95,21 @@ function normalizeInventory(i) {
   };
 }
 
+function normalizeDelivery(d) {
+  if (!d) return d;
+  return {
+    ...d,
+    orderId: d.orderId ?? d.order_id,
+    shopId: d.shopId ?? d.shop_id,
+    courierId: d.courierId ?? d.courier_id,
+    courierName: d.courierName ?? d.courier_name,
+    courierPhone: d.courierPhone ?? d.courier_phone,
+    confirmedAt: d.confirmedAt ?? d.confirmed_at,
+    createdAt: d.createdAt ?? d.created_at,
+    updatedAt: d.updatedAt ?? d.updated_at,
+  };
+}
+
 function normalizeProduct(p) {
   if (!p) return p;
   return {
@@ -150,6 +165,22 @@ function cacheInventoryLocal(item) {
   const existing = DB.byId("inventory", inv.id);
   if (existing) return DB.update("inventory", inv.id, { ...existing, ...inv });
   return DB.insert("inventory", inv);
+}
+
+function cacheOrderLocal(order) {
+  const o = normalizeOrder(order);
+  if (!o?.id) return null;
+  const existing = DB.byId("orders", o.id);
+  if (existing) return DB.update("orders", o.id, { ...existing, ...o });
+  return DB.insert("orders", o);
+}
+
+function cacheDeliveryLocal(delivery) {
+  const d = normalizeDelivery(delivery);
+  if (!d?.id) return null;
+  const existing = DB.byId("deliveries", d.id);
+  if (existing) return DB.update("deliveries", d.id, { ...existing, ...d });
+  return DB.insert("deliveries", d);
 }
 
 function productPayloadForBackend(patch = {}) {
@@ -266,6 +297,78 @@ function inventoryPayloadForBackend({ shopId, productId, qty, price }) {
     qty: Number(qty),
     price: Number(price),
   };
+}
+
+async function buildOrderDrafts({ items, paymentType, customerSubCity, paymentProof, customer }) {
+  if (!Array.isArray(items) || items.length === 0) throw new Error("Cart is empty.");
+  if (!["prepay", "cod"].includes(paymentType)) throw new Error("Invalid payment type.");
+  if (paymentType === "prepay" && (!paymentProof || !paymentProof.image || !paymentProof.reference)) {
+    throw new Error("Upload a payment screenshot and enter the transaction reference.");
+  }
+
+  const byShop = new Map();
+  const shopMap = new Map();
+  for (const it of items) {
+    const inv = await Inventory.byId(it.inventoryId);
+    if (!inv) throw new Error("Inventory item missing.");
+    if (!isLiveInventoryRow(inv)) throw new Error("Listing is not available for purchase.");
+    const shop = await Shops.byId(inv.shopId);
+    if (!shop || shop.status !== "approved") throw new Error("Shop unavailable.");
+    const product = inv.product || await Products.byId(inv.productId);
+    if (!product) throw new Error("Product missing.");
+    const range = await PriceRanges.byProduct(product.id);
+    if (range && (Number(inv.price) < Number(range.minPrice) || Number(inv.price) > Number(range.maxPrice))) {
+      throw new Error(`Listed price for ${product.name} is outside regulated range.`);
+    }
+    const qty = Math.max(1, Number(it.qty || 1));
+    if (Number(inv.qty) <= 0) throw new Error(`${product.name} is out of stock.`);
+    if (qty > Number(inv.qty)) throw new Error(`Only ${inv.qty} ${product.unit} of ${product.name} left in stock.`);
+    const line = {
+      productId: product.id,
+      name: product.name,
+      unit: product.unit,
+      qty,
+      price: Number(inv.price),
+      lineTotal: Number((Number(inv.price) * qty).toFixed(2)),
+      inventoryId: inv.id,
+    };
+    const list = byShop.get(shop.id) || [];
+    list.push(line);
+    byShop.set(shop.id, list);
+    shopMap.set(shop.id, shop);
+  }
+
+  return [...byShop.entries()].map(([shopId, lines]) => {
+    const shop = shopMap.get(shopId);
+    const total = Number(lines.reduce((a, l) => a + Number(l.lineTotal || 0), 0).toFixed(2));
+    let paymentProofs = [];
+    let paymentStatus = "n/a";
+    if (paymentType === "prepay") {
+      const account = (shop?.paymentAccounts || []).find((a) => a.id === paymentProof.accountId) || null;
+      paymentProofs = [{
+        id: DB.id("pp"),
+        accountId: paymentProof.accountId || null,
+        accountSnapshot: account ? { bankName: account.bankName, accountName: account.accountName, accountNumber: account.accountNumber } : null,
+        image: paymentProof.image,
+        reference: String(paymentProof.reference || "").trim(),
+        uploadedAt: new Date().toISOString(),
+        status: "pending",
+      }];
+      paymentStatus = "pending_verification";
+    }
+    return {
+      customerId: customer.id,
+      customerName: customer.name,
+      customerSubCity: customerSubCity || customer.subCity,
+      shopId,
+      items: lines,
+      total,
+      paymentType,
+      paymentStatus,
+      paymentProofs,
+      status: "created",
+    };
+  });
 }
 
 function latestPriceRangeMap() {
@@ -881,92 +984,43 @@ export const Orders = {
   async create({ items, paymentType, customerSubCity, paymentProof }) {
     const u = Auth.require(["customer"]);
     if (isBackendApiEnabled()) {
-      const created = await apiRequest("/orders", {
-        method: "POST",
-        body: { items, paymentType, customerSubCity, paymentProof },
-      });
-      return Array.isArray(created) ? created.map(normalizeOrder) : [normalizeOrder(created)];
-    }
-    if (!Array.isArray(items) || items.length === 0) throw new Error("Cart is empty.");
-    if (!["prepay", "cod"].includes(paymentType)) throw new Error("Invalid payment type.");
-    // For pay-now (prepay), a payment proof (screenshot + reference) is
-    // required from the customer. Owner verifies before order moves to paid.
-    if (paymentType === "prepay") {
-      if (!paymentProof || !paymentProof.image || !paymentProof.reference) {
-        throw new Error("Upload a payment screenshot and enter the transaction reference.");
+      const drafts = await buildOrderDrafts({ items, paymentType, customerSubCity, paymentProof, customer: u });
+      const created = [];
+      for (const draft of drafts) {
+        const order = await apiRequest("/orders", {
+          method: "POST",
+          body: draft,
+        });
+        created.push(cacheOrderLocal(order));
       }
+      return created.filter(Boolean);
     }
-
-    // Group items by shop -> one order per shop (real marketplace behavior).
-    const byShop = new Map();
-    for (const it of items) {
-      const inv = DB.byId("inventory", it.inventoryId);
-      if (!inv) throw new Error("Inventory item missing.");
-      if (inv.status !== "approved") throw new Error("Listing is not available for purchase.");
-      const shop = DB.byId("shops", inv.shopId);
-      if (!shop || shop.status !== "approved") throw new Error("Shop unavailable.");
-      const product = DB.byId("products", inv.productId);
-      const range = await PriceRanges.byProduct(product.id);
-      if (range && (inv.price < range.minPrice || inv.price > range.maxPrice)) {
-        throw new Error(`Listed price for ${product.name} is outside regulated range.`);
-      }
-      const qty = Math.max(1, Number(it.qty || 1));
-      if (inv.qty <= 0) throw new Error(`${product.name} is out of stock.`);
-      if (qty > inv.qty) throw new Error(`Only ${inv.qty} ${product.unit} of ${product.name} left in stock.`);
-      const list = byShop.get(shop.id) || [];
-      list.push({
-        productId: product.id, name: product.name, unit: product.unit,
-        qty, price: inv.price, lineTotal: Number((inv.price * qty).toFixed(2)),
-        inventoryId: inv.id,
-      });
-      byShop.set(shop.id, list);
-    }
-
+    const drafts = await buildOrderDrafts({ items, paymentType, customerSubCity, paymentProof, customer: u });
     const created = [];
-    for (const [shopId, lines] of byShop.entries()) {
-      const total = Number(lines.reduce((a, l) => a + l.lineTotal, 0).toFixed(2));
-      const shop = DB.byId("shops", shopId);
-      // Attach the payment proof per-order (one proof per shop in cart).
-      // Snapshot the destination account so the proof is self-contained
-      // even if the owner later edits or removes that account.
-      let proofs = [];
-      let status = "created";
-      let paymentStatus = "n/a";
-      if (paymentType === "prepay") {
-        const account = (shop?.paymentAccounts || []).find((a) => a.id === paymentProof.accountId) || null;
-        proofs = [{
-          id: DB.id("pp"),
-          accountId: paymentProof.accountId || null,
-          accountSnapshot: account ? { bankName: account.bankName, accountName: account.accountName, accountNumber: account.accountNumber } : null,
-          image: paymentProof.image,
-          reference: String(paymentProof.reference || "").trim(),
-          uploadedAt: new Date().toISOString(),
-          status: "pending",
-        }];
-        paymentStatus = "pending_verification";
-      }
+    for (const draft of drafts) {
       const order = DB.insert("orders", {
-        customerId: u.id, customerName: u.name, customerSubCity: customerSubCity || u.subCity,
-        shopId, items: lines, total, paymentType,
-        status, paymentStatus, paymentProofs: proofs,
+        customerId: draft.customerId, customerName: draft.customerName, customerSubCity: draft.customerSubCity,
+        shopId: draft.shopId, items: draft.items, total: draft.total, paymentType,
+        status: draft.status, paymentStatus: draft.paymentStatus, paymentProofs: draft.paymentProofs,
       });
 
       // Decrement inventory.
-      for (const l of lines) {
+      for (const l of draft.items) {
         const inv = DB.byId("inventory", l.inventoryId);
         if (inv) DB.update("inventory", inv.id, { qty: Math.max(0, inv.qty - l.qty) });
       }
 
       // Notify owner if they need to verify a payment.
+      const shop = DB.byId("shops", draft.shopId);
       if (paymentType === "prepay" && shop?.ownerId) {
         notify({
           recipientType: "user", recipientId: shop.ownerId, type: "PAYMENT_PROOF_PENDING",
           title: "Payment to verify",
-          data: { orderId: order.id, reference: proofs[0].reference },
+          data: { orderId: order.id, reference: draft.paymentProofs[0]?.reference },
         });
       }
 
-      audit(u.id, "ORDER_CREATED", "order", order.id, { shopId, total, paymentType });
+      audit(u.id, "ORDER_CREATED", "order", order.id, { shopId: draft.shopId, total: draft.total, paymentType });
       created.push(order);
     }
     return created;
@@ -1040,7 +1094,7 @@ export const Orders = {
   async list({ customerId, shopId, courierId, status } = {}) {
     if (isBackendApiEnabled()) {
       const rows = await apiRequest(`/orders${queryString({ customerId, shopId, courierId, status })}`);
-      return rows.map(normalizeOrder);
+      return rows.map(cacheOrderLocal).filter(Boolean).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
     }
     await sleep();
     let rows = DB.all("orders");
@@ -1056,7 +1110,7 @@ export const Orders = {
 
   async byId(id) {
     if (isBackendApiEnabled()) {
-      return normalizeOrder(await apiRequest(`/orders/${encodeURIComponent(id)}`));
+      return cacheOrderLocal(await apiRequest(`/orders/${encodeURIComponent(id)}`));
     }
     await sleep();
     return DB.byId("orders", id);
@@ -1066,7 +1120,7 @@ export const Orders = {
     const u = Auth.require(["owner", "delivery", "branch", "main"]);
     if (!ORDER_STATUS.includes(status)) throw new Error("Invalid status.");
     if (isBackendApiEnabled()) {
-      return normalizeOrder(await apiRequest(`/orders/${encodeURIComponent(orderId)}`, {
+      return cacheOrderLocal(await apiRequest(`/orders/${encodeURIComponent(orderId)}`, {
         method: "PUT",
         body: { status },
       }));
@@ -1092,12 +1146,21 @@ export const Orders = {
 
   async assignDelivery(orderId, { courierId, eta = "30–45 min" }) {
     const u = Auth.require(["owner"]);
-    const order = DB.byId("orders", orderId);
+    const order = await Orders.byId(orderId);
     if (!order) throw new Error("Order not found.");
-    const shop = DB.byId("shops", order.shopId);
+    const shop = await Shops.byId(order.shopId);
     if (!shop || shop.ownerId !== u.id) throw new Error("Not your order.");
     const courier = DB.byId("users", courierId);
     if (!courier || courier.role !== "delivery") throw new Error("Courier not found.");
+
+    if (isBackendApiEnabled()) {
+      const delivery = cacheDeliveryLocal(await apiRequest("/deliveries", {
+        method: "POST",
+        body: { orderId, courierId, eta },
+      }));
+      cacheOrderLocal(await apiRequest(`/orders/${encodeURIComponent(orderId)}`));
+      return delivery;
+    }
 
     let delivery = DB.find("deliveries", (d) => d.orderId === orderId);
     const otp = String(1000 + Math.floor(Math.random() * 9000));
@@ -1123,17 +1186,34 @@ const DELIVERY_STATUS = ["assigned", "accepted", "picked_up", "en_route", "deliv
 
 export const Deliveries = {
   async list({ courierId } = {}) {
+    if (isBackendApiEnabled()) {
+      const rows = await apiRequest(`/deliveries${queryString({ courierId })}`);
+      return rows.map(cacheDeliveryLocal).filter(Boolean).sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+    }
     await sleep();
     return DB.filter("deliveries", (d) => !courierId || d.courierId === courierId)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   },
   async byId(id) {
+    if (isBackendApiEnabled()) {
+      return cacheDeliveryLocal(await apiRequest(`/deliveries/${encodeURIComponent(id)}`));
+    }
     await sleep();
     return DB.byId("deliveries", id);
   },
   async updateStatus(deliveryId, status) {
     const u = Auth.require(["delivery", "owner"]);
     if (!DELIVERY_STATUS.includes(status)) throw new Error("Invalid status.");
+    if (isBackendApiEnabled()) {
+      const next = cacheDeliveryLocal(await apiRequest(`/deliveries/${encodeURIComponent(deliveryId)}`, {
+        method: "PUT",
+        body: { status },
+      }));
+      if (next?.orderId) {
+        try { cacheOrderLocal(await apiRequest(`/orders/${encodeURIComponent(next.orderId)}`)); } catch {}
+      }
+      return next;
+    }
     const d = DB.byId("deliveries", deliveryId);
     if (!d) throw new Error("Delivery not found.");
     if (u.role === "delivery" && d.courierId !== u.id) throw new Error("Not your delivery.");
@@ -1152,6 +1232,16 @@ export const Deliveries = {
   },
   async confirm(deliveryId, otp) {
     const u = Auth.require(["delivery"]);
+    if (isBackendApiEnabled()) {
+      const next = cacheDeliveryLocal(await apiRequest(`/deliveries/${encodeURIComponent(deliveryId)}/confirm`, {
+        method: "POST",
+        body: { otp },
+      }));
+      if (next?.orderId) {
+        try { cacheOrderLocal(await apiRequest(`/orders/${encodeURIComponent(next.orderId)}`)); } catch {}
+      }
+      return next;
+    }
     const d = DB.byId("deliveries", deliveryId);
     if (!d) throw new Error("Delivery not found.");
     if (d.courierId !== u.id) throw new Error("Not your delivery.");

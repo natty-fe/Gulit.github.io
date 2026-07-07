@@ -86,6 +86,21 @@ create table if not exists public.orders (
   updated_at timestamptz default now()
 );
 
+create table if not exists public.deliveries (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid references public.orders(id) on delete cascade,
+  shop_id uuid references public.shops(id) on delete cascade,
+  courier_id uuid references public.users(id),
+  eta text,
+  otp text,
+  status text not null default 'assigned',
+  courier_name text,
+  courier_phone text,
+  confirmed_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 create table if not exists public.complaints (
   id uuid primary key default gen_random_uuid(),
   order_id uuid references public.orders(id),
@@ -120,6 +135,8 @@ create index if not exists idx_inventory_product_id on public.inventory(product_
 create index if not exists idx_inventory_status on public.inventory(status);
 create index if not exists idx_orders_customer_id on public.orders(customer_id);
 create index if not exists idx_orders_shop_id on public.orders(shop_id);
+create index if not exists idx_deliveries_order_id on public.deliveries(order_id);
+create index if not exists idx_deliveries_courier_id on public.deliveries(courier_id);
 create index if not exists idx_complaints_order_id on public.complaints(order_id);
 
 alter table public.users add column if not exists password_reset_token_hash text;
