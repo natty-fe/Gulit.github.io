@@ -480,6 +480,12 @@ input:focus, select:focus, textarea:focus{
   font-size: 12px;
 }
 .viewbtn:hover{ background: var(--primary-glow); }
+.map-action-link{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
 
 /* =====================================================================
    STATUS BADGES

@@ -1088,6 +1088,40 @@ export async function renderTracking() {
 let _trackMap = null;
 let _trackInterval = null;
 
+function googleMapsRouteUrl(origin, destination) {
+  const params = new URLSearchParams({
+    api: "1",
+    destination: `${destination[0]},${destination[1]}`,
+    travelmode: "driving",
+  });
+  if (origin) params.set("origin", `${origin[0]},${origin[1]}`);
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
+function deliveryProgressPoint(delivery, shopCenter, custCenter, { live = false } = {}) {
+  const baseT = {
+    assigned:  0.02,
+    accepted:  0.05,
+    picked_up: 0.20,
+    en_route:  0.55,
+  }[delivery?.status] ?? 0.5;
+
+  const dispatchedAt = new Date(delivery?.updatedAt || delivery?.createdAt || Date.now()).getTime();
+  const elapsed = (Date.now() - dispatchedAt) / 60000; // minutes
+  let progress = baseT;
+  if (delivery?.status === "en_route") {
+    progress = Math.min(0.95, 0.55 + (elapsed / 20) * 0.4);
+  } else if (delivery?.status === "picked_up") {
+    progress = Math.min(0.45, 0.20 + (elapsed / 15) * 0.25);
+  }
+  if (live) progress += (Math.random() - 0.5) * 0.015;
+  progress = Math.max(0.02, Math.min(0.98, progress));
+  return [
+    shopCenter[0] + (custCenter[0] - shopCenter[0]) * progress,
+    shopCenter[1] + (custCenter[1] - shopCenter[1]) * progress,
+  ];
+}
+
 function stopTrackingMap() {
   if (_trackInterval) { clearInterval(_trackInterval); _trackInterval = null; }
   if (_trackMap) { _trackMap.remove(); _trackMap = null; }
@@ -1137,31 +1171,28 @@ async function initTrackingMap(order, delivery) {
     html: `<div style="background:#fbbf24;width:38px;height:38px;border-radius:50%;border:3px solid #fff;display:grid;place-items:center;color:#fff;font-size:18px;box-shadow:0 6px 14px rgba(0,0,0,.35);">🛵</div>`,
     iconSize: [38, 38], iconAnchor: [19, 19],
   });
-  const baseT = {
-    assigned:  0.02,
-    accepted:  0.05,
-    picked_up: 0.20,
-    en_route:  0.55,
-  }[delivery.status] ?? 0.5;
-
-  const dispatchedAt = new Date(delivery.updatedAt || delivery.createdAt || Date.now()).getTime();
-  const computePos = () => {
-    const elapsed = (Date.now() - dispatchedAt) / 60000; // minutes
-    let t = baseT;
-    if (delivery.status === "en_route") {
-      t = Math.min(0.95, 0.55 + (elapsed / 20) * 0.4);
-    } else if (delivery.status === "picked_up") {
-      t = Math.min(0.45, 0.20 + (elapsed / 15) * 0.25);
-    }
-    // Tiny wobble so the marker feels live between full status updates.
-    t = Math.max(0.02, Math.min(0.98, t + (Math.random() - 0.5) * 0.015));
-    return [
-      shopCenter[0] + (custCenter[0] - shopCenter[0]) * t,
-      shopCenter[1] + (custCenter[1] - shopCenter[1]) * t,
-    ];
-  };
+  const computePos = () => deliveryProgressPoint(delivery, shopCenter, custCenter, { live: true });
   const courierMarker = L.marker(computePos(), { icon: courierIcon }).addTo(_trackMap)
     .bindPopup(`<b>${t("track.live_courier")}</b><br/>${t("track.live_eta")}: ${delivery.eta || "—"}`);
+
+  const GoogleMapsControl = L.Control.extend({
+    options: { position: "topright" },
+    onAdd() {
+      const a = L.DomUtil.create("a", "leaflet-open-maps");
+      a.href = googleMapsRouteUrl(computePos(), custCenter);
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.textContent = t("track.open_google_maps");
+      a.title = t("track.google_maps_note");
+      L.DomEvent.disableClickPropagation(a);
+      L.DomEvent.on(a, "click", () => {
+        const pos = courierMarker.getLatLng();
+        a.href = googleMapsRouteUrl([pos.lat, pos.lng], custCenter);
+      });
+      return a;
+    },
+  });
+  new GoogleMapsControl().addTo(_trackMap);
 
   _trackInterval = setInterval(() => {
     courierMarker.setLatLng(computePos());
@@ -1198,6 +1229,11 @@ async function openOrderDetail(orderId) {
   if (!o) return;
   // Look up delivery (if assigned) so we can show the OTP and courier info.
   const delivery = o.deliveryId ? await Deliveries.byId(o.deliveryId) : null;
+  const deliveryShop = delivery ? await Shops.byId(o.shopId) : null;
+  const shopCenter = delivery ? (SUB_CITY_COORDS[deliveryShop?.subCity] || ADDIS_CENTER) : null;
+  const custCenter = delivery ? (SUB_CITY_COORDS[o.customerSubCity] || ADDIS_CENTER) : null;
+  const routeOrigin = delivery ? deliveryProgressPoint(delivery, shopCenter, custCenter) : null;
+  const googleRoute = delivery ? googleMapsRouteUrl(routeOrigin, custCenter) : "";
   const isDone = o.status === "delivered" || o.status === "completed";
   // Customer's existing complaints against this order — surface them so the
   // customer can see what they've already filed and not lose track.
@@ -1245,6 +1281,10 @@ async function openOrderDetail(orderId) {
       <hr/>
       <div style="font-weight:900;">${t("track.delivery")}</div>
       <div class="muted mt8">${statusBadge(delivery.status)} · ${t("track.eta")} ${delivery.eta || "—"}</div>
+      <div class="btnrow mt8" style="margin-bottom:0;">
+        <a class="viewbtn map-action-link" href="${googleRoute}" target="_blank" rel="noopener">${t("track.open_google_maps")}</a>
+      </div>
+      <div class="muted mt8" style="font-size:12px;">${t("track.google_maps_note")}</div>
       ${delivery.status !== "delivered" ? `
         <div class="mt12" style="padding:12px;background:var(--primary-tint);border:1px solid var(--primary-ring);border-radius:14px;text-align:center;">
           <div class="muted" style="font-size:12px;">${t("track.share_otp")}</div>

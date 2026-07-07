@@ -375,6 +375,8 @@ const STR = {
     "track.your_address": "Your address",
     "track.live_courier": "Your courier",
     "track.live_eta": "ETA",
+    "track.open_google_maps": "Open in Google Maps",
+    "track.google_maps_note": "Google Maps opens with the app-estimated courier position and your delivery area.",
 
     // ---- complaint ----
     "cmp.modal_title": "Submit complaint",
@@ -1000,6 +1002,8 @@ const STR = {
     "track.your_address": "የእርስዎ አድራሻ",
     "track.live_courier": "የእርስዎ አስረካቢ",
     "track.live_eta": "የሚደርስበት ጊዜ",
+    "track.open_google_maps": "በGoogle Maps ይክፈቱ",
+    "track.google_maps_note": "Google Maps የተገመተውን የአስረካቢ ቦታ እና የማድረሻ አካባቢዎን ያሳያል።",
 
     // ---- complaint ----
     "cmp.modal_title": "ቅሬታ ያስገቡ",
