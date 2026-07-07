@@ -1258,12 +1258,21 @@ async function openOrderDetail(orderId) {
   if (!o) return;
   // Look up delivery (if assigned) so we can show the OTP and courier info.
   const delivery = o.deliveryId ? await Deliveries.byId(o.deliveryId) : null;
-  const deliveryShop = delivery ? await Shops.byId(o.shopId) : null;
-  const shopCenter = delivery ? (SUB_CITY_COORDS[deliveryShop?.subCity] || ADDIS_CENTER) : null;
+  const shop = await Shops.byId(o.shopId);
+  const courier = delivery?.courierId ? await Users.byId(delivery.courierId) : null;
+  const courierName = courier?.name || delivery?.courierName || "";
+  const courierPhone = courier?.phone || delivery?.courierPhone || "";
+  const shopCenter = delivery ? (SUB_CITY_COORDS[shop?.subCity] || ADDIS_CENTER) : null;
   const custCenter = delivery ? (SUB_CITY_COORDS[o.customerSubCity] || ADDIS_CENTER) : null;
   const routeOrigin = delivery ? deliveryProgressPoint(delivery, shopCenter, custCenter) : null;
   const googleRoute = delivery ? googleMapsRouteUrl(routeOrigin, custCenter) : "";
   const isDone = o.status === "delivered" || o.status === "completed";
+  const paymentStatusHtml = o.paymentStatus && o.paymentStatus !== "n/a"
+    ? paymentProofBadge(o.paymentStatus)
+    : `<span class="badge-status warn">${o.paymentType === "prepay" ? t("payment_status.pending") : t("track.pay_cod_label")}</span>`;
+  const deliveryPersonHtml = courierName
+    ? `<b>${escapeAttr(courierName)}</b>${courierPhone ? `<div class="muted mt8" style="font-size:12px;">${t("auth.phone")}: ${escapeAttr(courierPhone)}</div>` : ""}`
+    : `<span class="muted">${t("track.not_assigned")}</span>`;
   // Customer's existing complaints against this order — surface them so the
   // customer can see what they've already filed and not lose track.
   const u = state.user;
@@ -1273,10 +1282,37 @@ async function openOrderDetail(orderId) {
 
   openModal(`${t("track.order_label")} ${o.id.slice(-6).toUpperCase()}`, `
     <div class="row">
-      <div><div style="font-weight:900;">${t("items_count", { n: o.items.length })}</div><div class="muted">${t("track.placed", { date: dateShort(o.createdAt) })}</div></div>
+      <div>
+        <div style="font-weight:900;">${t("track.order_label")} ${o.id.slice(-6).toUpperCase()}</div>
+        <div class="muted">${t("track.placed", { date: dateShort(o.createdAt) })}</div>
+      </div>
       <div>${statusBadge(o.status)}</div>
     </div>
+    <div class="complaint-item mt12">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+        <div>
+          <div class="muted" style="font-size:12px;font-weight:800;">${t("track.shop")}</div>
+          <div style="font-weight:900;">${escapeAttr(shopName(shop) || "—")}</div>
+          <div class="muted mt8" style="font-size:12px;">${subCityLabel(shop?.subCity || "") || "—"}</div>
+        </div>
+        <div>
+          <div class="muted" style="font-size:12px;font-weight:800;">${t("track.delivery_area")}</div>
+          <div style="font-weight:900;">${subCityLabel(o.customerSubCity) || "—"}</div>
+          <div class="muted mt8" style="font-size:12px;">${t("track.your_address")}</div>
+        </div>
+        <div>
+          <div class="muted" style="font-size:12px;font-weight:800;">${t("track.delivery_person")}</div>
+          <div>${deliveryPersonHtml}</div>
+        </div>
+        <div>
+          <div class="muted" style="font-size:12px;font-weight:800;">${t("track.payment_status")}</div>
+          <div>${paymentStatusHtml}</div>
+          <div class="muted mt8" style="font-size:12px;">${t("track.payment")}: <b>${o.paymentType === "prepay" ? t("track.pay_now_label") : t("track.pay_cod_label")}</b></div>
+        </div>
+      </div>
+    </div>
     <hr/>
+    <div style="font-weight:900;">${t("items_count", { n: o.items.length })}</div>
     ${o.items.map(i => `
       <div class="row mt8"><div class="muted"><b>${i.name}</b> × ${i.qty}</div><div style="font-weight:900;">${etb(i.lineTotal)}</div></div>
     `).join("")}

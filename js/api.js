@@ -89,6 +89,27 @@ function normalizeProduct(p) {
   };
 }
 
+function normalizeUser(u) {
+  if (!u) return u;
+  return {
+    ...u,
+    subCity: u.subCity ?? u.sub_city,
+    committeeId: u.committeeId ?? u.committee_id,
+    workId: u.workId ?? u.work_id,
+    faydaFan: u.faydaFan ?? u.fayda_fan,
+    createdAt: u.createdAt ?? u.created_at,
+    updatedAt: u.updatedAt ?? u.updated_at,
+  };
+}
+
+function cacheUserLocal(user) {
+  const u = normalizeUser(user);
+  if (!u?.id) return null;
+  const existing = DB.byId("users", u.id);
+  if (existing) return DB.update("users", u.id, { ...existing, ...u });
+  return DB.insert("users", u);
+}
+
 function cacheProductLocal(product) {
   const p = normalizeProduct(product);
   if (!p?.id) return null;
@@ -729,11 +750,15 @@ export const Orders = {
 
     let delivery = DB.find("deliveries", (d) => d.orderId === orderId);
     const otp = String(1000 + Math.floor(Math.random() * 9000));
+    const courierSnapshot = {
+      courierName: courier.name || "",
+      courierPhone: courier.phone || "",
+    };
     if (delivery) {
-      delivery = DB.update("deliveries", delivery.id, { courierId, eta, otp, status: "assigned" });
+      delivery = DB.update("deliveries", delivery.id, { courierId, eta, otp, status: "assigned", ...courierSnapshot });
     } else {
       delivery = DB.insert("deliveries", {
-        orderId, shopId: shop.id, courierId, eta, otp, status: "assigned",
+        orderId, shopId: shop.id, courierId, eta, otp, status: "assigned", ...courierSnapshot,
       });
     }
     DB.update("orders", orderId, { status: "preparing", deliveryId: delivery.id });
@@ -948,13 +973,7 @@ export const Users = {
   async listByRole(role) {
     if (isBackendApiEnabled()) {
       const rows = await apiRequest(`/users${queryString({ role })}`);
-      return rows.map((u) => ({
-        ...u,
-        subCity: u.subCity ?? u.sub_city,
-        committeeId: u.committeeId ?? u.committee_id,
-        workId: u.workId ?? u.work_id,
-        faydaFan: u.faydaFan ?? u.fayda_fan,
-      }));
+      return rows.map(cacheUserLocal).filter(Boolean);
     }
     await sleep();
     return DB.filter("users", (u) => u.role === role).map((u) => Auth.publicUser(u));
@@ -982,7 +1001,7 @@ export const Users = {
   async byId(id) {
     await sleep();
     const u = DB.byId("users", id);
-    return u ? Auth.publicUser(u) : null;
+    return u ? Auth.publicUser(normalizeUser(u)) : null;
   },
   // Check whether a Work ID and/or Fayda FAN is already taken. Used by the
   // signup and profile-editor forms to give the user immediate feedback while
