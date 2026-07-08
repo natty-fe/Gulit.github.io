@@ -1,5 +1,4 @@
--- Add persistent shop inventory for customer/branch visibility.
--- Run this once in Supabase SQL Editor for an existing Gulit database.
+
 
 create table if not exists public.inventory (
   id text primary key default gen_random_uuid()::text,

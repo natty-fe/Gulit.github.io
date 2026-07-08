@@ -1,5 +1,4 @@
--- Add persistent delivery assignments.
--- Run this once in Supabase SQL Editor for an existing Gulit database.
+
 
 create table if not exists public.deliveries (
   id uuid primary key default gen_random_uuid(),

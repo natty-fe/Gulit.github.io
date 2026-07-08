@@ -1,5 +1,4 @@
--- Gulit backend schema for the Express MVC API.
--- Run in Supabase SQL Editor after the existing migration.
+
 
 create table if not exists public.users (
   id uuid primary key default gen_random_uuid(),

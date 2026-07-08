@@ -1,20 +1,16 @@
-/* =====================================================================
-   THEME TOKENS — distinct palettes for the theme picker
-   Each [data-theme="..."] block overrides the same set of tokens.
-   ===================================================================== */
+
 :root,
 [data-theme="garden"] {
-  /* Default — Garden Cream: sage primary on warm cream */
-  --primary:        #6b8e4e;        /* sage green */
+  --primary:        #6b8e4e;        
   --primary-strong: #557a3a;
   --primary-deep:   #3f5b2a;
-  --accent:         #c97b5e;        /* terracotta */
+  --accent:         #c97b5e;        
   --primary-soft:   #e9efdb;
   --primary-glow:   rgba(107, 142, 78, 0.18);
   --primary-tint:   rgba(107, 142, 78, 0.10);
   --primary-ring:   rgba(107, 142, 78, 0.45);
 
-  --bg:             #faf6ed;        /* warm cream */
+  --bg:             #faf6ed;        
   --bg-grad-1:      rgba(107, 142, 78, 0.14);
   --bg-grad-2:      rgba(201, 123, 94, 0.08);
 
@@ -41,10 +37,10 @@
 }
 
 [data-theme="terracotta"] {
-  --primary:        #0f6c81;        /* deep teal-blue */
+  --primary:        #0f6c81;       
   --primary-strong: #0b5566;
   --primary-deep:   #073c49;
-  --accent:         #f97316;        /* coral orange */
+  --accent:         #f97316;        
   --primary-soft:   #d7f0f5;
   --primary-glow:   rgba(15, 108, 129, 0.20);
   --primary-tint:   rgba(15, 108, 129, 0.10);
@@ -63,10 +59,10 @@
 }
 
 [data-theme="sage"] {
-  --primary:        #2563eb;        /* civic blue */
+  --primary:        #2563eb;        
   --primary-strong: #1d4ed8;
   --primary-deep:   #1e3a8a;
-  --accent:         #16a34a;        /* market green */
+  --accent:         #16a34a;        
   --primary-soft:   #dbeafe;
   --primary-glow:   rgba(37, 99, 235, 0.18);
   --primary-tint:   rgba(37, 99, 235, 0.10);
@@ -85,10 +81,10 @@
 }
 
 [data-theme="rose"] {
-  --primary:        #be185d;        /* berry */
+  --primary:        #be185d;        
   --primary-strong: #9d174d;
   --primary-deep:   #701a3f;
-  --accent:         #0d9488;        /* teal */
+  --accent:         #0d9488;        
   --primary-soft:   #fce7f3;
   --primary-glow:   rgba(190, 24, 93, 0.18);
   --primary-tint:   rgba(190, 24, 93, 0.10);
@@ -107,10 +103,10 @@
 }
 
 [data-theme="mustard"] {
-  --primary:        #dc2626;        /* harvest red */
+  --primary:        #dc2626;        
   --primary-strong: #b91c1c;
   --primary-deep:   #7f1d1d;
-  --accent:         #eab308;        /* sunflower */
+  --accent:         #eab308;        
   --primary-soft:   #fee2e2;
   --primary-glow:   rgba(220, 38, 38, 0.16);
   --primary-tint:   rgba(220, 38, 38, 0.09);
@@ -129,10 +125,10 @@
 }
 
 [data-theme="plum"] {
-  --primary:        #8a5a72;        /* dusty plum */
+  --primary:        #8a5a72;      
   --primary-strong: #6e455a;
   --primary-deep:   #4d2f3f;
-  --accent:         #c19eb1;        /* soft rose */
+  --accent:         #c19eb1;        
   --primary-soft:   #e3d3dc;
   --primary-glow:   rgba(138, 90, 114, 0.18);
   --primary-tint:   rgba(138, 90, 114, 0.10);
@@ -150,18 +146,17 @@
   --border-strong:  rgba(44, 31, 36, 0.16);
 }
 
-/* Warm Midnight — dark, but warm browns + golden accents (no harsh black) */
 [data-theme="midnight"] {
-  --primary:        #d4a373;        /* warm gold/sand */
+  --primary:        #d4a373;       
   --primary-strong: #b88a5a;
   --primary-deep:   #8d6940;
-  --accent:         #e9c890;        /* light gold */
+  --accent:         #e9c890;       
   --primary-soft:   rgba(212, 163, 115, 0.18);
   --primary-glow:   rgba(212, 163, 115, 0.32);
   --primary-tint:   rgba(212, 163, 115, 0.14);
   --primary-ring:   rgba(212, 163, 115, 0.50);
 
-  --bg:             #1c1814;        /* warm dark brown */
+  --bg:             #1c1814;        
   --bg-grad-1:      rgba(212, 163, 115, 0.14);
   --bg-grad-2:      rgba(233, 200, 144, 0.08);
 
@@ -170,7 +165,7 @@
   --surface-3:      rgba(28, 24, 20, 0.86);
   --surface-soft:   #3a3025;
 
-  --text:           #f5ebd9;        /* warm cream */
+  --text:           #f5ebd9;        
   --muted:          #b8a989;
   --on-primary:     #1c1814;
 
@@ -212,7 +207,7 @@
 }
 
 /* =====================================================================
-   BASE
+   **BASE
    ===================================================================== */
 *{ box-sizing: border-box; }
 html, body { height: 100%; }

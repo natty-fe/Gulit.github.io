@@ -1,10 +1,3 @@
--- FULL GULIT DATA RESET
--- Run this in Supabase SQL Editor when you want to delete all app data and
--- start signups/listings from scratch.
---
--- This deletes users, shops, products, product/listing data, orders,
--- complaints, logs, and optional marketplace tables if they exist.
--- It keeps the database tables/schema themselves.
 
 do $$
 begin

@@ -1,58 +1,72 @@
-# GULIT - Multilingual Agricultural Marketplace
+# GULIT - Market Price Management System
 
-Gulit is a multilingual agricultural marketplace built for customers, shop owners, delivery staff, branch committees, and the main committee. The frontend is plain HTML/CSS/JavaScript, and it now talks to a Node.js + Express REST API (MVC-style) sitting in front of Supabase PostgreSQL.
+GULIT is a bilingual marketplace and price management system built for agricultural markets. It handles customers, shop owners, delivery workers, branch committee members, and the main committee, and covers approved shops, regulated product prices, inventory, orders, deliveries, complaints, and password reset emails.
+
+## Background
+
+The first version of this project was a Supabase + HTML/CSS/JavaScript app. It already had the frontend pages, product browsing, the different user role screens, the shop workflow, the delivery workflow, complaint screens, a bilingual UI, themes, and local fallback data.
+
+For the Web Programming II final project, it got rebuilt into a full-stack app with a Node.js/Express backend: a REST API, MVC structure, JWT authentication, password hashing, authorization, logging, and SQL schema files.
+
+## Stack
+
+- Frontend: HTML, CSS, JavaScript
+- Backend: Node.js, Express.js
+- Database: Supabase (PostgreSQL)
+- API: REST
+- Auth: JWT
+- Password security: bcrypt
+- Validation: express-validator
+- Logging: Morgan + audit logs
+- Email: SMTP / Resend-compatible service
+- Deployment: GitHub Pages (frontend), Render (backend)
+- Version control: Git and GitHub
+
+## Features
+
+- Role-based accounts for customers, owners, delivery workers, branch committee, and main committee
+- Login, registration, JWT sessions, and forgot-password email
+- Product catalog with regulated price ranges
+- Shop registration and approval
+- Owner inventory listing
+- Customer product browsing and ordering
+- Order queue for shop owners
+- Delivery assignment and a queue for delivery workers
+- Complaint creation and review
+- Audit logs for important actions
+- Bilingual, responsive interface with multiple themes
 
 ## Architecture
 
+MVC-style backend:
+
 ```text
 Frontend
-  -> Express REST API
-  -> Routes
+  -> Express REST API routes
   -> Controllers
   -> Models
   -> Supabase PostgreSQL
 ```
 
-The browser doesn't talk to Supabase directly. Auth, authorization, validation, password hashing, JWTs, logging, and all database access live in the Express backend.
-
-## Tech Stack
-
-- Frontend: HTML, CSS, JavaScript ES modules
-- Backend: Node.js, Express.js
-- Database: Supabase PostgreSQL
-- Auth: bcrypt for password hashing, JWT for sessions
-- Security: Helmet, CORS, input validation, environment variables
-- Logging: Morgan for requests, plus audit log records
-- Validation: express-validator
-
-## Folder Structure
+Folder layout:
 
 ```text
-.
-├── index.html
-├── css/
-├── js/
-│   ├── api.js
-│   ├── auth.js
-│   ├── http.js
-│   └── views/
-├── backend/
-│   ├── package.json
-│   ├── server.js
-│   ├── schema.sql
-│   ├── .env.example
-│   └── src/
-│       ├── config/
-│       ├── controllers/
-│       ├── middleware/
-│       ├── models/
-│       ├── routes/
-│       ├── services/
-│       └── utils/
-└── supabase-migration.sql
+backend/src/routes/        API route definitions
+backend/src/controllers/   Business logic
+backend/src/models/        Database access
+backend/src/middleware/    Auth, validation, and error middleware
+backend/src/services/      JWT, email, and audit services
+js/views/                  Frontend screens
 ```
 
-## Installation
+## Setup
+
+Clone the repo:
+
+```bash
+git clone https://github.com/natty-fe/Gulit.github.io.git
+cd Gulit.github.io
+```
 
 Install backend dependencies:
 
@@ -61,19 +75,15 @@ cd backend
 npm install
 ```
 
-Copy the backend environment example:
+Copy the environment file:
 
 ```bash
 copy .env.example .env
 ```
 
-Then fill in `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and a strong `JWT_SECRET`.
+Fill in `backend/.env`:
 
-## Environment Variables
-
-Backend:
-
-```text
+```env
 PORT=3000
 NODE_ENV=development
 JWT_SECRET=replace-with-a-long-random-secret
@@ -82,91 +92,12 @@ CORS_ORIGIN=http://localhost:8080,https://natty-fe.github.io
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 FRONTEND_URL=http://localhost:8080
-RESEND_API_KEY=your-resend-api-key
-EMAIL_FROM="Gulit <onboarding@resend.dev>"
-SMTP_HOST=smtp-relay.brevo.com
-SMTP_PORT=587
-SMTP_USER=your-brevo-smtp-login
-SMTP_PASS=your-brevo-smtp-key
-SMTP_FROM="Gulit <your-verified-sender@example.com>"
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-email-app-password
+SMTP_FROM=Gulit <your-email@gmail.com>
 ```
-
-Frontend API URL:
-
-```js
-// js/api-config.js
-export const API_BASE_URL = override || (isLocal ? "http://localhost:3000/api" : "");
-```
-
-GitHub Pages only serves static files, so it can't run Express on its own. Deploy the `backend/` folder to a Node host like Render, Railway, Fly.io, or a VPS, then point the frontend at it before `js/main.js` loads:
-
-```html
-<script>
-  window.GULIT_API_BASE_URL = "https://your-backend.example.com/api";
-</script>
-```
-
-For quick testing from the browser console, this also works:
-
-```js
-localStorage.setItem("gulit:v1:apiBaseUrl", "https://your-backend.example.com/api");
-```
-
-## Deploying With GitHub Pages + Render
-
-GitHub Pages hosts the static frontend only — the Express API needs to run on a Node host.
-
-1. Push this repository to GitHub.
-2. In Render, create a new **Blueprint** or **Web Service** from the repository.
-3. If you're using the included `render.yaml`, Render will read:
-   - root directory: `backend`
-   - build command: `npm install`
-   - start command: `npm start`
-   - health check: `/health`
-4. Add these secret environment variables in Render:
-   - `JWT_SECRET`
-   - `SUPABASE_URL`
-   - `SUPABASE_SERVICE_ROLE_KEY`
-   - `RESEND_API_KEY`
-   - `EMAIL_FROM`
-   - Optional SMTP fallback: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
-5. Once Render deploys, grab the backend URL, e.g.:
-   `https://gulit-api.onrender.com`
-6. From the GitHub Pages frontend, point it at that backend once via the browser console:
-
-```js
-localStorage.setItem("gulit:v1:apiBaseUrl", "https://gulit-api.onrender.com/api");
-location.reload();
-```
-
-To make that permanent, add this before `js/main.js` in `index.html`:
-
-```html
-<script>
-  window.GULIT_API_BASE_URL = "https://gulit-api.onrender.com/api";
-</script>
-```
-
-## Forgot Password Email
-
-The backend sends forgot-password emails from `POST /api/auth/forgot-password`.
-
-Recommended free setup:
-
-1. Create a Resend account.
-2. Generate an API key in Resend.
-3. Add these variables in Render:
-
-```text
-RESEND_API_KEY=your-resend-api-key
-EMAIL_FROM=Gulit <onboarding@resend.dev>
-```
-
-Resend's default sender works fine for testing. For real users, verify your own sender/domain in Resend and point `EMAIL_FROM` at it.
-
-Brevo SMTP is still supported as a fallback, but Resend is the better default since it sends over HTTPS and skips SMTP IP allowlisting entirely.
-
-## Running
 
 Start the backend:
 
@@ -181,28 +112,22 @@ Start the frontend from the project root:
 python -m http.server 8080
 ```
 
-Then open:
+Then open `http://localhost:8080`.
+
+## Database
+
+The main schema lives in `backend/schema.sql`. A few migration/helper files add extra tables and columns on top of that:
 
 ```text
-http://localhost:8080
+backend/add-inventory-table.sql
+backend/add-deliveries-table.sql
+backend/add-product-price-range-columns.sql
+backend/reset-users-and-marketplace-data.sql
 ```
 
-## Database Schema
+Tables: `users`, `products`, `shops`, `inventory`, `orders`, `deliveries`, `complaints`, `audit_logs`.
 
-Run `backend/schema.sql` in the Supabase SQL Editor. It creates the backend-facing relational tables:
-
-- `users`
-- `products`
-- `shops`
-- `orders`
-- `complaints`
-- `audit_logs`
-
-`supabase-migration.sql` is still around for the earlier Supabase profile migration, but the Express API runs on `backend/schema.sql`.
-
-## REST API
-
-Authentication:
+## API
 
 ```text
 POST /api/auth/register
@@ -210,87 +135,28 @@ POST /api/auth/login
 POST /api/auth/forgot-password
 POST /api/auth/reset-password
 GET  /api/auth/me
+
+GET/POST/PUT/DELETE /api/products
+GET/POST/PUT        /api/shops
+GET/POST/PUT        /api/inventory
+GET/POST/PUT        /api/orders
+GET/POST/PUT        /api/deliveries
+GET/POST            /api/complaints
+GET/PUT/DELETE      /api/users
 ```
 
-Products:
+## Security and logging
 
-```text
-GET    /api/products
-GET    /api/products/:id
-POST   /api/products
-PUT    /api/products/:id
-DELETE /api/products/:id
-```
+Passwords are hashed with bcrypt, and JWT handles token-based sessions. Protected routes require a valid token, and role-based authorization decides what each user type can actually do. The Supabase service-role key stays in backend environment variables only, and `.env` is git-ignored. Morgan logs HTTP requests, and important actions get written to an audit log in the database.
 
-Orders:
+## Beyond the basic requirements
 
-```text
-GET  /api/orders
-GET  /api/orders/:id
-POST /api/orders
-PUT  /api/orders/:id
-```
+On top of what the course asked for, this build adds Supabase PostgreSQL integration, GitHub Pages + Render deployment, forgot-password and welcome emails, price regulation by the main committee, shop approval, inventory display rules, delivery assignment, a complaint workflow, a bilingual and responsive UI with theme switching, and local fallback data.
 
-Complaints:
+## Deployment
 
-```text
-GET  /api/complaints
-POST /api/complaints
-```
+Frontend runs on GitHub Pages, backend on Render. Render config is in `render.yaml`.
 
-Shops:
+## Repository
 
-```text
-GET  /api/shops
-GET  /api/shops/:id
-POST /api/shops
-PUT  /api/shops/:id
-PUT  /api/shops/:id/approve
-```
-
-Users:
-
-```text
-GET    /api/users?role=delivery
-POST   /api/users/check-unique
-PUT    /api/users/me
-DELETE /api/users/me
-```
-
-## Security Notes
-
-- Passwords are hashed with bcrypt before they're stored.
-- JWTs are signed by the backend and verified on every protected route.
-- Role authorization is enforced with `authorizeRole(...)`.
-- Helmet is on.
-- CORS is locked down via `CORS_ORIGIN`.
-- Validation errors come back as HTTP 400 with useful details.
-- Supabase service-role credentials should never leave the backend `.env`.
-
-## Features That Existed Before This Update
-
-These were already part of Gulit before the Express + Supabase backend was added, and they all still work the same way from a user's perspective.
-
-**Multiple user roles**
-Customers, shop owners, delivery staff, branch committees, and the main committee each get their own view and permissions. The app behaves differently depending on who's logged in.
-
-**Responsive UI**
-The layout adjusts to phones, tablets, and desktops, so people can browse and manage orders from whatever device they have on hand.
-
-**Bilingual interface**
-The whole app can switch between two languages, so both language groups in the target market can use it comfortably.
-
-**Shop approval workflow**
-New shops don't go live automatically. A committee member has to review and approve them first, which keeps the marketplace from filling up with unverified sellers.
-
-**Order and delivery workflow**
-Orders move through clear stages, from placed to delivered, and delivery staff have their own screens to track and update what they're carrying.
-
-**Complaint handling**
-Customers can file complaints about orders or shops, and committees have a place to review and act on them instead of things getting lost in chat or email.
-
-**Audit logging**
-Key actions get recorded, so there's a trail to check later if something needs to be investigated or double-checked.
-
-**Product browsing and regulated marketplace flows**
-Shoppers can browse listings like a normal marketplace, but certain product types follow extra rules to keep the marketplace compliant with agricultural regulations.
+https://github.com/natty-fe/Gulit.github.io
