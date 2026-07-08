@@ -54,10 +54,3 @@ begin
   end if;
 end $$;
 
--- Optional legacy cleanup:
--- If you previously used Supabase Auth/profiles and also want those accounts
--- removed, uncomment these lines and run them after confirming you want to
--- delete auth users too.
---
--- truncate table public.profiles restart identity cascade;
--- delete from auth.users;
