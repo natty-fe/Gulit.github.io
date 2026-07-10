@@ -1031,6 +1031,31 @@ export const Orders = {
   // are append-only: no delete API.
   async uploadPaymentProof(orderId, { accountId, image, reference }) {
     const u = Auth.require(["customer"]);
+    if (isBackendApiEnabled()) {
+      const order = await Orders.byId(orderId);
+      if (!order) throw new Error("Order not found.");
+      if (order.customerId !== u.id) throw new Error("Not your order.");
+      if (!image || !reference) throw new Error("Screenshot and reference number are required.");
+      const shop = await Shops.byId(order.shopId);
+      const account = (shop?.paymentAccounts || []).find((a) => a.id === accountId) || null;
+      const proof = {
+        id: DB.id("pp"),
+        accountId: accountId || null,
+        accountSnapshot: account ? { bankName: account.bankName, accountName: account.accountName, accountNumber: account.accountNumber } : null,
+        image,
+        reference: String(reference || "").trim(),
+        uploadedAt: new Date().toISOString(),
+        status: "pending",
+      };
+      const updated = await apiRequest(`/orders/${encodeURIComponent(orderId)}`, {
+        method: "PUT",
+        body: {
+          paymentProofs: [...(order.paymentProofs || []), proof],
+          paymentStatus: "pending_verification",
+        },
+      });
+      return cacheOrderLocal(updated);
+    }
     const order = DB.byId("orders", orderId);
     if (!order) throw new Error("Order not found.");
     if (order.customerId !== u.id) throw new Error("Not your order.");
@@ -1063,6 +1088,29 @@ export const Orders = {
   async decidePaymentProof(orderId, proofId, decision, note = "") {
     const u = Auth.require(["owner"]);
     if (!["verified", "rejected"].includes(decision)) throw new Error("Invalid decision.");
+    if (isBackendApiEnabled()) {
+      const order = await Orders.byId(orderId);
+      if (!order) throw new Error("Order not found.");
+      const shop = await Shops.byId(order.shopId);
+      if (!shop || shop.ownerId !== u.id) throw new Error("Not your order.");
+      const proofs = (order.paymentProofs || []).map((p) =>
+        p.id === proofId
+          ? { ...p, status: decision, decidedBy: u.id, decidedAt: new Date().toISOString(), decisionNote: String(note || "") }
+          : p
+      );
+      const patch = { paymentProofs: proofs };
+      if (decision === "verified") {
+        patch.paymentStatus = "verified";
+        if (order.status === "created") patch.status = "paid";
+      } else {
+        patch.paymentStatus = "rejected";
+      }
+      const updated = await apiRequest(`/orders/${encodeURIComponent(orderId)}`, {
+        method: "PUT",
+        body: patch,
+      });
+      return cacheOrderLocal(updated);
+    }
     const order = DB.byId("orders", orderId);
     if (!order) throw new Error("Order not found.");
     const shop = DB.byId("shops", order.shopId);

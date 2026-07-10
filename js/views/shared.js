@@ -351,6 +351,8 @@ const STR = {
     "track.reupload_proof": "Upload a new payment proof",
     "track.reupload_subtitle": "Your previous proof for {shop} was rejected. Pick an account and upload a new screenshot.",
     "track.proof_uploaded": "Payment proof uploaded — owner will verify shortly",
+    "track.paid_order_watch": "Payment recorded - owner action required",
+    "track.paid_order_watch_note": "If the shop owner does not verify, accept, or prepare this paid order, use Submit complaint so the committee can review it.",
 
     // ---- tracking ----
     "track.title": "Order tracking",
@@ -985,6 +987,8 @@ const STR = {
     "track.reupload_proof": "አዲስ የክፍያ ማስረጃ ይጫኑ",
     "track.reupload_subtitle": "ለ{shop} ያቀረቡት የቀደመው ማስረጃ አልተፈቀደም። መለያ ይምረጡና አዲስ ስክሪን ሾት ይጫኑ።",
     "track.proof_uploaded": "የክፍያ ማስረጃ ተጫነ — ባለቤቱ ያረጋግጣል",
+    "track.paid_order_watch": "ክፍያው ተመዝግቧል - የሱቅ ባለቤት እርምጃ ያስፈልጋል",
+    "track.paid_order_watch_note": "የሱቁ ባለቤት ይህን የተከፈለ ትዕዛዝ ካላረጋገጠ፣ ካልተቀበለ ወይም ካላዘጋጀ፣ ኮሚቴው እንዲመረምረው ቅሬታ ያስገቡ።",
 
     // ---- tracking ----
     "track.title": "ትዕዛዝ መከታተያ",

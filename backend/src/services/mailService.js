@@ -36,6 +36,20 @@ function parseSender(value) {
   };
 }
 
+function firstNameOf(user) {
+  return String(user?.name || "there").trim().split(/\s+/)[0] || "there";
+}
+
+function escapeHtml(value) {
+  return String(value || "").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  }[char]));
+}
+
 function getTransporter() {
   if (!isSmtpConfigured()) return null;
   if (transporter) return transporter;
@@ -140,11 +154,25 @@ export async function sendMail({ to, subject, text, html }) {
 
 export async function sendWelcomeEmail(user) {
   if (!user?.email) return { sent: false, reason: "User has no email." };
+  const firstName = firstNameOf(user);
+  const supportEmail = "nathanfeyisa6@gmail.com";
+  const text = [
+    "✅ Your GULIT account has been created successfully!",
+    "",
+    "",
+    `🎉 Welcome to GULIT, ${firstName}! Fair prices, verified shops, and orders you can track start to finish, all in one place.`,
+    "",
+    `If you have any questions or run into a problem, we're here to help: ${supportEmail}`,
+  ].join("\n");
   return sendMail({
     to: user.email,
-    subject: "Welcome to Gulit",
-    text: `Hello ${user.name}, your Gulit account has been created successfully.`,
-    html: `<p>Hello ${user.name},</p><p>Your Gulit account has been created successfully.</p>`,
+    subject: "Your GULIT account is ready",
+    text,
+    html: `
+      <p>✅ <strong>Your GULIT account has been created successfully!</strong></p>
+      <p>🎉 Welcome to GULIT, ${escapeHtml(firstName)}! Fair prices, verified shops, and orders you can track start to finish, all in one place.</p>
+      <p>If you have any questions or run into a problem, we're here to help: <a href="mailto:${supportEmail}">${supportEmail}</a></p>
+    `,
   });
 }
 

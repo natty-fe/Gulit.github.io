@@ -4,6 +4,7 @@
 import { Deliveries, Inventory, LocationChanges, Orders, Products, Shops, Complaints, Users } from "../api.js";
 import { Auth, WORK_ID_PATTERNS, ALLOWED_EMAIL_DOMAINS, isAcceptedEmail } from "../auth.js";
 import { state } from "../state.js";
+import { Favorites, favoriteButtonHtml, wireFavoriteButtons } from "../features.js";
 import {
   toast, openModal, closeModal, etb, dateShort, statusBadge,
   iconSvg, avatarSvg, stars, formField, openThemePicker, getTheme, THEMES,
@@ -16,6 +17,16 @@ const view = () => document.getElementById("view");
 
 async function customerVisibleShops(subCity) {
   return Shops.list({ subCity, status: "approved" });
+}
+
+async function favoriteIdSet(type) {
+  try {
+    const rows = await Favorites.list(type);
+    return new Set(rows.map((row) => String(row.target_id ?? row.targetId)));
+  } catch (err) {
+    console.warn("Favorites unavailable:", err.message);
+    return new Set();
+  }
 }
 
 // ------------------ AUTH ------------------
@@ -558,6 +569,7 @@ async function drawProducts() {
   list.innerHTML = `<div class="empty">${t("loading")}</div>`;
 
   const rows = await Inventory.listingsForBrowse({ subCity, q, category });
+  const favoriteProducts = await favoriteIdSet("product");
 
   const lc = (s) => String(s || "").toLowerCase();
   switch (sort) {
@@ -599,6 +611,7 @@ async function drawProducts() {
           ${range}
         </div>
         <div class="pricebox">
+          ${favoriteButtonHtml("product", r.product.id, favoriteProducts.has(String(r.product.id)))}
           ${oldPrice}
           <div class="now">${etb(r.price)} / ${unitLabel(r.product.unit)}</div>
           ${buyAction}
@@ -623,6 +636,7 @@ async function drawProducts() {
     qtyEl.value = String(next);
   }));
   list.querySelectorAll("[data-shop]").forEach(b => b.addEventListener("click", () => openShopModal(b.dataset.shop)));
+  wireFavoriteButtons(list);
 }
 
 async function drawShops() {
@@ -630,6 +644,7 @@ async function drawShops() {
   const grid = document.getElementById("shopsList");
   if (!grid) return;
   const shops = await customerVisibleShops(subCity);
+  const favoriteShops = await favoriteIdSet("shop");
   if (shops.length === 0) {
     grid.innerHTML = `<div class="empty">${t("home.no_shops", { city: subCityLabel(subCity) })}</div>`;
     return;
@@ -642,10 +657,12 @@ async function drawShops() {
         <div>${stars(s.rating || 0)}</div>
         <div class="shopmeta">${t("auth.subcity")}: ${subCityLabel(s.subCity)}</div>
       </div>
+      ${favoriteButtonHtml("shop", s.id, favoriteShops.has(String(s.id)))}
       <button class="viewbtn" data-shop="${s.id}">${t("profile")}</button>
     </div>
   `).join("");
   grid.querySelectorAll("[data-shop]").forEach(b => b.addEventListener("click", () => openShopModal(b.dataset.shop)));
+  wireFavoriteButtons(grid);
 }
 
 // ------------------ SHOPS LIST PAGE ------------------
@@ -666,6 +683,7 @@ export async function renderShops() {
   const shops = await customerVisibleShops(subCity);
   const el = document.getElementById("shopsAll");
   if (shops.length === 0) { el.innerHTML = `<div class="empty">${t("shops.no_approved", { city: subCityLabel(subCity) })}</div>`; return; }
+  const favoriteShops = await favoriteIdSet("shop");
   el.innerHTML = shops.map((s, i) => `
     <div class="shopcard">
       <div class="avatar">${avatarSvg(i)}</div>
@@ -674,10 +692,12 @@ export async function renderShops() {
         <div>${stars(s.rating || 0)}</div>
         <div class="shopmeta">${t("auth.subcity")}: ${subCityLabel(s.subCity)}</div>
       </div>
+      ${favoriteButtonHtml("shop", s.id, favoriteShops.has(String(s.id)))}
       <button class="viewbtn" data-shop="${s.id}">${t("profile")}</button>
     </div>
   `).join("");
   el.querySelectorAll("[data-shop]").forEach(b => b.addEventListener("click", () => openShopModal(b.dataset.shop)));
+  wireFavoriteButtons(el);
 }
 
 // ------------------ SHOP MODAL ------------------
@@ -939,7 +959,16 @@ async function openPayNowFlow(items) {
     g.items.push({ inv, qty });
     g.total += inv.price * qty;
   }
-  const groups = [...shopGroups.values()];
+  const groups = [];
+  for (const group of shopGroups.values()) {
+    const shop = await Shops.byId(group.shop.id);
+    const accounts = shop?.paymentAccounts || [];
+    if (accounts.length === 0) {
+      toast(t("checkout.no_accounts", { shop: shopName(shop || group.shop) }), "danger");
+      return;
+    }
+    groups.push({ ...group, shop });
+  }
   // We collect one proof per shop, then place all orders at the end.
   const proofs = new Map();
   let cursor = 0;
@@ -1008,7 +1037,7 @@ async function openPayNowFlow(items) {
       const f = proofInput.files?.[0];
       if (!f) return;
       try {
-        proofImage = await imageFileToDataUrl(f, { maxSize: 600, quality: 0.85 });
+        proofImage = await imageFileToDataUrl(f, { maxSize: 420, quality: 0.75 });
         document.getElementById("payProofPreview").innerHTML = `<img src="${proofImage}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:14px;" />`;
       } catch (e) { toast(e.message, "danger"); }
       proofInput.value = "";
@@ -1290,6 +1319,12 @@ function canComplainNow(o) {
   return hoursSince <= COMPLAINT_WINDOW_HOURS;
 }
 
+function paidOrderNeedsOwnerAction(o) {
+  return o?.paymentType === "prepay"
+    && ["pending_verification", "verified"].includes(o.paymentStatus)
+    && ["created", "paid"].includes(o.status);
+}
+
 async function openOrderDetail(orderId) {
   const o = await Orders.byId(orderId);
   if (!o) return;
@@ -1378,6 +1413,12 @@ async function openOrderDetail(orderId) {
       ${o.paymentStatus === "rejected" ? `
         <div class="btnrow mt8"><button class="primary" data-reupload="${o.id}">${t("track.reupload_proof")}</button></div>
       ` : ""}
+    ` : ""}
+    ${paidOrderNeedsOwnerAction(o) ? `
+      <div class="complaint-item mt12" style="border-color:var(--danger);">
+        <div style="font-weight:900;color:var(--danger);">${t("track.paid_order_watch")}</div>
+        <div class="muted mt8" style="font-size:12px;">${t("track.paid_order_watch_note")}</div>
+      </div>
     ` : ""}
     ${delivery ? `
       <hr/>
@@ -1513,7 +1554,7 @@ async function openReuploadProof(orderId) {
     const f = proofInput.files?.[0];
     if (!f) return;
     try {
-      proofImage = await imageFileToDataUrl(f, { maxSize: 600, quality: 0.85 });
+      proofImage = await imageFileToDataUrl(f, { maxSize: 420, quality: 0.75 });
       document.getElementById("reProofPreview").innerHTML = `<img src="${proofImage}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:14px;" />`;
     } catch (e) { toast(e.message, "danger"); }
     proofInput.value = "";
