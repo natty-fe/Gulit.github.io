@@ -1,0 +1,1688 @@
+// js/views/shared.js
+// Shared rendering helpers: toast, modal, icons, money/date formatters,
+// minimal i18n, status-badge mapper, and small reusable components.
+
+let _toastTimer = null;
+export function toast(msg, kind = "") {
+  const el = document.getElementById("toast");
+  if (!el) return;
+  el.textContent = msg;
+  el.className = "toast show" + (kind ? ` ${kind}` : "");
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { el.className = "toast"; }, 1700);
+}
+
+export function openModal(title, htmlOrNode) {
+  const overlay = document.getElementById("overlay");
+  const t = document.getElementById("modalTitle");
+  const b = document.getElementById("modalBody");
+  t.textContent = title;
+  if (typeof htmlOrNode === "string") b.innerHTML = htmlOrNode;
+  else { b.innerHTML = ""; b.appendChild(htmlOrNode); }
+  overlay.hidden = false;
+}
+
+export function closeModal() {
+  const overlay = document.getElementById("overlay");
+  overlay.hidden = true;
+}
+
+document.addEventListener("click", (e) => {
+  if (e.target.id === "modalClose" || e.target.closest("#modalClose")) closeModal();
+  if (e.target.id === "overlay") closeModal();
+});
+
+// Money formatter (ETB).
+export function etb(n) {
+  const v = Number(n || 0);
+  return `${v.toFixed(2)} ETB`;
+}
+
+export function dateShort(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "2-digit" });
+}
+
+export function timeShort(iso) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
+// Roles and statuses are translated lazily via t() so a language toggle
+// updates them on the next render.
+export const ROLE_LABELS = new Proxy({}, {
+  get(_t, role) { return t(`role.${role}`); },
+});
+
+const STATUS_TONES = {
+  created: "muted", paid: "ok", accepted: "ok", preparing: "warn",
+  dispatched: "warn", delivered: "ok", completed: "ok",
+  cancelled: "danger", refunded: "danger",
+  open: "warn", escalated: "danger", resolved: "ok", rejected: "danger",
+  pending: "warn", approved: "ok", suspended: "danger",
+  assigned: "warn", picked_up: "warn", en_route: "warn",
+};
+export function statusBadge(status) {
+  const tone = STATUS_TONES[status] || "muted";
+  const label = t(`status.${status}`, status || "—");
+  return `<span class="badge-status ${tone}">${label}</span>`;
+}
+
+// Translate a category id (used in the category chips).
+export function catLabel(c) { return t(`cat.${c}`, c); }
+
+// ---- Data-name lookups (product/shop/sub-city/city) -------------------
+// Stored values stay in English (so backend filters and seed lookups keep
+// working). These helpers translate at render time.
+const PRODUCT_NAMES_AM = {
+  prd_onion:   "ሽንኩርት",
+  prd_tomato:  "ቲማቲም",
+  prd_potato:  "ድንች",
+  prd_carrot:  "ካሮት",
+  prd_pepper:  "ቃሪያ",
+  prd_cabbage: "ጥቅል ጎመን",
+  prd_egg:     "እንቁላል (ትሬ)",
+  prd_teff:    "ጤፍ",
+  prd_rice:    "ሩዝ",
+  prd_lentils: "ምስር",
+  prd_banana:  "ሙዝ",
+  prd_berbere: "በርበሬ",
+};
+const PRODUCT_UNITS_AM = {
+  kg:    "ኪሎ",
+  tray:  "ትሬ",
+  dozen: "ደርዘን",
+  pack:  "ጥቅል",
+};
+const SHOP_NAMES_AM = {
+  "Bole Fresh Veggies":   "ቦሌ ፍሬሽ አትክልቶች",
+  "Kirkos Market Corner": "ቅርቆስ ገበያ ጥግ",
+  "Arada Daily Goods":    "አራዳ የዕለት ዕቃዎች",
+  "Yeka Grain & Eggs":    "የካ ጥራጥሬና እንቁላል",
+};
+const SUB_CITIES_AM = {
+  "Bole":              "ቦሌ",
+  "Kirkos":            "ቅርቆስ",
+  "Arada":             "አራዳ",
+  "Yeka":              "የካ",
+  "Lideta":            "ልደታ",
+  "Akaki Kality":      "አቃቂ ቃሊቲ",
+  "Addis Ketema":      "አዲስ ከተማ",
+  "Gulele":            "ጉለሌ",
+  "Nifas Silk-Lafto":  "ንፋስ ስልክ-ላፍቶ",
+  "Kolfe Keranio":     "ኮልፌ ቀራኒዮ",
+  "Lemi Kura":         "ለሚ ኩራ",
+};
+
+export function productName(p) {
+  if (!p) return "";
+  if (getLang() === "am") return p.nameAm || PRODUCT_NAMES_AM[p.id] || p.name;
+  return p.name;
+}
+export function unitLabel(u) {
+  if (!u) return "";
+  return getLang() === "am" ? (PRODUCT_UNITS_AM[u] || u) : u;
+}
+export function shopName(s) {
+  if (!s) return "";
+  return getLang() === "am" ? (SHOP_NAMES_AM[s.name] || s.name) : s.name;
+}
+export function subCityLabel(name) {
+  if (!name) return "";
+  return getLang() === "am" ? (SUB_CITIES_AM[name] || name) : name;
+}
+export function cityLabel(name) {
+  if (!name) return "";
+  if (getLang() === "am" && name === "Addis Ababa") return "አዲስ አበባ";
+  return name;
+}
+
+// Latitude/longitude (approximate centers) for the Leaflet map.
+// Used by views/customer.js to drop a marker per sub-city.
+export const SUB_CITY_COORDS = {
+  "Bole":             [8.9806, 38.7578],
+  "Kirkos":           [9.0156, 38.7547],
+  "Arada":            [9.0376, 38.7522],
+  "Yeka":             [9.0422, 38.7892],
+  "Lideta":           [9.0083, 38.7281],
+  "Akaki Kality":     [8.8633, 38.7889],
+  "Addis Ketema":     [9.0319, 38.7383],
+  "Gulele":           [9.0533, 38.7406],
+  "Nifas Silk-Lafto": [8.9628, 38.7472],
+  "Kolfe Keranio":    [9.0144, 38.6925],
+  "Lemi Kura":        [9.0625, 38.8086],
+};
+export const ADDIS_CENTER = [9.0192, 38.7525];
+
+// Comprehensive EN/AM dictionary. Any view string used by the user-visible
+// UI should live here so the language toggle translates everything.
+const STR = {
+  en: {
+    // ---- common ----
+    "tagline": "Bilingual Market Price Management",
+    "footer.copyright": "© {year} GULIT — Built by Natan Feyisa. All rights reserved.",
+    "loading": "Loading…",
+    "back": "Back",
+    "close": "Close",
+    "cancel": "Cancel",
+    "save": "Save",
+    "submit": "Submit",
+    "update": "Update",
+    "add": "Add",
+    "details": "Details",
+    "view": "View",
+    "all": "All",
+    "total": "Total",
+    "items": "Items",
+    "items_count": "{n} item(s)",
+    "yes": "Yes",
+    "no": "No",
+    "optional": "optional",
+    "required": "required",
+    "profile": "Profile",
+    "preferences": "Preferences",
+
+    // ---- topbar / nav ----
+    "signin": "Sign in",
+    "signout": "Sign out",
+    "browse": "Browse",
+    "cart": "Cart",
+    "track": "Track",
+    "account": "Account",
+    "shops": "Shops",
+    "orders": "Orders",
+    "inventory": "Inventory",
+    "deliveries": "Deliveries",
+    "cases": "Cases",
+    "ranges": "Price ranges",
+    "audit": "Audit log",
+
+    // ---- roles ----
+    "role.customer": "Customer",
+    "role.owner": "Shop Owner",
+    "role.delivery": "Delivery",
+    "role.branch": "Branch Committee",
+    "role.main": "Main Committee",
+
+    // ---- categories ----
+    "cat.All": "All",
+    "cat.Vegetables": "Vegetables",
+    "cat.Grains": "Grains",
+    "cat.Cereals": "Cereals",
+    "cat.Fruits": "Fruits",
+    "cat.Protein": "Protein",
+    "cat.Spices": "Spices",
+
+    // ---- auth ----
+    "auth.welcome": "Welcome to GULIT",
+    "auth.subtitle": "The digital gulit market: regulated prices, trusted shops, and traceable deliveries.",
+    "auth.tab_signin": "Sign in",
+    "auth.tab_signup": "Create account",
+    "auth.identifier": "Email or phone",
+    "auth.password": "Password",
+    "auth.password_ph": "e.g., Demo1234",
+    "auth.signin_btn": "Sign in",
+    "auth.fullname": "Full name",
+    "auth.fullname_ph": "e.g., Hana Tesfaye",
+    "auth.email": "Email",
+    "auth.email_ph": "you@example.com",
+    "auth.phone": "Phone",
+    "auth.phone_ph": "+251 9xx xxx xxx",
+    "auth.role": "Role",
+    "auth.subcity": "Sub-city",
+    "auth.signup_btn": "Create account",
+    "auth.committee_note": "Branch and Main Committee accounts are provisioned by administrators.",
+    "auth.show_password": "Show password",
+    "auth.hide_password": "Hide password",
+    "auth.staff_note": "Owner, delivery, and committee accounts require a Work ID number and a 16-digit Fayda FAN.",
+    "auth.workid": "Work ID number",
+    "auth.workid_ph": "Your organization-issued ID",
+    "auth.workid_format_owner": "Format: SO- followed by 5 digits (e.g., SO-00123).",
+    "auth.workid_format_delivery": "Format: D- followed by 6 digits (e.g., D-000456).",
+    "auth.workid_format_branch": "Format: BC- followed by 4 digits (e.g., BC-0078).",
+    "auth.workid_format_main": "Format: MC- followed by 3 digits (e.g., MC-009).",
+    "auth.fayda": "Fayda FAN number",
+    "auth.fayda_ph": "16-digit Fayda national ID",
+    "auth.password_confirm": "Confirm password",
+    "auth.password_hint": "Use at least 8 characters with 1 uppercase letter, 1 lowercase letter, and 1 number.",
+    "auth.password_mismatch": "Passwords do not match.",
+    "auth.field_available": "Available",
+    "auth.field_taken": "Taken",
+    "auth.field_invalid_format": "Invalid format",
+    "auth.email_accepted_hint": "Accepted providers: {list}",
+    "auth.email_accepted": "Accepted email provider",
+    "auth.email_unsupported": "Use one of the accepted email providers",
+    "auth.demo_logins": "Demo logins (password Demo1234):",
+    "auth.enter_creds": "Enter your credentials",
+    "auth.welcome_user": "Welcome, {name}",
+    "auth.account_created": "Account created · welcome, {name}",
+    "auth.forgot_password": "Forgot password?",
+    "auth.reset_title": "Reset password",
+    "auth.reset_request_btn": "Request reset",
+    "auth.reset_sending": "Sending reset request...",
+    "auth.reset_sent": "Reset instructions are ready.",
+    "auth.reset_email_hint": "If this account exists, check your email inbox and spam folder for the reset token.",
+    "auth.reset_email_failed": "Reset token was created, but the email could not be sent. Check the backend email settings.",
+    "auth.reset_token": "Reset token",
+    "auth.new_password": "New password",
+    "auth.reset_complete_btn": "Set new password",
+    "auth.reset_done": "Password reset successfully. Sign in with your new password.",
+
+    // ---- home / browse ----
+    "home.title": "Browse regulated prices",
+    "home.subtitle": "Search items, filter categories, add to cart.",
+    "home.search_ph": "Search vegetables, grains, eggs…",
+    "home.shops_nearby": "Shops nearby",
+    "home.shops_in": "In {city} sub-city.",
+    "home.no_products": "No products in {city} match your filters.",
+    "home.no_shops": "No approved shops yet in {city}.",
+    "home.range": "Range {min}–{max}",
+    "home.sold_by": "Sold by",
+    "home.unit": "per",
+    "home.added": "Added to cart",
+    "home.out_of_stock": "Out of stock",
+    "home.sort_by": "Sort by",
+    "home.sort_default": "Recommended",
+    "home.sort_name_asc": "Name (A–Z)",
+    "home.sort_name_desc": "Name (Z–A)",
+    "home.sort_price_asc": "Price (low to high)",
+    "home.sort_price_desc": "Price (high to low)",
+    "home.sort_shop_asc": "Shop name (A–Z)",
+    "home.sort_rating_desc": "Top-rated shop first",
+
+    // ---- shops ----
+    "shops.title": "Shops in {city}",
+    "shops.subtitle": "Tap a shop for profile, sellers, and reviews.",
+    "shops.no_approved": "No approved shops in {city}.",
+    "shops.popular_items": "Popular items",
+    "shops.regulated_note": "Prices respect committee-set ranges.",
+    "shops.no_listed": "No items listed yet.",
+    "shops.reviews": "Reviews",
+    "shops.feedback_note": "Customers can leave feedback after delivery.",
+    "shops.add_review": "Add review",
+    "shops.no_reviews": "No reviews yet.",
+    "shops.review_title": "Add review",
+    "shops.review_stars": "Stars (1–5)",
+    "shops.review_text": "Your comment",
+    "shops.review_text_ph": "Share your experience…",
+    "shops.write_comment": "Please write a comment",
+    "shops.review_posted": "Review posted",
+
+    // ---- cart ----
+    "cart.title": "Cart",
+    "cart.subtitle": "Review items, then checkout.",
+    "cart.empty": "Cart is empty.",
+    "cart.empty_browse": "Browse items",
+    "cart.delivery_note": "Delivery fees added at checkout.",
+    "cart.proceed": "Proceed to checkout",
+    "cart.empty_toast": "Cart is empty",
+
+    // ---- checkout ----
+    "checkout.title": "Checkout",
+    "checkout.subtitle": "Choose payment option and confirm.",
+    "checkout.summary": "Order summary",
+    "checkout.lines_total": "{lines} item line(s) · Total {total}",
+    "checkout.address": "Delivery address (sub-city)",
+    "checkout.pay_now": "Pay now",
+    "checkout.pay_cod": "Pay on delivery",
+    "checkout.note": "Pay-now uses a third-party gateway (mocked). Refunds are issued via the same gateway when committee approves.",
+    "checkout.placed": "Order placed · {n} shop(s)",
+    "checkout.no_accounts": "{shop} hasn't set up a payment account yet — pick Pay on delivery.",
+    "checkout.pay_modal": "Pay {shop} ({step}/{total})",
+    "checkout.pay_modal_subtitle": "Transfer {total} to one of the shop's accounts, then upload the receipt and reference.",
+    "checkout.pick_account": "Pick an account to pay",
+    "checkout.account_name": "Account name",
+    "checkout.account_number": "Account number",
+    "checkout.copy": "Copy",
+    "checkout.copied": "Copied to clipboard",
+    "checkout.transfer_instructions": "Open your CBE / Awash / Telebirr app, transfer the exact amount to the picked account, screenshot the success page, then upload it below with the transaction reference number.",
+    "checkout.proof_label": "Payment screenshot",
+    "checkout.proof_hint": "Upload a screenshot of the transfer success page",
+    "checkout.upload_screenshot": "Upload screenshot",
+    "checkout.proof_required": "Please upload a screenshot of the transfer",
+    "checkout.reference_label": "Transaction reference",
+    "checkout.reference_ph": "e.g., FT24A0BCDE12",
+    "checkout.reference_required": "Please enter the transaction reference",
+    "checkout.pay_next": "Continue to next shop",
+    "checkout.pay_finish": "Place order",
+    "track.payment_history": "Payment history",
+    "track.payment_history_note": "Saved as audit — proofs can't be deleted.",
+    "track.reupload_proof": "Upload a new payment proof",
+    "track.reupload_subtitle": "Your previous proof for {shop} was rejected. Pick an account and upload a new screenshot.",
+    "track.proof_uploaded": "Payment proof uploaded — owner will verify shortly",
+
+    // ---- tracking ----
+    "track.title": "Order tracking",
+    "track.subtitle": "Latest orders and live status.",
+    "track.no_orders": "No orders yet.",
+    "track.start_browsing": "Start browsing",
+    "track.home": "Home",
+    "track.placed": "Placed {date}",
+    "track.payment": "Payment",
+    "track.pay_now_label": "Pay now",
+    "track.pay_cod_label": "Cash on delivery",
+    "track.complain": "Submit complaint",
+    "track.complain_again": "Submit another complaint",
+    "track.my_complaints": "Your complaints on this order ({n})",
+    "track.order_label": "Order",
+    "track.shop": "Shop",
+    "track.order_status": "Order status",
+    "track.payment_status": "Payment status",
+    "track.delivery_area": "Delivery area",
+    "track.delivery_person": "Delivery person",
+    "track.not_assigned": "Not assigned yet",
+    "track.delivery": "Delivery",
+    "track.eta": "ETA",
+    "track.confirmed_at": "Confirmed at {date}.",
+    "track.share_otp": "Share this OTP with the courier on arrival",
+    "track.live_title": "Live delivery tracking",
+    "track.live_sub": "Order {id} · courier is {status}",
+    "track.your_address": "Your address",
+    "track.live_courier": "Your courier",
+    "track.live_eta": "ETA",
+    "track.open_google_maps": "Open in Google Maps",
+    "track.google_maps_note": "Google Maps opens with the app-estimated courier position and your delivery area.",
+
+    // ---- complaint ----
+    "cmp.modal_title": "Submit complaint",
+    "cmp.type": "Complaint type",
+    "cmp.type.missing": "Missing item",
+    "cmp.type.late": "Late delivery",
+    "cmp.type.never_arrived": "Order never arrived",
+    "cmp.type.never_arrived_locked": "Order never arrived (available in {time})",
+    "cmp.never_arrived_countdown": "⏱ “Order never arrived” unlocks in {time}",
+    "cmp.type.wrong": "Wrong item",
+    "cmp.type.quality": "Quality issue",
+    "cmp.type.other": "Other",
+    "cmp.detail": "Details",
+    "cmp.detail_ph": "Explain what happened…",
+    "cmp.submit": "Submit",
+    "cmp.describe": "Please describe the issue",
+    "cmp.sent": "Complaint submitted to branch committee",
+    "cmp.photo_label": "Photo of the issue",
+    "cmp.photo_hint": "A photo is required — show the damaged / missing / wrong item",
+    "cmp.take_photo": "Take or upload photo",
+    "cmp.photo_required": "Please attach a photo of the issue",
+    "cmp.photo_hint_optional": "Optional — a photo helps the committee review faster",
+    "cmp.photo_hint.missing": "Optional — photograph the rest of the items you received so the committee can see what's missing",
+    "cmp.photo_hint.wrong":   "Required — show the wrong item you received next to the receipt or your order list",
+    "cmp.photo_hint.quality": "Required — show the spoiled, damaged, or expired item clearly",
+    "cmp.photo_hint.other":   "Optional — attach a photo if it helps explain the issue",
+    "cmp.refund_prompt_title": "Would you like a refund?",
+    "cmp.refund_prompt_body": "We've filed your complaint with the branch committee. If you'd also like a refund for this order, we can request one for you.",
+    "cmp.refund_prompt_note": "Refunds are reviewed by the committee and may take up to 1 day to process.",
+    "cmp.refund_prompt_yes": "Yes, request a refund",
+    "cmp.refund_prompt_no": "No, just the complaint",
+    "cmp.refund_sent": "Refund request sent to shop and committee",
+    "cmp.refund_requested": "Refund requested",
+    "track.rate_title": "How was your order?",
+    "track.rate_subtitle": "Rate the shop and the delivery person — your feedback helps everyone.",
+    "track.rate_shop": "★ Rate the shop",
+    "track.rate_delivery": "★ Rate the delivery person",
+    "track.rate_delivery_title": "Rate the delivery person",
+    "track.rate_delivery_ph": "Friendly? On time? Careful with the goods?",
+    "track.rate_delivery_done": "Thanks for rating the delivery person",
+
+    // ---- account ----
+    "acc.title": "Account",
+    "acc.subtitle": "Profile and demo controls.",
+    "acc.role": "Role",
+    "acc.subcity": "Sub-city",
+    "acc.email": "Email",
+    "acc.phone": "Phone",
+    "acc.signout": "Sign out",
+    "acc.theme": "Theme",
+    "acc.change_theme": "Change theme",
+    "acc.demo": "Demo controls",
+    "acc.reset": "Reset demo data",
+    "acc.reset_note": "Resetting wipes local data and reloads the seed (products, shops, demo accounts, regulated price ranges).",
+    "acc.reset_confirm": "Reset all local demo data? This signs you out.",
+    "acc.reset_done": "Demo data reset",
+    "acc.signed_out": "Signed out",
+    "acc.account_btn": "Account",
+    "acc.edit_profile": "Edit profile",
+    "acc.edit_modal": "Edit profile",
+    "acc.new_password": "New password (leave blank to keep current)",
+    "acc.confirm_new_password": "Confirm new password",
+    "acc.current_password": "Current password (required for changes)",
+    "acc.workid_readonly": "Work ID",
+    "acc.fayda_hint": "Replace with your real Fayda FAN if the auto-generated one isn't yours yet.",
+    "acc.avatar_title": "Profile picture",
+    "acc.avatar_hint": "Upload a square photo. If you don't set one, a generated avatar is shown.",
+    "acc.upload_avatar": "Upload picture",
+    "acc.clear_avatar": "Remove picture",
+    "acc.delete_title": "Danger zone",
+    "acc.delete_subtitle": "Permanently delete your account. This can't be undone.",
+    "acc.delete_btn": "Delete my account",
+    "acc.delete_modal_title": "Delete your account?",
+    "acc.delete_modal_body": "This permanently removes your account from GULIT. Type your full name (\"{name}\") and your password to confirm. This can't be undone.",
+    "acc.delete_name_label": "Type your full name to confirm",
+    "acc.delete_confirm": "Yes, delete my account",
+    "acc.delete_done": "Account deleted",
+    "acc.subcity_locked": "Sub-city changes require committee approval — request a change below.",
+    "acc.request_location": "Request location change",
+    "acc.request_location_subtitle": "Pick a sub-city you want to move to. The committee will review and decide.",
+    "acc.request_location_current": "Current sub-city: {city}",
+    "acc.request_location_target": "New sub-city",
+    "acc.request_location_reason": "Reason (optional)",
+    "acc.request_location_reason_ph": "Why are you moving?",
+    "acc.request_location_submit": "Submit request",
+    "acc.request_location_sent": "Location request submitted",
+    "acc.location_pending_title": "Pending location change",
+    "acc.location_status_pending_branch": "Awaiting branch committee review · {from} → {to}",
+    "acc.location_status_pending_main": "Awaiting main committee review · {from} → {to}",
+    "acc.location_status_branch_approved": "Approved by branch — your sub-city is now {to}. Main committee can still review.",
+    "acc.profile_saved": "Profile saved",
+    "acc.bad_password": "Current password is incorrect",
+    "acc.signout_confirm_title": "Sign out?",
+    "acc.signout_confirm_body": "You'll need to sign back in to use GULIT. Any unsaved cart items remain on this device.",
+    "acc.signout_yes": "Yes, sign out",
+    "map.loading": "Loading map…",
+    "map.shops_in": "{n} shop(s) in {city}",
+    "map.directions": "Get directions",
+    "map.open_in_maps": "Open in Maps",
+
+    // ---- owner ----
+    "own.title": "Shop Owner Dashboard",
+    "own.subtitle": "Manage shops, inventory, and incoming orders.",
+    "own.register_shop": "+ Register shop",
+    "own.stat_shops": "Shops",
+    "own.stat_approved": "Approved",
+    "own.stat_pending": "Pending",
+    "own.stat_orders": "Orders received",
+    "own.stat_rating": "Avg. rating",
+    "own.queue": "Orders queue",
+    "own.queue_subtitle": "Accept, prepare, and assign delivery",
+    "own.no_shops": "Register a shop to receive orders.",
+    "own.no_orders": "No orders yet. They will appear here as soon as customers buy from your shop.",
+    "own.inv_no_shops": "Register a shop above to manage inventory. Once your local branch committee approves it, you can list items.",
+    "own.accept": "Accept",
+    "own.reject": "Reject",
+    "own.mark_prep": "Mark preparing",
+    "own.assign_delivery": "Assign delivery",
+    "own.awaiting": "Awaiting delivery",
+    "own.no_action": "No action",
+    "own.assign_title": "Assign delivery",
+    "own.courier": "Courier",
+    "own.eta": "ETA",
+    "own.otp_note": "Customer receives a 4-digit OTP. Courier confirms with OTP at delivery.",
+    "own.assign_btn": "Assign",
+    "own.no_couriers": "No delivery personnel available",
+    "own.assigned_otp": "Delivery assigned · OTP {otp}",
+    "own.order_updated": "Order updated · {status}",
+    "own.customer": "Customer",
+    "own.subcity": "Sub-city",
+    "own.inv_note": "Choose any existing catalog product, add your stock and approved price, then it can be shown to customers after approval. Propose a product only when it is not already in the catalog.",
+    "own.range_label": "Range {min}–{max}",
+    "own.no_range": "No regulated range",
+    "own.qty": "Qty",
+    "own.update": "Update",
+    "own.add": "Add",
+    "own.inv_update": "Update inventory",
+    "own.inv_add": "Add to inventory",
+    "own.allowed_range": "Allowed range: {min} to {max}",
+    "own.price_out_of_range": "Out of price range. Allowed range is {min} to {max}.",
+    "own.qty_label": "Quantity",
+    "own.unit_price": "Unit price (ETB)",
+    "own.inv_saved": "Inventory saved",
+    "own.shop_modal": "Register a new shop",
+    "own.shop_name": "Shop name",
+    "own.shop_name_ph": "e.g., Bole Fresh Veggies",
+    "own.shop_note": "After submission, the local branch committee reviews and approves your shop before you can sell.",
+    "own.shop_submitted": "Submitted for branch committee review",
+    "own.payment_accounts_title": "Payment accounts",
+    "own.payment_accounts_dash_subtitle": "Bank and mobile-money accounts customers pay you into. Add as many as you like — minimum one required.",
+    "own.payment_accounts_subtitle": "List the bank or mobile-money accounts where customers should transfer when paying you. Minimum one required.",
+    "own.payment_accounts_modal": "{shop} · payment accounts",
+    "own.payment_accounts_count": "account(s)",
+    "own.payment_accounts_saved": "Payment accounts saved",
+    "own.payment_bank": "Bank / wallet",
+    "own.payment_account_name": "Account holder name",
+    "own.payment_account_name_ph": "Name on the account",
+    "own.payment_account_number": "Account / phone number",
+    "own.payment_account_number_ph": "1000123456789",
+    "own.payment_add": "Add another account",
+    "own.payment_edit": "Edit",
+    "own.proof_ref": "Reference",
+    "own.verify_payment": "✓ Confirm payment received",
+    "own.reject_payment": "✗ Reject",
+    "own.reject_payment_note": "Why are you rejecting this payment? (visible to the customer)",
+    "own.payment_verified": "Payment verified — order marked paid",
+    "own.payment_rejected": "Payment rejected — customer can re-upload",
+    "payment_status.pending_verification": "Pending verification",
+    "payment_status.verified": "Verified",
+    "payment_status.rejected": "Rejected",
+    "payment_status.pending": "Pending",
+    "payment_status.n/a": "—",
+
+    // ---- owner: product proposals + notifications ----
+    "own.propose_btn": "+ Propose new product",
+    "own.propose_title": "Propose new product",
+    "own.propose_subtitle": "Suggest a new product for the catalog. The branch committee will review and, if approved, set the regulated price band and add it to your inventory.",
+    "own.propose_shop": "Your shop",
+    "own.product_name_en": "Product name (English)",
+    "own.product_name_en_ph": "e.g., Cucumber",
+    "own.product_name_am": "Product name (Amharic)",
+    "own.product_name_am_ph": "e.g., ኪያር",
+    "own.product_category": "Category",
+    "own.product_unit": "Unit",
+    "own.product_icon": "Icon",
+    "own.product_image": "Image",
+    "own.product_image_hint": "Pick a built-in icon below, or upload your own photo. If you do neither, a default placeholder is used.",
+    "own.upload_image": "Upload your own image",
+    "own.clear_image": "Remove image",
+    "own.suggested_min": "Suggested minimum (ETB)",
+    "own.suggested_max": "Suggested maximum (ETB)",
+    "own.initial_price": "My initial price (ETB)",
+    "own.initial_qty": "Initial stock",
+    "own.propose_send": "Submit for review",
+    "own.proposal_sent": "Proposal sent to branch committee",
+    "own.activity_title": "Notifications",
+    "own.activity_subtitle": "Decisions on your proposals and committee responses to price changes.",
+    "own.no_activity": "No notifications yet.",
+    "own.mark_read": "Mark as read",
+    "own.proposals_title": "My proposals",
+    "own.no_proposals": "No proposals yet. Use “Propose new product” to suggest one.",
+    "own.proposal_status": "Status",
+    "own.notify_committee": "Branch committee will be notified of this price change.",
+    "own.bulk_btn": "Bulk edit",
+    "own.bulk_title": "Bulk inventory editor",
+    "own.bulk_subtitle": "Set quantity and price for any number of products. You'll review changes before saving.",
+    "own.bulk_review": "Review changes →",
+    "own.bulk_changes": "{n} change(s) ready",
+    "own.bulk_review_title": "Review changes",
+    "own.bulk_review_subtitle": "{n} item(s) will be saved. Tap Back to revise.",
+    "own.bulk_save": "Save all",
+    "own.bulk_no_changes": "No changes to save.",
+    "own.bulk_saved": "{n} item(s) saved",
+    "own.bulk_partial": "{saved} saved, {failed} failed: {first}",
+    "own.bulk_new": "NEW",
+    "own.remove": "Remove",
+    "own.remove_title": "Stop selling this item?",
+    "own.remove_confirm": "This will delete the listing for {product} from your shop. Customers will no longer see it.",
+    "own.remove_yes": "Yes, remove",
+    "own.removed": "Listing removed",
+
+    // ---- delivery ----
+    "dlv.title": "Delivery dashboard",
+    "dlv.subtitle": "Update task status and confirm with customer OTP.",
+    "dlv.no_tasks": "No assigned deliveries yet.",
+    "dlv.drop": "Drop",
+    "dlv.eta": "ETA",
+    "dlv.completed": "Completed",
+    "dlv.confirm_btn": "Confirm with OTP",
+    "dlv.mark": "Mark {label}",
+    "dlv.items_modal": "Items · Order {id}",
+    "dlv.confirm_title": "Confirm delivery with OTP",
+    "dlv.otp_note": "Ask the customer for the 4-digit OTP shown on their tracking screen.",
+    "dlv.otp": "OTP",
+    "dlv.confirm": "Confirm",
+    "dlv.confirmed": "Delivery confirmed",
+    "dlv.label.accepted": "accepted",
+    "dlv.label.picked_up": "picked up",
+    "dlv.label.en_route": "en route",
+    "dlv.label.delivered": "delivered",
+
+    // ---- committee (branch) ----
+    "br.title": "Branch Committee · {city}",
+    "br.subtitle": "Approve shops and review complaints in your jurisdiction.",
+    "br.audit_btn": "Audit log",
+    "br.pending_title": "Pending shop registrations",
+    "br.pending_subtitle": "Verify and approve before sellers go live.",
+    "br.no_pending": "No pending registrations.",
+    "br.submitted": "Submitted {date}",
+    "br.approve": "Approve",
+    "br.reject": "Reject",
+    "br.reject_reason": "Reason for rejection (visible to owner):",
+    "br.shop_status": "Shop {status}",
+    "br.queue_title": "Complaints queue",
+    "br.queue_subtitle": "Approve refunds, reject, or escalate to main committee.",
+    "br.no_open": "No open cases. ✨",
+    "br.from": "From",
+    "br.shop_label": "Shop",
+    "br.order_label": "Order",
+    "br.approve_refund": "Approve refund",
+    "br.escalate": "Escalate",
+    "br.decision_note": "Decision note:",
+    "br.case_updated": "Case {decision}",
+    "br.proposals_title": "Product proposals",
+    "br.proposals_subtitle": "Owners suggest new products with bilingual names and a suggested price band. Approving adds the product to the catalog with that band, and stocks the proposing shop.",
+    "br.no_proposals": "No pending proposals.",
+    "br.proposed_by": "Proposed by",
+    "br.suggested_label": "Suggested band",
+    "br.initial_label": "Initial price",
+    "br.shops_title": "Shops & inventory",
+    "br.shops_subtitle": "Approved shops in your jurisdiction. Tap a shop to see what they sell and at what price.",
+    "br.no_shops_here": "No approved shops in your jurisdiction yet.",
+    "br.view_inventory": "View inventory",
+    "br.inv_modal": "{shop} · inventory",
+    "br.no_inventory": "No items listed yet.",
+    "br.notifs_title": "Notifications",
+    "br.notifs_subtitle": "Price changes, proposals, and shop activity in your jurisdiction.",
+    "br.no_notifs": "No notifications.",
+    "br.proposal_decided": "Proposal {decision}",
+    "br.locations_title": "Location change requests",
+    "br.locations_subtitle": "Owners and delivery agents asking to move sub-city. Approving applies the change immediately and forwards to main committee for confirmation.",
+    "br.no_locations": "No pending location requests.",
+    "br.location_decided": "Location request {decision}",
+    "br.listings_title": "Pending listings",
+    "br.listings_subtitle": "New inventory listings from owners. Approve to make them visible to customers, reject to remove.",
+    "br.no_listings": "No pending listings.",
+    "br.listing_decided": "Listing {decision}",
+
+    // ---- committee (main) ----
+    "mc.title": "City Main Committee",
+    "mc.subtitle": "Set price ranges, review escalations, monitor compliance.",
+    "mc.ranges_title": "Regulated price ranges",
+    "mc.ranges_subtitle": "Min/max ETB values enforced at listing and checkout.",
+    "mc.ranges_note": "Newer entries supersede older ones via effective date.",
+    "mc.effective": "Effective {date}",
+    "mc.no_range": "No range set yet",
+    "mc.set": "Set",
+    "mc.update": "Update",
+    "mc.set_modal": "Set price range · {name}",
+    "mc.min_price": "Minimum price (ETB)",
+    "mc.max_price": "Maximum price (ETB)",
+    "mc.set_note": "New range takes effect immediately. Existing inventory exceeding the band will be flagged for owner attention.",
+    "mc.range_updated": "Price range updated",
+    "mc.escalations_title": "Escalated cases",
+    "mc.escalations_subtitle": "Branch committees forward unresolved disputes here.",
+    "mc.no_escalations": "No escalated cases.",
+    "mc.mark_resolved": "Mark resolved",
+    "mc.final_note": "Final decision note:",
+    "mc.complaints_overview": "Complaints overview",
+    "mc.complaints_subtitle": "All complaints in the city by status — for next-meeting tracking.",
+    "mc.no_complaints": "No complaints recorded.",
+    "mc.cnt_unanswered": "Unanswered",
+    "mc.cnt_in_review": "In review",
+    "mc.cnt_resolved": "Resolved",
+    "mc.cnt_rejected": "Rejected",
+    "mc.cnt_escalated": "Escalated",
+    "mc.filter_all": "All",
+    "mc.notifs_title": "Notifications",
+    "mc.notifs_subtitle": "Escalations and city-wide signals from branch committees.",
+    "mc.no_notifs": "No notifications.",
+    "mc.needs_review": "Needs main review",
+    "mc.needs_review_hint": "Initial band was set by a branch committee. Tap Update to confirm or override.",
+    "mc.locations_title": "Location change requests",
+    "mc.locations_subtitle": "Branch member requests + branch-approved owner/delivery moves to confirm or override (revert).",
+    "mc.no_locations": "No pending location requests.",
+    "mc.confirm_branch": "Confirm",
+    "mc.override_branch": "Override (revert)",
+    "mc.branch_note": "Branch note: {note}",
+    "mc.accounts_title": "Accounts",
+    "mc.accounts_subtitle": "Active vs inactive user accounts across the city.",
+    "mc.acc_active": "Active",
+    "mc.acc_inactive": "Inactive",
+    "mc.acc_total": "Total",
+    "mc.acc_last_seen": "Last seen {when}",
+    "mc.acc_never_signed_in": "Never signed in",
+    "mc.acc_filter_all": "All",
+    "mc.no_accounts": "No accounts.",
+
+    // ---- notifications (cross-cutting) ----
+    "notif.proposal_pending": "{owner} proposed product “{name}” for review",
+    "notif.proposal_approved": "Your proposal “{name}” was approved and added to the catalog",
+    "notif.proposal_rejected": "Your proposal “{name}” was rejected",
+    "notif.price_change": "{shop} changed price of {product}: {oldPrice} → {newPrice}",
+    "notif.complaint_escalated": "Branch escalated complaint {id} ({type}) — needs main review",
+    "notif.complaint_open": "New complaint filed against {shop} ({type})",
+    "notif.refund_requested": "{from} requested a refund from {shop} ({type})",
+    "notif.refund_requested_owner": "A customer requested a refund for order {id} ({type})",
+    "notif.payment_pending":         "Payment to verify on order {id} (ref {ref})",
+    "notif.payment_verified_owner":  "You verified payment for order {id}",
+    "notif.payment_rejected_owner":  "You rejected payment for order {id}",
+    "notif.payment_verified":        "Your payment for order {id} was verified",
+    "notif.payment_rejected":        "Your payment for order {id} was rejected — please re-upload",
+    "notif.product_added": "New product “{name}” added to catalog by {branch} (band {min}–{max})",
+    "notif.inventory_new": "{shop} listed a new item: {product} at {price} ({qty} in stock)",
+    "notif.inventory_approved": "Your listing of {product} at {shop} was approved",
+    "notif.inventory_rejected": "Your listing of {product} at {shop} was rejected",
+    "notif.location_request": "{name} ({role}) requested move {from} → {to}",
+    "notif.location_branch_approved": "Branch approved {name}'s move {from} → {to}",
+    "notif.location_approved": "Your move to {to} was approved",
+    "notif.location_rejected": "Your move to {to} was rejected",
+
+    // ---- audit ----
+    "audit.title": "Audit log (last 100 events)",
+    "audit.subtitle": "Append-only log of governance and lifecycle events.",
+    "audit.empty": "No events yet.",
+
+    // ---- theme ----
+    "theme.title": "Choose a theme",
+    "theme.subtitle": "Pick the look that suits you. Saved across sessions.",
+    "theme.toast": "Theme: {name}",
+    "theme.garden": "Garden Cream",
+    "theme.garden.desc": "Sage and warm cream",
+    "theme.terracotta": "Blue Market",
+    "theme.terracotta.desc": "Teal blue with coral accent",
+    "theme.sage": "Civic Blue",
+    "theme.sage.desc": "Clean blue with green signal",
+    "theme.rose": "Berry Teal",
+    "theme.rose.desc": "Berry pink with teal accent",
+    "theme.mustard": "Sunset Harvest",
+    "theme.mustard.desc": "Red and sunflower yellow",
+    "theme.plum": "Plum Bloom",
+    "theme.plum.desc": "Dusty plum and rose",
+    "theme.midnight": "Midnight",
+    "theme.midnight.desc": "Warm dark with gold accent",
+    "theme.mono": "Black & White",
+    "theme.mono.desc": "High contrast monochrome",
+
+    // ---- status badges ----
+    "status.created": "Created",
+    "status.paid": "Paid",
+    "status.accepted": "Accepted",
+    "status.preparing": "Preparing",
+    "status.dispatched": "Dispatched",
+    "status.delivered": "Delivered",
+    "status.completed": "Completed",
+    "status.cancelled": "Cancelled",
+    "status.refunded": "Refunded",
+    "status.open": "Open",
+    "status.escalated": "Escalated",
+    "status.resolved": "Resolved",
+    "status.rejected": "Rejected",
+    "status.pending": "Pending",
+    "status.approved": "Approved",
+    "status.suspended": "Suspended",
+    "status.assigned": "Assigned",
+    "status.picked_up": "Picked up",
+    "status.en_route": "En route",
+  },
+
+  am: {
+    // ---- common ----
+    "tagline": "የጉሊት ገበያ ዋጋ አስተዳደር",
+    "footer.copyright": "© {year} GULIT — የተሰራው በናታን ፈይሳ። መብቱ በህግ የተጠበቀ ነው።",
+    "loading": "በመጫን ላይ…",
+    "back": "ተመለስ",
+    "close": "ዝጋ",
+    "cancel": "ሰርዝ",
+    "save": "አስቀምጥ",
+    "submit": "አስገባ",
+    "update": "አስተካክል",
+    "add": "ጨምር",
+    "details": "ዝርዝር",
+    "view": "እይ",
+    "all": "ሁሉም",
+    "total": "ድምር",
+    "items": "ዕቃዎች",
+    "items_count": "{n} ዕቃዎች",
+    "yes": "አዎ",
+    "no": "አይ",
+    "optional": "አማራጭ",
+    "required": "ግዴታ",
+    "profile": "መግለጫ",
+    "preferences": "ምርጫዎች",
+
+    // ---- topbar / nav ----
+    "signin": "ግባ",
+    "signout": "ውጣ",
+    "browse": "ይመልከቱ",
+    "cart": "ጋሪ",
+    "track": "ይከታተሉ",
+    "account": "መለያ",
+    "shops": "ሱቆች",
+    "orders": "ትዕዛዞች",
+    "inventory": "ክምችት",
+    "deliveries": "አመጣጥ",
+    "cases": "ጉዳዮች",
+    "ranges": "የዋጋ ክልሎች",
+    "audit": "የቁጥጥር ምዝገባ",
+
+    // ---- roles ----
+    "role.customer": "ደንበኛ",
+    "role.owner": "የሱቅ ባለቤት",
+    "role.delivery": "አስረካቢ",
+    "role.branch": "የቅርንጫፍ ኮሚቴ",
+    "role.main": "ዋና ኮሚቴ",
+
+    // ---- categories ----
+    "cat.All": "ሁሉም",
+    "cat.Vegetables": "አትክልት",
+    "cat.Grains": "ጥራጥሬ",
+    "cat.Cereals": "እህል",
+    "cat.Fruits": "ፍራፍሬ",
+    "cat.Protein": "ፕሮቲን",
+    "cat.Spices": "ቅመማ ቅመም",
+
+    // ---- auth ----
+    "auth.welcome": "ወደ GULIT እንኳን በደህና መጡ",
+    "auth.subtitle": "ዲጂታል የጉሊት ገበያ፡ የተወሰኑ ዋጋዎች፣ የታመኑ ሱቆች እና ሊከታተል የሚችል አመጣጥ።",
+    "auth.tab_signin": "ግባ",
+    "auth.tab_signup": "መለያ ይክፈቱ",
+    "auth.identifier": "ኢሜይል ወይም ስልክ ቁጥር",
+    "auth.password": "የይለፍ ቃል",
+    "auth.password_ph": "ለምሳሌ፡ Demo1234",
+    "auth.signin_btn": "ግባ",
+    "auth.fullname": "ሙሉ ስም",
+    "auth.fullname_ph": "ለምሳሌ፣ ሃና ተስፋዬ",
+    "auth.email": "ኢሜይል",
+    "auth.email_ph": "you@example.com",
+    "auth.phone": "ስልክ ቁጥር",
+    "auth.phone_ph": "+251 9xx xxx xxx",
+    "auth.role": "ሚና",
+    "auth.subcity": "ክፍለ ከተማ",
+    "auth.signup_btn": "መለያ ይክፈቱ",
+    "auth.committee_note": "የቅርንጫፍ እና ዋና ኮሚቴ መለያዎች በአስተዳዳሪዎች ይሰጣሉ።",
+    "auth.show_password": "የይለፍ ቃል አሳይ",
+    "auth.hide_password": "የይለፍ ቃል ደብቅ",
+    "auth.staff_note": "የባለቤት፣ አስረካቢ እና ኮሚቴ መለያዎች የሥራ መታወቂያ ቁጥር እና 16-አሃዝ የፋይዳ FAN ያስፈልጋቸዋል።",
+    "auth.workid": "የሥራ መታወቂያ ቁጥር",
+    "auth.workid_ph": "በድርጅትዎ የተሰጠ መታወቂያ",
+    "auth.workid_format_owner": "ቅርጽ፡ SO- ከዚያም 5 አሃዞች (ለምሳሌ፣ SO-00123)።",
+    "auth.workid_format_delivery": "ቅርጽ፡ D- ከዚያም 6 አሃዞች (ለምሳሌ፣ D-000456)።",
+    "auth.workid_format_branch": "ቅርጽ፡ BC- ከዚያም 4 አሃዞች (ለምሳሌ፣ BC-0078)።",
+    "auth.workid_format_main": "ቅርጽ፡ MC- ከዚያም 3 አሃዞች (ለምሳሌ፣ MC-009)።",
+    "auth.fayda": "የፋይዳ FAN ቁጥር",
+    "auth.fayda_ph": "16-አሃዝ የፋይዳ ብሄራዊ መታወቂያ",
+    "auth.password_confirm": "የይለፍ ቃል ያረጋግጡ",
+    "auth.password_hint": "ቢያንስ 8 ቁምፊ፣ 1 ትልቅ ፊደል፣ 1 ትንሽ ፊደል እና 1 ቁጥር ይጠቀሙ።",
+    "auth.password_mismatch": "የይለፍ ቃላት አይዛመዱም።",
+    "auth.field_available": "ይገኛል",
+    "auth.field_taken": "ተወስዷል",
+    "auth.field_invalid_format": "የተሳሳተ ቅርጽ",
+    "auth.email_accepted_hint": "ተቀባይነት ያላቸው አቅራቢዎች፡ {list}",
+    "auth.email_accepted": "ተቀባይነት ያለው የኢሜይል አቅራቢ",
+    "auth.email_unsupported": "ከተቀባይነት ካላቸው የኢሜይል አቅራቢዎች አንዱን ይጠቀሙ",
+    "auth.demo_logins": "የናሙና መለያዎች (የይለፍ ቃል፡ Demo1234):",
+    "auth.enter_creds": "የመለያ መረጃዎን ያስገቡ",
+    "auth.welcome_user": "እንኳን ደህና መጡ፣ {name}",
+    "auth.account_created": "መለያ ተፈጥሯል · እንኳን ደህና መጡ፣ {name}",
+    "auth.forgot_password": "የይለፍ ቃል ረሱ?",
+    "auth.reset_title": "የይለፍ ቃል ዳግም ማስጀመር",
+    "auth.reset_request_btn": "ዳግም ማስጀመሪያ ጠይቅ",
+    "auth.reset_sending": "የዳግም ማስጀመሪያ ጥያቄ በመላክ ላይ...",
+    "auth.reset_sent": "የዳግም ማስጀመሪያ መመሪያ ዝግጁ ነው።",
+    "auth.reset_email_hint": "ይህ መለያ ካለ፣ የዳግም ማስጀመሪያ ቶክኑን በኢሜይል መግቢያ ሳጥንዎ እና በስፓም ውስጥ ይፈትሹ።",
+    "auth.reset_email_failed": "ቶክኑ ተፈጥሯል፣ ነገር ግን ኢሜይሉ አልተላከም። የኢሜይል ቅንብሮችን ይፈትሹ።",
+    "auth.reset_token": "የዳግም ማስጀመሪያ ቶክን",
+    "auth.new_password": "አዲስ የይለፍ ቃል",
+    "auth.reset_complete_btn": "አዲስ የይለፍ ቃል አስቀምጥ",
+    "auth.reset_done": "የይለፍ ቃል ተቀይሯል። በአዲሱ የይለፍ ቃል ይግቡ።",
+
+    // ---- home / browse ----
+    "home.title": "የተወሰኑ ዋጋዎችን ይመልከቱ",
+    "home.subtitle": "ዕቃዎችን ይፈልጉ፣ ምድቦችን ይምረጡ፣ ወደ ጋሪ ይጨምሩ።",
+    "home.search_ph": "አትክልት፣ ጥራጥሬ፣ እንቁላል ይፈልጉ…",
+    "home.shops_nearby": "በአቅራቢያ ያሉ ሱቆች",
+    "home.shops_in": "በ{city} ክፍለ ከተማ ውስጥ።",
+    "home.no_products": "በ{city} ውስጥ ከማጣሪያዎ ጋር የሚስማማ ዕቃ የለም።",
+    "home.no_shops": "በ{city} ውስጥ የተፈቀደ ሱቅ የለም።",
+    "home.range": "ክልል {min}–{max}",
+    "home.sold_by": "ሻጭ",
+    "home.unit": "በ",
+    "home.added": "ወደ ጋሪ ታክሏል",
+    "home.out_of_stock": "በክምችት የለም",
+    "home.sort_by": "በዚህ ደርድር",
+    "home.sort_default": "የተመከረ",
+    "home.sort_name_asc": "ስም (ሀ–ፈ)",
+    "home.sort_name_desc": "ስም (ፈ–ሀ)",
+    "home.sort_price_asc": "ዋጋ (ዝቅተኛ ወደ ከፍተኛ)",
+    "home.sort_price_desc": "ዋጋ (ከፍተኛ ወደ ዝቅተኛ)",
+    "home.sort_shop_asc": "የሱቅ ስም (ሀ–ፈ)",
+    "home.sort_rating_desc": "በደረጃ የተሻለ ሱቅ መጀመሪያ",
+
+    // ---- shops ----
+    "shops.title": "በ{city} ውስጥ ያሉ ሱቆች",
+    "shops.subtitle": "ሱቁን ይንኩ መግለጫ፣ ሻጮችን እና አስተያየቶችን ለመመልከት።",
+    "shops.no_approved": "በ{city} ውስጥ የተፈቀደ ሱቅ የለም።",
+    "shops.popular_items": "ተመራጭ ዕቃዎች",
+    "shops.regulated_note": "ዋጋዎች በኮሚቴ የተወሰኑ ክልሎችን ያከብራሉ።",
+    "shops.no_listed": "ገና ምንም ዕቃ አልተዘረዘረም።",
+    "shops.reviews": "አስተያየቶች",
+    "shops.feedback_note": "ደንበኞች ከአመጣጥ በኋላ አስተያየት መስጠት ይችላሉ።",
+    "shops.add_review": "አስተያየት ጨምር",
+    "shops.no_reviews": "ገና ምንም አስተያየት የለም።",
+    "shops.review_title": "አስተያየት ጨምር",
+    "shops.review_stars": "ደረጃ (1–5)",
+    "shops.review_text": "የእርስዎ አስተያየት",
+    "shops.review_text_ph": "ልምድዎን ያካፍሉ…",
+    "shops.write_comment": "እባኮት አስተያየት ይጻፉ",
+    "shops.review_posted": "አስተያየት ተለጥፏል",
+
+    // ---- cart ----
+    "cart.title": "ጋሪ",
+    "cart.subtitle": "ዕቃዎቹን ይከልሱ፣ ከዚያ ይክፈሉ።",
+    "cart.empty": "ጋሪው ባዶ ነው።",
+    "cart.empty_browse": "ዕቃዎችን ይመልከቱ",
+    "cart.delivery_note": "የማድረሻ ክፍያ በክፍያ ላይ ይታከላል።",
+    "cart.proceed": "ወደ ክፍያ ይቀጥሉ",
+    "cart.empty_toast": "ጋሪው ባዶ ነው",
+
+    // ---- checkout ----
+    "checkout.title": "ክፍያ",
+    "checkout.subtitle": "የክፍያ አማራጭ ይምረጡና ያረጋግጡ።",
+    "checkout.summary": "የትዕዛዝ ማጠቃለያ",
+    "checkout.lines_total": "{lines} የዕቃ መስመር · ድምር {total}",
+    "checkout.address": "የማድረሻ አድራሻ (ክፍለ ከተማ)",
+    "checkout.pay_now": "አሁን ይክፈሉ",
+    "checkout.pay_cod": "በሚደርስ ጊዜ ይክፈሉ",
+    "checkout.note": "አሁን ይክፈሉ የሶስተኛ ወገን ጌትዌይ ይጠቀማል (ለሙከራ የተዘጋጀ)። ኮሚቴ ሲፈቅድ ገንዘቦች በተመሳሳይ ጌትዌይ ይመለሳሉ።",
+    "checkout.placed": "ትዕዛዝ ተሰጥቷል · {n} ሱቅ(ዎች)",
+    "checkout.no_accounts": "{shop} ገና የክፍያ መለያ አላስቀመጠም — በሚደርስ ጊዜ ይክፈሉ።",
+    "checkout.pay_modal": "ለ{shop} ይክፈሉ ({step}/{total})",
+    "checkout.pay_modal_subtitle": "ትክክለኛውን {total} ወደ ሱቁ መለያዎች ይዘውሩ፣ ከዚያ ደረሰኝና ማጣቀሻ ይጫኑ።",
+    "checkout.pick_account": "የሚከፍሉበትን መለያ ይምረጡ",
+    "checkout.account_name": "የመለያ ስም",
+    "checkout.account_number": "የመለያ ቁጥር",
+    "checkout.copy": "ቅዳ",
+    "checkout.copied": "ተቀድቷል",
+    "checkout.transfer_instructions": "CBE / Awash / Telebirr መተግበሪያዎን ይክፈቱ፣ ትክክለኛውን መጠን ወደ ምርጥ መለያ ይዘውሩ፣ የስኬት ስክሪን ሾት ያንሱ፣ ከታች ይጫኑና የግብይት ማጣቀሻ ቁጥር ያስገቡ።",
+    "checkout.proof_label": "የክፍያ ስክሪን ሾት",
+    "checkout.proof_hint": "የስኬት ስክሪን ሾት ይጫኑ",
+    "checkout.upload_screenshot": "ስክሪን ሾት ጫን",
+    "checkout.proof_required": "እባኮት የክፍያ ስክሪን ሾት ይጫኑ",
+    "checkout.reference_label": "የግብይት ማጣቀሻ",
+    "checkout.reference_ph": "ለምሳሌ፣ FT24A0BCDE12",
+    "checkout.reference_required": "እባኮት የግብይት ማጣቀሻ ያስገቡ",
+    "checkout.pay_next": "ወደ ቀጣዩ ሱቅ ይቀጥሉ",
+    "checkout.pay_finish": "ትዕዛዝ ይስጡ",
+    "track.payment_history": "የክፍያ ታሪክ",
+    "track.payment_history_note": "ለማረጋገጫ ይቀመጣል — ማስረጃዎች ሊሰረዙ አይችሉም።",
+    "track.reupload_proof": "አዲስ የክፍያ ማስረጃ ይጫኑ",
+    "track.reupload_subtitle": "ለ{shop} ያቀረቡት የቀደመው ማስረጃ አልተፈቀደም። መለያ ይምረጡና አዲስ ስክሪን ሾት ይጫኑ።",
+    "track.proof_uploaded": "የክፍያ ማስረጃ ተጫነ — ባለቤቱ ያረጋግጣል",
+
+    // ---- tracking ----
+    "track.title": "ትዕዛዝ መከታተያ",
+    "track.subtitle": "የቅርብ ጊዜ ትዕዛዞች እና ቀጥታ ሁኔታ።",
+    "track.no_orders": "ገና ትዕዛዝ የለም።",
+    "track.start_browsing": "ይመልከቱ",
+    "track.home": "መነሻ",
+    "track.placed": "የተሰጠው {date}",
+    "track.payment": "ክፍያ",
+    "track.pay_now_label": "አሁን ተከፍሏል",
+    "track.pay_cod_label": "በሚደርስ ጊዜ",
+    "track.complain": "ቅሬታ ያስገቡ",
+    "track.complain_again": "ሌላ ቅሬታ ያስገቡ",
+    "track.my_complaints": "በዚህ ትዕዛዝ ላይ ያቀረቡት ቅሬታዎች ({n})",
+    "track.order_label": "ትዕዛዝ",
+    "track.shop": "ሱቅ",
+    "track.order_status": "የትዕዛዝ ሁኔታ",
+    "track.payment_status": "የክፍያ ሁኔታ",
+    "track.delivery_area": "የማድረሻ አካባቢ",
+    "track.delivery_person": "አስረካቢ",
+    "track.not_assigned": "ገና አልተመደበም",
+    "track.delivery": "አመጣጥ",
+    "track.eta": "የሚደርስበት ጊዜ",
+    "track.confirmed_at": "የተረጋገጠው {date}።",
+    "track.share_otp": "ይህን ኮድ ሲደርስ ለአስረካቢው ያካፍሉ",
+    "track.live_title": "ቀጥታ የአመጣጥ ክትትል",
+    "track.live_sub": "ትዕዛዝ {id} · አስረካቢው {status}",
+    "track.your_address": "የእርስዎ አድራሻ",
+    "track.live_courier": "የእርስዎ አስረካቢ",
+    "track.live_eta": "የሚደርስበት ጊዜ",
+    "track.open_google_maps": "በGoogle Maps ይክፈቱ",
+    "track.google_maps_note": "Google Maps የተገመተውን የአስረካቢ ቦታ እና የማድረሻ አካባቢዎን ያሳያል።",
+
+    // ---- complaint ----
+    "cmp.modal_title": "ቅሬታ ያስገቡ",
+    "cmp.type": "የቅሬታ ዓይነት",
+    "cmp.type.missing": "የጎደለ ዕቃ",
+    "cmp.type.late": "የዘገየ አመጣጥ",
+    "cmp.type.never_arrived": "ትዕዛዙ ጨርሶ አልደረሰም",
+    "cmp.type.never_arrived_locked": "ትዕዛዙ ጨርሶ አልደረሰም (በ{time} ይገኛል)",
+    "cmp.never_arrived_countdown": "⏱ “ትዕዛዙ ጨርሶ አልደረሰም” በ{time} ይከፈታል",
+    "cmp.type.wrong": "የተሳሳተ ዕቃ",
+    "cmp.type.quality": "የጥራት ችግር",
+    "cmp.type.other": "ሌላ",
+    "cmp.detail": "ዝርዝር",
+    "cmp.detail_ph": "የተፈጠረውን ያስረዱ…",
+    "cmp.submit": "አስገባ",
+    "cmp.describe": "እባኮት ችግሩን ያስረዱ",
+    "cmp.sent": "ቅሬታ ለቅርንጫፍ ኮሚቴ ቀርቧል",
+    "cmp.photo_label": "የችግሩ ፎቶ",
+    "cmp.photo_hint": "ፎቶ ግዴታ ነው — የተበላሸ / የጎደለ / የተሳሳተ ዕቃ ያሳዩ",
+    "cmp.take_photo": "ፎቶ ያንሱ ወይም ይጫኑ",
+    "cmp.photo_required": "እባኮት የችግሩን ፎቶ ያያይዙ",
+    "cmp.photo_hint_optional": "አማራጭ — ፎቶ ለኮሚቴ ግምገማ ይረዳል",
+    "cmp.photo_hint.missing": "አማራጭ — የደረሰዎትን ሌሎች ዕቃዎች ፎቶ ያንሱ፣ ኮሚቴው ምን እንደ ጎደለ ለማየት ይረዳዋል",
+    "cmp.photo_hint.wrong":   "ግዴታ — የተሳሳተውን ዕቃ ከደረሰኝ ወይም ከትዕዛዝዎ ዝርዝር ጋር ያሳዩ",
+    "cmp.photo_hint.quality": "ግዴታ — የተበላሸውን፣ የተጎዳውን ወይም ጊዜው ያለፈበት ዕቃ በግልጽ ያሳዩ",
+    "cmp.photo_hint.other":   "አማራጭ — ችግሩን ለማስረዳት ከጠቀመ ፎቶ ያያይዙ",
+    "cmp.refund_prompt_title": "ገንዘብ መመለስ ይፈልጋሉ?",
+    "cmp.refund_prompt_body": "ቅሬታዎ ለቅርንጫፍ ኮሚቴ ቀርቧል። ለዚህ ትዕዛዝ ገንዘብ መመለስ ከፈለጉ ለእርስዎ መጠየቅ እንችላለን።",
+    "cmp.refund_prompt_note": "የገንዘብ መመለስ በኮሚቴ ይገመገማል፣ እስከ 1 ቀን ሊወስድ ይችላል።",
+    "cmp.refund_prompt_yes": "አዎ፣ ገንዘብ ይመለስ",
+    "cmp.refund_prompt_no": "አይ፣ ቅሬታ ብቻ ይቅረብ",
+    "cmp.refund_sent": "የገንዘብ መመለሻ ጥያቄ ለሱቅና ለኮሚቴ ቀርቧል",
+    "cmp.refund_requested": "ገንዘብ ተጠይቋል",
+    "track.rate_title": "ትዕዛዝዎ እንዴት ነበር?",
+    "track.rate_subtitle": "ሱቁንና አስረካቢውን ይገምግሙ — የእርስዎ አስተያየት ለሁሉም ይጠቅማል።",
+    "track.rate_shop": "★ ሱቁን ይገምግሙ",
+    "track.rate_delivery": "★ አስረካቢውን ይገምግሙ",
+    "track.rate_delivery_title": "አስረካቢውን ይገምግሙ",
+    "track.rate_delivery_ph": "ጥሩ አገልግሎት? በሰዓቱ? በጥንቃቄ?",
+    "track.rate_delivery_done": "አስረካቢውን ስለ ገመገሙ እናመሰግናለን",
+
+    // ---- account ----
+    "acc.title": "መለያ",
+    "acc.subtitle": "መግለጫ እና የናሙና መቆጣጠሪያዎች።",
+    "acc.role": "ሚና",
+    "acc.subcity": "ክፍለ ከተማ",
+    "acc.email": "ኢሜይል",
+    "acc.phone": "ስልክ",
+    "acc.signout": "ውጣ",
+    "acc.theme": "ገጽታ",
+    "acc.change_theme": "ገጽታ ቀይር",
+    "acc.demo": "የናሙና መቆጣጠሪያዎች",
+    "acc.reset": "ናሙና መረጃ እንደ አዲስ ጀምር",
+    "acc.reset_note": "እንደ አዲስ መጀመር በዚህ መሳሪያ ላይ ያለውን መረጃ ያጠፋና የናሙና መረጃውን (ዕቃዎች፣ ሱቆች፣ የናሙና መለያዎች፣ የተወሰኑ የዋጋ ክልሎች) እንደገና ይጭነዋል።",
+    "acc.reset_confirm": "ሁሉንም በዚህ መሳሪያ ያለ የናሙና መረጃ እንደ አዲስ ይጀምር? ይህ ከመለያው ያስወጣዎታል።",
+    "acc.reset_done": "የናሙና መረጃ እንደ አዲስ ተጀምሯል",
+    "acc.signed_out": "ወጥተዋል",
+    "acc.account_btn": "መለያ",
+    "acc.edit_profile": "መግለጫ አስተካክል",
+    "acc.edit_modal": "መግለጫ አስተካክል",
+    "acc.new_password": "አዲስ የይለፍ ቃል (ለመተው ባዶ ይተዉት)",
+    "acc.confirm_new_password": "አዲሱን የይለፍ ቃል ያረጋግጡ",
+    "acc.current_password": "የአሁኑ የይለፍ ቃል (ለለውጥ ያስፈልጋል)",
+    "acc.workid_readonly": "የሥራ መታወቂያ",
+    "acc.fayda_hint": "በራስ-ሰር የተሰጠው የእርስዎ ካልሆነ በትክክለኛው የፋይዳ FAN ይተኩት።",
+    "acc.avatar_title": "የመለያ ምስል",
+    "acc.avatar_hint": "ካሬ ቅርፅ ያለው ፎቶ ይጫኑ። ካልሰጡ በራስ-ሰር የተሰራ ምስል ይታያል።",
+    "acc.upload_avatar": "ምስል ጫን",
+    "acc.clear_avatar": "ምስል አስወግድ",
+    "acc.delete_title": "የአደጋ ቦታ",
+    "acc.delete_subtitle": "መለያዎን በዘላቂነት ያስወግዱ። ይህ መመለስ አይቻልም።",
+    "acc.delete_btn": "መለያዬን አስወግድ",
+    "acc.delete_modal_title": "መለያዎን ያስወግዱ?",
+    "acc.delete_modal_body": "ይህ መለያዎን ከ GULIT በዘላቂነት ያስወግዳል። ለማረጋገጥ ሙሉ ስምዎን (\"{name}\") እና የይለፍ ቃልዎን ይተይቡ። ይህ መመለስ አይቻልም።",
+    "acc.delete_name_label": "ለማረጋገጥ ሙሉ ስምዎን ይተይቡ",
+    "acc.delete_confirm": "አዎ፣ መለያዬን አስወግድ",
+    "acc.delete_done": "መለያው ተወግዷል",
+    "acc.subcity_locked": "የክፍለ ከተማ ለውጥ የኮሚቴ ፈቃድ ይጠይቃል — ከታች ጥያቄ ያቅርቡ።",
+    "acc.request_location": "የቦታ ለውጥ ይጠይቁ",
+    "acc.request_location_subtitle": "የሚሄዱበትን ክፍለ ከተማ ይምረጡ። ኮሚቴው ይገመግማል።",
+    "acc.request_location_current": "አሁን ያሉት ክፍለ ከተማ፡ {city}",
+    "acc.request_location_target": "አዲስ ክፍለ ከተማ",
+    "acc.request_location_reason": "ምክንያት (አማራጭ)",
+    "acc.request_location_reason_ph": "ለምን እየተንቀሳቀሱ ነው?",
+    "acc.request_location_submit": "ጥያቄ አስገባ",
+    "acc.request_location_sent": "የቦታ ለውጥ ጥያቄ ቀርቧል",
+    "acc.location_pending_title": "በመጠባበቅ ላይ ያለ የቦታ ለውጥ",
+    "acc.location_status_pending_branch": "የቅርንጫፍ ኮሚቴ ግምገማ በመጠበቅ ላይ · {from} → {to}",
+    "acc.location_status_pending_main": "የዋና ኮሚቴ ግምገማ በመጠበቅ ላይ · {from} → {to}",
+    "acc.location_status_branch_approved": "በቅርንጫፍ ጸድቋል — ክፍለ ከተማዎ {to} ሆኗል። ዋና ኮሚቴ አሁንም ሊገመግም ይችላል።",
+    "acc.profile_saved": "መግለጫ ተቀምጧል",
+    "acc.bad_password": "የአሁኑ የይለፍ ቃል ትክክል አይደለም",
+    "acc.signout_confirm_title": "መውጣት?",
+    "acc.signout_confirm_body": "GULIT ለመጠቀም እንደገና መግባት ያስፈልግዎታል። ያልተቀመጡ የጋሪ ዕቃዎች በዚህ መሳሪያ ላይ ይቆያሉ።",
+    "acc.signout_yes": "አዎ፣ ውጣ",
+    "map.loading": "ካርታ በመጫን ላይ…",
+    "map.shops_in": "በ{city} ውስጥ {n} ሱቆች",
+    "map.directions": "አቅጣጫዎች",
+    "map.open_in_maps": "በካርታ ይክፈቱ",
+
+    // ---- owner ----
+    "own.title": "የሱቅ ባለቤት ዳሽቦርድ",
+    "own.subtitle": "ሱቆችን፣ ክምችትንና የሚገቡ ትዕዛዞችን ያስተዳድሩ።",
+    "own.register_shop": "+ ሱቅ ይመዝግቡ",
+    "own.stat_shops": "ሱቆች",
+    "own.stat_approved": "የተፈቀዱ",
+    "own.stat_pending": "በመጠባበቅ ላይ",
+    "own.stat_orders": "የመጡ ትዕዛዞች",
+    "own.stat_rating": "አማካይ ደረጃ",
+    "own.queue": "የትዕዛዞች ሰልፍ",
+    "own.queue_subtitle": "ይቀበሉ፣ ያዘጋጁ፣ አስረካቢ ይመድቡ",
+    "own.no_shops": "ትዕዛዝ ለመቀበል ሱቅ ይመዝግቡ።",
+    "own.no_orders": "ገና ትዕዛዝ የለም። ደንበኞች ከሱቅዎ ሲገዙ እዚህ ይታያሉ።",
+    "own.inv_no_shops": "ክምችትን ለማስተዳደር ከላይ ሱቅ ይመዝግቡ። የአካባቢው የቅርንጫፍ ኮሚቴ ሲፈቅድ ዕቃዎች መዘርዘር ይችላሉ።",
+    "own.accept": "ተቀበል",
+    "own.reject": "አትቀበል",
+    "own.mark_prep": "በማዘጋጀት ላይ",
+    "own.assign_delivery": "አስረካቢ መድብ",
+    "own.awaiting": "አስረካቢ በመጠበቅ ላይ",
+    "own.no_action": "እርምጃ የለም",
+    "own.assign_title": "አስረካቢ መድብ",
+    "own.courier": "አስረካቢ",
+    "own.eta": "የሚደርስበት ጊዜ",
+    "own.otp_note": "ደንበኛው 4-አሃዝ ኮድ ይቀበላል። አስረካቢው ሲደርስ በኮዱ ያረጋግጣል።",
+    "own.assign_btn": "መድብ",
+    "own.no_couriers": "የሚገኝ አስረካቢ የለም",
+    "own.assigned_otp": "አስረካቢ ተመድቧል · ኮድ {otp}",
+    "own.order_updated": "ትዕዛዝ ተስተካክሏል · {status}",
+    "own.customer": "ደንበኛ",
+    "own.subcity": "ክፍለ ከተማ",
+    "own.inv_note": "ከካታሎግ ውስጥ ያለ ማንኛውንም ምርት ይምረጡ፣ ክምችትና የተፈቀደ ዋጋ ያስገቡ፤ ከተፈቀደ በኋላ ለደንበኞች ይታያል። ምርቱ በካታሎግ ውስጥ ካልነበረ ብቻ አዲስ ምርት ይጠቁሙ።",
+    "own.range_label": "ክልል {min}–{max}",
+    "own.no_range": "የተወሰነ ክልል የለም",
+    "own.qty": "ብዛት",
+    "own.update": "አስተካክል",
+    "own.add": "ጨምር",
+    "own.inv_update": "ክምችት አስተካክል",
+    "own.inv_add": "ወደ ክምችት ጨምር",
+    "own.allowed_range": "የተፈቀደ ክልል፡ {min} እስከ {max}",
+    "own.price_out_of_range": "ዋጋው ከተፈቀደው ክልል ውጭ ነው። የተፈቀደው ክልል {min} እስከ {max} ነው።",
+    "own.qty_label": "ብዛት",
+    "own.unit_price": "የነጠላ ዋጋ (ብር)",
+    "own.inv_saved": "ክምችት ተቀምጧል",
+    "own.shop_modal": "አዲስ ሱቅ ይመዝግቡ",
+    "own.shop_name": "የሱቅ ስም",
+    "own.shop_name_ph": "ለምሳሌ፣ ቦሌ ፍሬሽ ቬጂስ",
+    "own.shop_note": "ካስገቡ በኋላ የአካባቢው የቅርንጫፍ ኮሚቴ ሱቅዎን ይገመግማል፣ ካፀደቀ በኋላ መሸጥ ይጀምራሉ።",
+    "own.shop_submitted": "ለቅርንጫፍ ኮሚቴ ግምገማ ቀርቧል",
+    "own.payment_accounts_title": "የክፍያ መለያዎች",
+    "own.payment_accounts_dash_subtitle": "ደንበኞች የሚከፍሉበት የባንክና የሞባይል-ገንዘብ መለያዎች። እንደ ፈለጉት ያህል ያክሉ — ቢያንስ አንድ ግዴታ።",
+    "own.payment_accounts_subtitle": "ደንበኞች ለመክፈል የሚጠቀሙበትን የባንክ ወይም የሞባይል-ገንዘብ መለያ ይዘርዝሩ። ቢያንስ አንድ ግዴታ።",
+    "own.payment_accounts_modal": "{shop} · የክፍያ መለያዎች",
+    "own.payment_accounts_count": "መለያዎች",
+    "own.payment_accounts_saved": "የክፍያ መለያዎች ተቀምጠዋል",
+    "own.payment_bank": "ባንክ / ዋሌት",
+    "own.payment_account_name": "የመለያ ባለቤት ስም",
+    "own.payment_account_name_ph": "በመለያው ላይ ያለ ስም",
+    "own.payment_account_number": "የመለያ / ስልክ ቁጥር",
+    "own.payment_account_number_ph": "1000123456789",
+    "own.payment_add": "ሌላ መለያ ጨምር",
+    "own.payment_edit": "አስተካክል",
+    "own.proof_ref": "ማጣቀሻ",
+    "own.verify_payment": "✓ ክፍያ ተቀብያለሁ",
+    "own.reject_payment": "✗ አልተፈቀደም",
+    "own.reject_payment_note": "ለምን ይህን ክፍያ አልተፈቀዱም? (ለደንበኛው ይታያል)",
+    "own.payment_verified": "ክፍያ ተረጋግጧል — ትዕዛዝ ተከፍሏል ተብሏል",
+    "own.payment_rejected": "ክፍያ አልተፈቀደም — ደንበኛው እንደገና መጫን ይችላል",
+    "payment_status.pending_verification": "በማረጋገጥ ላይ",
+    "payment_status.verified": "ተረጋግጧል",
+    "payment_status.rejected": "አልተፈቀደም",
+    "payment_status.pending": "በመጠባበቅ ላይ",
+    "payment_status.n/a": "—",
+
+    // ---- owner: product proposals + notifications ----
+    "own.propose_btn": "+ አዲስ ምርት ጠቁም",
+    "own.propose_title": "አዲስ ምርት ጠቁም",
+    "own.propose_subtitle": "በዝርዝሩ ላይ የሚጨመር አዲስ ምርት ይጠቁሙ። የቅርንጫፍ ኮሚቴ ይገመግማል፤ ካፀደቀ የተወሰነ የዋጋ ክልል ይዘጋጅና ወደ ክምችትዎ ይታከላል።",
+    "own.propose_shop": "ሱቅዎ",
+    "own.product_name_en": "የምርት ስም (በእንግሊዝኛ)",
+    "own.product_name_en_ph": "ለምሳሌ፣ Cucumber",
+    "own.product_name_am": "የምርት ስም (በአማርኛ)",
+    "own.product_name_am_ph": "ለምሳሌ፣ ኪያር",
+    "own.product_category": "ምድብ",
+    "own.product_unit": "መለኪያ",
+    "own.product_icon": "አዶ",
+    "own.product_image": "ምስል",
+    "own.product_image_hint": "ከታች ካሉት ቅርጾች ይምረጡ ወይም የራስዎን ፎቶ ይጫኑ። ምንም ካልመረጡ ነባሪ ምስል ይታያል።",
+    "own.upload_image": "የራስዎን ምስል ይጫኑ",
+    "own.clear_image": "ምስል አስወግድ",
+    "own.suggested_min": "የተጠቆመ ዝቅተኛ (ብር)",
+    "own.suggested_max": "የተጠቆመ ከፍተኛ (ብር)",
+    "own.initial_price": "የእርስዎ የመጀመሪያ ዋጋ (ብር)",
+    "own.initial_qty": "የመጀመሪያ ክምችት",
+    "own.propose_send": "ለግምገማ አስገባ",
+    "own.proposal_sent": "ጥቆማ ለቅርንጫፍ ኮሚቴ ቀርቧል",
+    "own.activity_title": "ማሳወቂያዎች",
+    "own.activity_subtitle": "ስለ ጥቆማዎችዎ ውሳኔዎችና ስለ ዋጋ ለውጥ የኮሚቴ ምላሾች።",
+    "own.no_activity": "ገና ማሳወቂያ የለም።",
+    "own.mark_read": "እንደ ተነበበ ምልክት",
+    "own.proposals_title": "የእኔ ጥቆማዎች",
+    "own.no_proposals": "ገና ጥቆማ የለም። “አዲስ ምርት ጠቁም” የሚለውን ይጠቀሙ።",
+    "own.proposal_status": "ሁኔታ",
+    "own.notify_committee": "የቅርንጫፍ ኮሚቴ ለዚህ ዋጋ ለውጥ ማሳወቂያ ይደርሰዋል።",
+    "own.bulk_btn": "በብዛት አስተካክል",
+    "own.bulk_title": "የክምችት የብዛት አስተካካይ",
+    "own.bulk_subtitle": "ለበርካታ ምርቶች ብዛትና ዋጋ ያስተካክሉ። ከማስቀመጥ በፊት ለውጦቹን ይከልሳሉ።",
+    "own.bulk_review": "ለውጦችን ይከልሱ →",
+    "own.bulk_changes": "{n} ለውጦች ተዘጋጅተዋል",
+    "own.bulk_review_title": "ለውጦችን ይከልሱ",
+    "own.bulk_review_subtitle": "{n} ዕቃዎች ይቀመጣሉ። ለመቀየር “ተመለስ” ይጫኑ።",
+    "own.bulk_save": "ሁሉንም አስቀምጥ",
+    "own.bulk_no_changes": "የሚቀመጥ ለውጥ የለም።",
+    "own.bulk_saved": "{n} ዕቃዎች ተቀምጠዋል",
+    "own.bulk_partial": "{saved} ተቀምጠዋል፣ {failed} አልተሳኩም፡ {first}",
+    "own.bulk_new": "አዲስ",
+    "own.remove": "አስወግድ",
+    "own.remove_title": "ይህን ዕቃ መሸጥ ያቁሙ?",
+    "own.remove_confirm": "ይህ የ{product} ዝርዝር ከሱቅዎ ይሰረዛል። ደንበኞች ከእንግዲህ አያዩትም።",
+    "own.remove_yes": "አዎ፣ አስወግድ",
+    "own.removed": "ዝርዝር ተወግዷል",
+
+    // ---- delivery ----
+    "dlv.title": "የአስረካቢ ዳሽቦርድ",
+    "dlv.subtitle": "የተግባር ሁኔታ ያስተካክሉና በደንበኛ ኮድ ያረጋግጡ።",
+    "dlv.no_tasks": "ገና የተመደበ አመጣጥ የለም።",
+    "dlv.drop": "የሚደርስበት",
+    "dlv.eta": "የሚደርስበት ጊዜ",
+    "dlv.completed": "ተጠናቋል",
+    "dlv.confirm_btn": "በኮድ አረጋግጥ",
+    "dlv.mark": "ምልክት፡ {label}",
+    "dlv.items_modal": "ዕቃዎች · ትዕዛዝ {id}",
+    "dlv.confirm_title": "በኮድ አመጣጥ ያረጋግጡ",
+    "dlv.otp_note": "በመከታተያ ስክሪኑ ላይ የሚታየውን 4-አሃዝ ኮድ ከደንበኛው ይጠይቁ።",
+    "dlv.otp": "ኮድ",
+    "dlv.confirm": "አረጋግጥ",
+    "dlv.confirmed": "አመጣጥ ተረጋግጧል",
+    "dlv.label.accepted": "ተቀብሏል",
+    "dlv.label.picked_up": "ተወሰዷል",
+    "dlv.label.en_route": "በጉዞ ላይ",
+    "dlv.label.delivered": "ደርሷል",
+
+    // ---- committee (branch) ----
+    "br.title": "የቅርንጫፍ ኮሚቴ · {city}",
+    "br.subtitle": "በሥልጣንዎ ስር ያሉ ሱቆችን ያፅድቁና ቅሬታዎችን ይገምግሙ።",
+    "br.audit_btn": "የቁጥጥር ምዝገባ",
+    "br.pending_title": "በመጠባበቅ ላይ ያሉ የሱቅ ምዝገባዎች",
+    "br.pending_subtitle": "ሻጮች ከመጀመራቸው በፊት ያረጋግጡ እና ያፅድቁ።",
+    "br.no_pending": "በመጠባበቅ ላይ ያለ ምዝገባ የለም።",
+    "br.submitted": "የቀረበው {date}",
+    "br.approve": "አፅድቅ",
+    "br.reject": "አትቀበል",
+    "br.reject_reason": "ያላፀደቁበት ምክንያት (ለባለቤቱ ይታያል):",
+    "br.shop_status": "ሱቅ {status}",
+    "br.queue_title": "የቅሬታዎች ሰልፍ",
+    "br.queue_subtitle": "የገንዘብ መመለስን ያፅድቁ፣ ያትቀበሉ፣ ወይም ለዋና ኮሚቴ ያስተላልፉ።",
+    "br.no_open": "ክፍት ጉዳይ የለም። ✨",
+    "br.from": "ከ",
+    "br.shop_label": "ሱቅ",
+    "br.order_label": "ትዕዛዝ",
+    "br.approve_refund": "ገንዘብ መመለስ ያፅድቁ",
+    "br.escalate": "ለዋና ያስተላልፉ",
+    "br.decision_note": "የውሳኔ ማስታወሻ:",
+    "br.case_updated": "ጉዳይ {decision}",
+    "br.proposals_title": "የምርት ጥቆማዎች",
+    "br.proposals_subtitle": "ባለቤቶች በሁለት ቋንቋ ስምና የተጠቆመ የዋጋ ክልል ያላቸውን አዳዲስ ምርቶች ይጠቁማሉ። ካፀደቁ ምርቱ ወደ ዝርዝሩ ይታከላል፣ ጠቋሚው ሱቅም ይከማቻል።",
+    "br.no_proposals": "በመጠባበቅ ላይ ጥቆማ የለም።",
+    "br.proposed_by": "ጠቋሚ",
+    "br.suggested_label": "የተጠቆመ ክልል",
+    "br.initial_label": "የመጀመሪያ ዋጋ",
+    "br.shops_title": "ሱቆችና ክምችት",
+    "br.shops_subtitle": "በሥልጣንዎ ስር ያሉ የተፈቀዱ ሱቆች። ምን እንደሚሸጡና በምን ዋጋ ለማየት ሱቅን ይንኩ።",
+    "br.no_shops_here": "በሥልጣንዎ ስር የተፈቀደ ሱቅ የለም።",
+    "br.view_inventory": "ክምችት ይመልከቱ",
+    "br.inv_modal": "{shop} · ክምችት",
+    "br.no_inventory": "ገና የተዘረዘረ ዕቃ የለም።",
+    "br.notifs_title": "ማሳወቂያዎች",
+    "br.notifs_subtitle": "በሥልጣንዎ ውስጥ ያሉ የዋጋ ለውጦች፣ ጥቆማዎችና የሱቅ እንቅስቃሴዎች።",
+    "br.no_notifs": "ማሳወቂያ የለም።",
+    "br.proposal_decided": "ጥቆማ {decision}",
+    "br.locations_title": "የቦታ ለውጥ ጥያቄዎች",
+    "br.locations_subtitle": "የክፍለ ከተማ ለውጥ የጠየቁ ባለቤቶችና አስረካቢዎች። ካፀደቁ ለውጡ ወዲያው ተግባራዊ ይሆናል፣ ለማረጋገጥም ለዋና ኮሚቴ ይተላለፋል።",
+    "br.no_locations": "በመጠባበቅ ላይ ያለ የቦታ ለውጥ ጥያቄ የለም።",
+    "br.location_decided": "የቦታ ለውጥ ጥያቄ {decision}",
+    "br.listings_title": "በመጠባበቅ ላይ ያሉ ዝርዝሮች",
+    "br.listings_subtitle": "ከባለቤቶች የመጡ አዲስ የክምችት ዝርዝሮች። ለደንበኞች እንዲታይ ያፅድቁ፣ ወይም ለማስወገድ ይከልክሉ።",
+    "br.no_listings": "በመጠባበቅ ላይ ዝርዝር የለም።",
+    "br.listing_decided": "ዝርዝር {decision}",
+
+    // ---- committee (main) ----
+    "mc.title": "የከተማ ዋና ኮሚቴ",
+    "mc.subtitle": "የዋጋ ክልሎችን ያቀናብሩ፣ የተላለፉ ጉዳዮችን ይገምግሙ፣ ተገዢነትን ይከታተሉ።",
+    "mc.ranges_title": "የተወሰኑ የዋጋ ክልሎች",
+    "mc.ranges_subtitle": "በመዘርዘርና በክፍያ ጊዜ የሚተገበሩ ዝቅተኛ/ከፍተኛ ዋጋዎች (ብር)።",
+    "mc.ranges_note": "አዲስ ግቤቶች በተግባር ቀን ቀደምትዎቹን ይተካሉ።",
+    "mc.effective": "ከ{date} ጀምሮ",
+    "mc.no_range": "ገና ክልል አልተቀመጠም",
+    "mc.set": "አዘጋጅ",
+    "mc.update": "አስተካክል",
+    "mc.set_modal": "የዋጋ ክልል አዘጋጅ · {name}",
+    "mc.min_price": "ዝቅተኛ ዋጋ (ብር)",
+    "mc.max_price": "ከፍተኛ ዋጋ (ብር)",
+    "mc.set_note": "አዲሱ ክልል ወዲያው ይተገበራል። ከክልሉ ውጭ ያሉ ነባር ዕቃዎች ለባለቤቶች ምልክት ይደረግባቸዋል።",
+    "mc.range_updated": "የዋጋ ክልል ተስተካክሏል",
+    "mc.escalations_title": "የተላለፉ ጉዳዮች",
+    "mc.escalations_subtitle": "የቅርንጫፍ ኮሚቴዎች ያልተፈቱ ክርክሮችን ወደዚህ ይልካሉ።",
+    "mc.no_escalations": "የተላለፈ ጉዳይ የለም።",
+    "mc.mark_resolved": "እንደ ተፈታ ምልክት",
+    "mc.final_note": "የመጨረሻ ውሳኔ ማስታወሻ:",
+    "mc.complaints_overview": "የቅሬታዎች አጠቃላይ እይታ",
+    "mc.complaints_subtitle": "በከተማው ውስጥ ያሉ ሁሉም ቅሬታዎች በሁኔታ ተከፋፍለው — ለቀጣዩ ስብሰባ ክትትል።",
+    "mc.no_complaints": "የተመዘገበ ቅሬታ የለም።",
+    "mc.cnt_unanswered": "ምላሽ ያልተሰጣቸው",
+    "mc.cnt_in_review": "በግምገማ ላይ",
+    "mc.cnt_resolved": "የተፈቱ",
+    "mc.cnt_rejected": "አልተፈቀዱም",
+    "mc.cnt_escalated": "የተላለፉ",
+    "mc.filter_all": "ሁሉም",
+    "mc.notifs_title": "ማሳወቂያዎች",
+    "mc.notifs_subtitle": "ከቅርንጫፍ ኮሚቴዎች የተላለፉ ጉዳዮችና በከተማ ደረጃ ያሉ ምልክቶች።",
+    "mc.no_notifs": "ማሳወቂያ የለም።",
+    "mc.needs_review": "የዋና ግምገማ ይጠብቃል",
+    "mc.needs_review_hint": "የመጀመሪያው ክልል በቅርንጫፍ ኮሚቴ ነው የተቀመጠው። ለማረጋገጥ ወይም ለመቀየር “አስተካክል” ይጫኑ።",
+    "mc.locations_title": "የቦታ ለውጥ ጥያቄዎች",
+    "mc.locations_subtitle": "የቅርንጫፍ አባላት ጥያቄዎች + በቅርንጫፍ የጸደቁ የባለቤት/አስረካቢ እንቅስቃሴዎች ለማረጋገጥ ወይም ለመሻር።",
+    "mc.no_locations": "በመጠባበቅ ላይ የቦታ ለውጥ ጥያቄ የለም።",
+    "mc.confirm_branch": "አረጋግጥ",
+    "mc.override_branch": "ሽረው (መልስ)",
+    "mc.branch_note": "የቅርንጫፍ ማስታወሻ፡ {note}",
+    "mc.accounts_title": "መለያዎች",
+    "mc.accounts_subtitle": "በከተማ ውስጥ ያሉ አክቲቭ እና አክቲቭ ያልሆኑ መለያዎች።",
+    "mc.acc_active": "አክቲቭ",
+    "mc.acc_inactive": "አክቲቭ ያልሆነ",
+    "mc.acc_total": "ጠቅላላ",
+    "mc.acc_last_seen": "የመጨረሻ ሲሰራ {when}",
+    "mc.acc_never_signed_in": "ገባ ያልገባ",
+    "mc.acc_filter_all": "ሁሉም",
+    "mc.no_accounts": "መለያ የለም።",
+
+    // ---- notifications (cross-cutting) ----
+    "notif.proposal_pending": "{owner} “{name}” ምርት ለግምገማ ጠቁሟል",
+    "notif.proposal_approved": "የእርስዎ ጥቆማ “{name}” ፀድቆ ወደ ዝርዝሩ ታክሏል",
+    "notif.proposal_rejected": "የእርስዎ ጥቆማ “{name}” አልተፈቀደም",
+    "notif.price_change": "{shop} የ{product} ዋጋ ቀይሯል፡ {oldPrice} → {newPrice}",
+    "notif.complaint_escalated": "ቅርንጫፍ ቅሬታ {id} ({type}) ለዋና ኮሚቴ አስተላልፏል",
+    "notif.complaint_open": "በ{shop} ላይ አዲስ ቅሬታ ቀርቧል ({type})",
+    "notif.refund_requested": "{from} ከ{shop} የገንዘብ መመለስ ጠይቋል ({type})",
+    "notif.refund_requested_owner": "አንድ ደንበኛ ለትዕዛዝ {id} ገንዘብ መመለስ ጠይቋል ({type})",
+    "notif.payment_pending":         "ለትዕዛዝ {id} ማረጋገጥ ያለበት ክፍያ አለ (ማጣቀሻ {ref})",
+    "notif.payment_verified_owner":  "ለትዕዛዝ {id} ክፍያውን አረጋግጠዋል",
+    "notif.payment_rejected_owner":  "ለትዕዛዝ {id} ክፍያውን አልተቀበሉም",
+    "notif.payment_verified":        "ለትዕዛዝ {id} ክፍያዎ ተረጋግጧል",
+    "notif.payment_rejected":        "ለትዕዛዝ {id} ክፍያዎ አልተፈቀደም — እባኮት እንደገና ይጫኑ",
+    "notif.product_added": "“{name}” አዲስ ምርት በ{branch} ወደ ዝርዝሩ ታክሏል (ክልል {min}–{max})",
+    "notif.inventory_new": "{shop} አዲስ ዕቃ ዘርዝሯል፡ {product} በ{price} ({qty} በክምችት)",
+    "notif.inventory_approved": "የእርስዎ {product} ዝርዝር በ{shop} ተፈቅዷል",
+    "notif.inventory_rejected": "የእርስዎ {product} ዝርዝር በ{shop} አልተፈቀደም",
+    "notif.location_request": "{name} ({role}) {from} → {to} እንቅስቃሴ ጠይቋል",
+    "notif.location_branch_approved": "ቅርንጫፍ የ{name}ን {from} → {to} እንቅስቃሴ አጽድቋል",
+    "notif.location_approved": "ወደ {to} የእንቅስቃሴ ጥያቄዎ ተፈቅዷል",
+    "notif.location_rejected": "ወደ {to} የእንቅስቃሴ ጥያቄዎ አልተፈቀደም",
+
+    // ---- audit ----
+    "audit.title": "የቁጥጥር ምዝገባ (የመጨረሻ 100 ክስተቶች)",
+    "audit.subtitle": "የሥልጣንና የሕይወት-ዑደት ክስተቶች ብቻ-መጨመር ምዝገባ።",
+    "audit.empty": "ገና ክስተት የለም።",
+
+    // ---- theme ----
+    "theme.title": "ገጽታ ይምረጡ",
+    "theme.subtitle": "የሚስማማዎትን መልክ ይምረጡ። በመለያው ይቀመጣል።",
+    "theme.toast": "ገጽታ፡ {name}",
+    "theme.garden": "የአትክልት ስፍራ",
+    "theme.garden.desc": "ሳጅ እና ሙቅ ክሬም",
+    "theme.terracotta": "ሰማያዊ ገበያ",
+    "theme.terracotta.desc": "ቲል ሰማያዊ ከኮራል ጋር",
+    "theme.sage": "ሲቪክ ሰማያዊ",
+    "theme.sage.desc": "ግልጽ ሰማያዊ ከአረንጓዴ ጋር",
+    "theme.rose": "ቤሪ ቲል",
+    "theme.rose.desc": "ቤሪ ሮዝ ከቲል ጋር",
+    "theme.mustard": "የፀሐይ ምርት",
+    "theme.mustard.desc": "ቀይ እና የፀሐይ ቢጫ",
+    "theme.plum": "ፕለም",
+    "theme.plum.desc": "ዱስቲ ፕለምና ሮዝ",
+    "theme.midnight": "ሌሊት",
+    "theme.midnight.desc": "ሙቅ ጨለማ ከወርቅ ጋር",
+    "theme.mono": "ጥቁር እና ነጭ",
+    "theme.mono.desc": "ከፍተኛ ንፅፅር ሞኖክሮም",
+
+    // ---- status badges ----
+    "status.created": "ተፈጥሯል",
+    "status.paid": "ተከፍሏል",
+    "status.accepted": "ተቀብሏል",
+    "status.preparing": "በዝግጅት ላይ",
+    "status.dispatched": "ተልኳል",
+    "status.delivered": "ደርሷል",
+    "status.completed": "ተጠናቋል",
+    "status.cancelled": "ተሰርዟል",
+    "status.refunded": "ገንዘብ ተመልሷል",
+    "status.open": "ክፍት",
+    "status.escalated": "ተላልፏል",
+    "status.resolved": "ተፈትቷል",
+    "status.rejected": "አልተፈቀደም",
+    "status.pending": "በመጠባበቅ ላይ",
+    "status.approved": "ተፈቅዷል",
+    "status.suspended": "ታግዷል",
+    "status.assigned": "ተመድቧል",
+    "status.picked_up": "ተወሰዷል",
+    "status.en_route": "በጉዞ ላይ",
+  },
+};
+
+export function getLang() { return localStorage.getItem("gulit:v1:lang") || "en"; }
+export function setLang(l) { localStorage.setItem("gulit:v1:lang", l); }
+
+// Developer mode toggle. Set via ?dev=1 in the URL (persists), ?dev=0 to clear.
+// Used to gate destructive demo controls (e.g., "Reset demo data") from
+// regular users — only the developer should ever see them.
+const DEV_KEY = "gulit:v1:dev";
+export function isDev() {
+  try {
+    const param = new URLSearchParams(location.search).get("dev");
+    if (param === "1") localStorage.setItem(DEV_KEY, "1");
+    if (param === "0") localStorage.removeItem(DEV_KEY);
+  } catch { /* search may not parse on file://; safe to ignore */ }
+  return localStorage.getItem(DEV_KEY) === "1";
+}
+
+// t(key, fallback?, params?)  OR  t(key, params)
+//   Examples: t("auth.welcome")
+//             t("auth.welcome_user", { name: "Hana" })
+//             t("status.unknown", "—")
+export function t(key, fallbackOrParams, paramsArg) {
+  let fallback = key, params = null;
+  if (typeof fallbackOrParams === "string") fallback = fallbackOrParams;
+  else if (fallbackOrParams && typeof fallbackOrParams === "object") params = fallbackOrParams;
+  if (paramsArg && typeof paramsArg === "object") params = paramsArg;
+
+  const lang = getLang();
+  let s = (STR[lang] && STR[lang][key]) || STR.en[key] || fallback;
+  if (params) s = s.replace(/\{(\w+)\}/g, (_, k) => params[k] != null ? params[k] : "");
+  return s;
+}
+
+// ------------------ THEME ------------------
+const THEME_KEY = "gulit:v1:theme";
+const THEME_IDS = ["garden", "terracotta", "sage", "rose", "mustard", "plum", "midnight", "mono"];
+
+export const THEMES = THEME_IDS.map(id => ({
+  id,
+  get name() { return t(`theme.${id}`); },
+  get desc() { return t(`theme.${id}.desc`); },
+}));
+
+export function getTheme() {
+  const stored = localStorage.getItem(THEME_KEY);
+  return THEME_IDS.includes(stored) ? stored : "garden";
+}
+export function setTheme(id) {
+  if (!THEME_IDS.includes(id)) return;
+  localStorage.setItem(THEME_KEY, id);
+  applyTheme();
+}
+export function applyTheme() {
+  document.documentElement.setAttribute("data-theme", getTheme());
+}
+
+export function openThemePicker() {
+  const cur = getTheme();
+  openModal(t("theme.title"), `
+    <div class="muted">${t("theme.subtitle")}</div>
+    <div class="theme-grid mt12">
+      ${THEMES.map(th => `
+        <button class="theme-card ${th.id === cur ? "selected" : ""}" data-id="${th.id}">
+          <div class="theme-swatch"></div>
+          <div>
+            <div class="theme-name">${th.name}</div>
+            <div class="theme-desc">${th.desc}</div>
+          </div>
+        </button>
+      `).join("")}
+    </div>
+  `);
+  document.querySelectorAll(".theme-card").forEach(btn => {
+    btn.addEventListener("click", () => {
+      setTheme(btn.dataset.id);
+      const name = THEMES.find(x => x.id === btn.dataset.id)?.name || "";
+      toast(t("theme.toast", { name }), "success");
+      openThemePicker();
+    });
+  });
+}
+
+// Inline product-icon SVGs (offline-safe, match the prototype's look).
+// Generic placeholder shown when a product has neither an uploaded image
+// nor a matching built-in icon key.
+const PLACEHOLDER_SVG = `<svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+  <rect x="10" y="22" width="44" height="32" rx="6" fill="#9ca3af" opacity=".35"/>
+  <path d="M22 22l5-10h10l5 10" stroke="currentColor" stroke-width="3" stroke-linecap="round" fill="none" opacity=".55"/>
+  <path d="M20 34h24M20 42h24" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".5"/>
+</svg>`;
+
+// Render a product's visual: uploaded image if present, else built-in icon,
+// else the placeholder above. Used everywhere the catalog is displayed so
+// uploaded images take effect across browse, shops, cart, owner inventory.
+export function productImageHtml(product) {
+  if (!product) return PLACEHOLDER_SVG;
+  if (product.image) {
+    return `<img class="product-image" src="${product.image}" alt="" />`;
+  }
+  if (product.icon) return iconSvg(product.icon);
+  return PLACEHOLDER_SVG;
+}
+
+// Read an <input type="file"> File, downscale to maxSize px (keeping aspect
+// ratio) and return a JPEG data URL. Keeps localStorage payloads small.
+export async function imageFileToDataUrl(file, { maxSize = 240, quality = 0.85 } = {}) {
+  if (!file) throw new Error("No file selected.");
+  if (!file.type?.startsWith("image/")) throw new Error("Selected file isn't an image.");
+  if (file.size > 8 * 1024 * 1024) throw new Error("Image is too large (max 8 MB).");
+  const dataUrl = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = (e) => resolve(e.target.result);
+    r.onerror = () => reject(new Error("File read failed."));
+    r.readAsDataURL(file);
+  });
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width  * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(c.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => reject(new Error("Image decode failed."));
+    img.src = dataUrl;
+  });
+}
+
+export function iconSvg(kind) {
+  const svgs = {
+    onion: `<svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <path d="M32 8c3 7 10 11 10 18 0 13-6 26-10 26s-10-13-10-26c0-7 7-11 10-18Z" fill="#a855f7" opacity=".85"/>
+      <path d="M32 12c1.8 5 6 8 6 13 0 9-3.5 20-6 20s-6-11-6-20c0-5 4.2-8 6-13Z" fill="#c084fc" opacity=".9"/>
+      <path d="M32 6c2 3 2 6 0 9" stroke="#16a34a" stroke-width="3" stroke-linecap="round"/>
+    </svg>`,
+    tomato: `<svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <circle cx="32" cy="36" r="18" fill="#ef4444"/>
+      <path d="M32 14c-4 4-8 4-12 2 3 8 9 10 12 10s9-2 12-10c-4 2-8 2-12-2Z" fill="#16a34a"/>
+      <path d="M32 14c0-4 2-6 6-8" stroke="#16a34a" stroke-width="3" stroke-linecap="round"/>
+    </svg>`,
+    potato: `<svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <path d="M24 18c8-6 22-2 26 8 5 13-5 28-20 26-16-2-18-24-6-34Z" fill="#a16207" opacity=".9"/>
+      <circle cx="30" cy="30" r="2" fill="#78350f"/>
+      <circle cx="40" cy="36" r="2" fill="#78350f"/>
+      <circle cx="36" cy="44" r="2" fill="#78350f"/>
+    </svg>`,
+    carrot: `<svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <path d="M30 20c8 8 12 18 10 30-10 2-22-2-30-10 2-8 10-16 20-20Z" fill="#f97316"/>
+      <path d="M38 16c4-4 8-4 12-2-2 6-6 10-12 12" fill="#16a34a"/>
+    </svg>`,
+    pepper: `<svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <path d="M22 26c-2 20 10 28 20 26 12-2 14-20 8-28-6-8-24-8-28 2Z" fill="#22c55e"/>
+      <path d="M34 14c0-4 2-6 6-8" stroke="#16a34a" stroke-width="3" stroke-linecap="round"/>
+    </svg>`,
+    cabbage: `<svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <circle cx="32" cy="36" r="18" fill="#86efac"/>
+      <path d="M20 38c6-10 18-12 24-4" stroke="#16a34a" stroke-width="3" stroke-linecap="round"/>
+      <path d="M24 46c6-6 16-6 20 0" stroke="#16a34a" stroke-width="3" stroke-linecap="round"/>
+    </svg>`,
+    egg: `<svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <path d="M32 14c10 0 16 14 16 24S42 54 32 54 16 48 16 38s6-24 16-24Z" fill="#fde68a"/>
+      <path d="M28 24c-4 6-4 16 0 22" stroke="#f59e0b" stroke-width="3" stroke-linecap="round" opacity=".8"/>
+    </svg>`,
+    grain: `<svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <path d="M32 14c10 8 12 24 0 36-12-12-10-28 0-36Z" fill="#fbbf24"/>
+      <path d="M32 14v36" stroke="#a16207" stroke-width="3" stroke-linecap="round"/>
+    </svg>`,
+    banana: `<svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <path d="M16 40c10 12 24 14 34 6-8 6-22 2-30-10-2-3-3-6-4-10-2 6-2 10 0 14Z" fill="#fde047"/>
+      <path d="M48 46c2-2 4-4 4-8" stroke="#a16207" stroke-width="3" stroke-linecap="round"/>
+    </svg>`,
+    spice: `<svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <path d="M22 18h20v10H22V18Z" fill="#ef4444" opacity=".9"/>
+      <path d="M22 28h20v18c0 4-4 8-10 8s-10-4-10-8V28Z" fill="#f97316"/>
+      <path d="M26 34h12" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".9"/>
+    </svg>`,
+  };
+  return svgs[kind] || svgs.grain;
+}
+
+// Render a user's avatar: uploaded image if present, else a deterministic
+// SVG avatar seeded by their id / name so it stays visually stable.
+export function userAvatarHtml(user, size = 40) {
+  if (user?.avatar) {
+    return `<img class="user-avatar" src="${user.avatar}" alt="" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;display:block;" />`;
+  }
+  const seedSrc = String(user?.id || user?.name || "u");
+  const seed = seedSrc.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+  return `<span class="user-avatar" style="display:inline-flex;width:${size}px;height:${size}px;border-radius:50%;overflow:hidden;align-items:center;justify-content:center;">${avatarSvg(seed)}</span>`;
+}
+
+export function avatarSvg(seed = 0) {
+  const skins = ["#7c4a2d","#8b5a3c","#6b3f27","#9a6a4a"];
+  const shirts = ["#16a34a","#0ea5e9","#f97316","#a855f7"];
+  const hair = ["#1f2937","#111827","#0f172a","#3f3f46"];
+  const s = skins[seed % skins.length];
+  const sh = shirts[seed % shirts.length];
+  const h = hair[seed % hair.length];
+  return `<svg viewBox="0 0 64 64" fill="none" aria-hidden="true" width="56" height="56">
+    <rect x="0" y="0" width="64" height="64" rx="18" fill="rgba(0,0,0,.04)"/>
+    <path d="M14 58c3-14 13-18 18-18s15 4 18 18" fill="${sh}" opacity=".95"/>
+    <circle cx="32" cy="28" r="12" fill="${s}" />
+    <path d="M20 24c2-10 22-10 24 0 0-10-6-16-12-16s-12 6-12 16Z" fill="${h}"/>
+    <circle cx="27" cy="28" r="1.5" fill="#0f172a" opacity=".8"/>
+    <circle cx="37" cy="28" r="1.5" fill="#0f172a" opacity=".8"/>
+    <path d="M28 33c2 2 6 2 8 0" stroke="#0f172a" stroke-width="2" stroke-linecap="round" opacity=".55"/>
+  </svg>`;
+}
+
+// Star renderer for ratings.
+export function stars(n) {
+  const full = Math.floor(n);
+  const half = (n - full) >= 0.5 ? "½" : "";
+  return `<span class="stars">${"★".repeat(full)}${half}</span> <span class="muted">(${Number(n).toFixed(1)})</span>`;
+}
+
+const EYE_SVG = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const EYE_OFF_SVG = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-10-7-10-7a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 10 7 10 7a18.5 18.5 0 0 1-2.16 3.19"/><path d="m1 1 22 22"/></svg>`;
+
+// Simple form helper: build a form node from a schema. Password fields get a
+// click-to-reveal eye button via the global delegate below.
+export function formField({ label, name, type = "text", value = "", placeholder = "", options = null, required = false }) {
+  const id = `f_${name}`;
+  let input;
+  if (type === "select") {
+    const opts = (options || []).map(o => `<option value="${o.value}" ${o.value === value ? "selected" : ""}>${o.label}</option>`).join("");
+    input = `<select id="${id}" name="${name}" ${required ? "required" : ""}>${opts}</select>`;
+  } else if (type === "textarea") {
+    input = `<textarea id="${id}" name="${name}" placeholder="${placeholder}" ${required ? "required" : ""}>${value || ""}</textarea>`;
+  } else if (type === "password") {
+    input = `
+      <div class="pwwrap">
+        <input id="${id}" name="${name}" type="password" placeholder="${placeholder}" value="${value ?? ""}" ${required ? "required" : ""} />
+        <button type="button" class="pwtoggle" data-toggle-pw aria-label="${t("auth.show_password")}">${EYE_SVG}</button>
+      </div>
+    `;
+  } else {
+    input = `<input id="${id}" name="${name}" type="${type}" placeholder="${placeholder}" value="${value ?? ""}" ${required ? "required" : ""} />`;
+  }
+  return `<div class="fieldlabel">${label}${required ? " *" : ""}</div>${input}`;
+}
+
+// Global delegate: any [data-toggle-pw] button flips its sibling input
+// between password and text type.
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-toggle-pw]");
+  if (!btn) return;
+  const input = btn.closest(".pwwrap")?.querySelector("input");
+  if (!input) return;
+  const showing = input.type === "password";
+  input.type = showing ? "text" : "password";
+  btn.innerHTML = showing ? EYE_OFF_SVG : EYE_SVG;
+  btn.setAttribute("aria-label", showing ? t("auth.hide_password") : t("auth.show_password"));
+});

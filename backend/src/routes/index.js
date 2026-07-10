@@ -1,0 +1,24 @@
+import { Router } from "express";
+import authRoutes from "./authRoutes.js";
+import productRoutes from "./productRoutes.js";
+import orderRoutes from "./orderRoutes.js";
+import complaintRoutes from "./complaintRoutes.js";
+import shopRoutes from "./shopRoutes.js";
+import userRoutes from "./userRoutes.js";
+import inventoryRoutes from "./inventoryRoutes.js";
+import deliveryRoutes from "./deliveryRoutes.js";
+import featuresRoutes from "./featuresRoutes.js";
+
+const router = Router();
+
+router.use("/auth", authRoutes);
+router.use("/products", productRoutes);
+router.use("/orders", orderRoutes);
+router.use("/complaints", complaintRoutes);
+router.use("/shops", shopRoutes);
+router.use("/users", userRoutes);
+router.use("/inventory", inventoryRoutes);
+router.use("/deliveries", deliveryRoutes);
+router.use("/", featuresRoutes);
+
+export default router;
