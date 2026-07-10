@@ -7,7 +7,7 @@ import { sendPasswordResetEmail, sendWelcomeEmail } from "../services/mailServic
 import { httpError } from "../utils/httpError.js";
 
 const SALT_ROUNDS = 12;
-const RESET_TOKEN_MINUTES = 15;
+const RESET_TOKEN_MINUTES = 10;
 
 function hashResetToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");

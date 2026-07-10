@@ -13,6 +13,7 @@ import {
 import { SUB_CITIES, CATEGORIES } from "../seed.js";
 
 const view = () => document.getElementById("view");
+const RESET_TOKEN_STORAGE_KEY = "gulit:passwordResetToken";
 
 async function customerVisibleShops(subCity) {
   return Shops.list({ subCity, status: "approved" });
@@ -64,6 +65,11 @@ export async function renderAuth() {
     return form?.querySelector(form.dataset.submitButton || "");
   });
   drawAuthForm("login");
+  const pendingResetToken = sessionStorage.getItem(RESET_TOKEN_STORAGE_KEY);
+  if (pendingResetToken) {
+    sessionStorage.removeItem(RESET_TOKEN_STORAGE_KEY);
+    setTimeout(() => openForgotPassword(pendingResetToken), 0);
+  }
 }
 
 function drawAuthForm(mode) {
@@ -241,7 +247,7 @@ async function onLogin() {
   }
 }
 
-function openForgotPassword() {
+function openForgotPassword(initialToken = "") {
   openModal(t("auth.reset_title"), `
     ${formField({ label: t("auth.identifier"), name: "resetIdentifier", required: true })}
     <div class="btnrow mt12">
@@ -259,6 +265,37 @@ function openForgotPassword() {
   ));
   idInput?.addEventListener("input", () => { idInput.value = idInput.value.toLowerCase(); });
   document.getElementById("resetCancelBtn").onclick = () => closeModal();
+
+  const showResetForm = (tokenValue = "", message = t("auth.reset_email_hint"), isError = false) => {
+    resetStep.innerHTML = `
+      <div class="${isError ? "reset-error" : "muted reset-message"}">${message}</div>
+      ${formField({ label: t("auth.reset_token"), name: "resetToken", value: tokenValue, required: true })}
+      ${formField({ label: t("auth.new_password"), name: "resetPassword", type: "password", placeholder: t("auth.password_ph"), required: true })}
+      <div class="muted password-hint">${t("auth.password_hint")}</div>
+      ${formField({ label: t("auth.password_confirm"), name: "resetPasswordConfirm", type: "password", required: true })}
+      <div class="btnrow mt12">
+        <button class="primary" id="completeResetBtn">${t("auth.reset_complete_btn")}</button>
+      </div>
+    `;
+    document.getElementById("completeResetBtn")?.addEventListener("click", async () => {
+      const token = document.querySelector("#modalBody [name=resetToken]").value.trim();
+      const password = document.querySelector("#modalBody [name=resetPassword]").value;
+      const confirm = document.querySelector("#modalBody [name=resetPasswordConfirm]").value;
+      if (password !== confirm) { toast(t("auth.password_mismatch"), "danger"); return; }
+      try {
+        await Auth.resetPassword({ token, password });
+        closeModal();
+        toast(t("auth.reset_done"), "success");
+      } catch (e) {
+        toast(e.message, "danger");
+      }
+    });
+  };
+
+  if (initialToken) {
+    showResetForm(initialToken, t("auth.reset_email_hint"));
+  }
+
   requestBtn.onclick = async () => {
     const identifier = idInput.value.trim().toLowerCase();
     if (!identifier) { toast(t("auth.enter_creds"), "danger"); return; }

@@ -40,6 +40,17 @@ function firstNameOf(user) {
   return String(user?.name || "there").trim().split(/\s+/)[0] || "there";
 }
 
+function lastNameOf(user) {
+  const parts = String(user?.name || "").trim().split(/\s+/).filter(Boolean);
+  return parts.slice(1).join(" ");
+}
+
+function fullNameOf(user) {
+  const firstName = firstNameOf(user);
+  const lastName = lastNameOf(user);
+  return `${firstName}${lastName ? ` ${lastName}` : ""}`;
+}
+
 function escapeHtml(value) {
   return String(value || "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
@@ -154,50 +165,67 @@ export async function sendMail({ to, subject, text, html }) {
 
 export async function sendWelcomeEmail(user) {
   if (!user?.email) return { sent: false, reason: "User has no email." };
-  const firstName = firstNameOf(user);
+  const fullName = fullNameOf(user);
   const supportEmail = "nathanfeyisa6@gmail.com";
+  const appUrl = `${env.frontendUrl.replace(/\/$/, "")}/`;
   const text = [
-    "✅ Your GULIT account has been created successfully!",
+    "\u2705 Your GULIT account has been created successfully!",
     "",
+    `Hi ${fullName},`,
     "",
-    `🎉 Welcome to GULIT, ${firstName}! Fair prices, verified shops, and orders you can track start to finish, all in one place.`,
+    "Welcome to GULIT, the marketplace bringing the traditional market online, with fair, regulated pricing, verified shops, and orders you can track from checkout to delivery.",
     "",
-    `If you have any questions or run into a problem, we're here to help: ${supportEmail}`,
+    `Start Browsing \u2192 ${appUrl}`,
+    "",
+    `Questions or issues? We're here: ${supportEmail}`,
   ].join("\n");
+
   return sendMail({
     to: user.email,
-    subject: "Your GULIT account is ready",
+    subject: "Welcome to GULIT \u2014 your account is ready",
     text,
     html: `
-      <p>✅ <strong>Your GULIT account has been created successfully!</strong></p>
-      <p>🎉 Welcome to GULIT, ${escapeHtml(firstName)}! Fair prices, verified shops, and orders you can track start to finish, all in one place.</p>
-      <p>If you have any questions or run into a problem, we're here to help: <a href="mailto:${supportEmail}">${supportEmail}</a></p>
+      <p>&#9989; <strong>Your GULIT account has been created successfully!</strong></p>
+      <p>Hi ${escapeHtml(fullName)},</p>
+      <p>Welcome to GULIT, the marketplace bringing the traditional market online, with fair, regulated pricing, verified shops, and orders you can track from checkout to delivery.</p>
+      <p><strong><a href="${appUrl}">Start Browsing &rarr;</a></strong> ${appUrl}</p>
+      <p>Questions or issues? We're here: <a href="mailto:${supportEmail}">${supportEmail}</a></p>
     `,
   });
 }
 
 export async function sendPasswordResetEmail(user, resetToken) {
   if (!user?.email) return { sent: false, reason: "User has no email." };
-  const resetUrl = `${env.frontendUrl.replace(/\/$/, "")}/#/auth`;
+  const fullName = fullNameOf(user);
+  const resetUrl = `${env.frontendUrl.replace(/\/$/, "")}/reset-password?token=${encodeURIComponent(resetToken)}`;
+  const supportEmail = "nathanfeyisa6@gmail.com";
+
   return sendMail({
     to: user.email,
-    subject: "Reset your Gulit password",
+    subject: "Reset your GULIT password",
     text: [
-      `Hello ${user.name},`,
+      "\uD83D\uDD11 Password reset requested",
       "",
-      "Use this reset token in the Gulit forgot-password form:",
-      resetToken,
+      `Hi ${fullName},`,
       "",
-      `Open Gulit: ${resetUrl}`,
+      "We got a request to reset your GULIT password. Click below to choose a new one, this link expires in 10 minutes.",
       "",
-      "This token expires in 15 minutes.",
+      `Reset Password \u2192 ${resetUrl}`,
+      "",
+      `use this token = ${resetToken}`,
+      "",
+      "Didn't request this? You can safely ignore this email, your password won't change.",
+      "",
+      `Need help? We're here: ${supportEmail}`,
     ].join("\n"),
     html: `
-      <p>Hello ${user.name},</p>
-      <p>Use this reset token in the Gulit forgot-password form:</p>
-      <p><strong>${resetToken}</strong></p>
-      <p><a href="${resetUrl}">Open Gulit</a></p>
-      <p>This token expires in 15 minutes.</p>
+      <p>&#128273; <strong>Password reset requested</strong></p>
+      <p>Hi ${escapeHtml(fullName)},</p>
+      <p>We got a request to reset your GULIT password. Click below to choose a new one, this link expires in 10 minutes.</p>
+      <p><strong><a href="${resetUrl}">Reset Password &rarr;</a></strong></p>
+      <p>use this token = <a href="${resetUrl}"><strong>${escapeHtml(resetToken)}</strong></a></p>
+      <p>Didn't request this? You can safely ignore this email, your password won't change.</p>
+      <p>Need help? We're here: <a href="mailto:${supportEmail}">${supportEmail}</a></p>
     `,
   });
 }
