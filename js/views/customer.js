@@ -4,7 +4,6 @@
 import { Deliveries, Inventory, LocationChanges, Orders, Products, Shops, Complaints, Users } from "../api.js";
 import { Auth, WORK_ID_PATTERNS, ALLOWED_EMAIL_DOMAINS, isAcceptedEmail } from "../auth.js";
 import { state } from "../state.js";
-import { Favorites, favoriteButtonHtml, wireFavoriteButtons } from "../features.js";
 import {
   toast, openModal, closeModal, etb, dateShort, statusBadge,
   iconSvg, avatarSvg, stars, formField, openThemePicker, getTheme, THEMES,
@@ -17,16 +16,6 @@ const view = () => document.getElementById("view");
 
 async function customerVisibleShops(subCity) {
   return Shops.list({ subCity, status: "approved" });
-}
-
-async function favoriteIdSet(type) {
-  try {
-    const rows = await Favorites.list(type);
-    return new Set(rows.map((row) => String(row.target_id ?? row.targetId)));
-  } catch (err) {
-    console.warn("Favorites unavailable:", err.message);
-    return new Set();
-  }
 }
 
 // ------------------ AUTH ------------------
@@ -569,7 +558,6 @@ async function drawProducts() {
   list.innerHTML = `<div class="empty">${t("loading")}</div>`;
 
   const rows = await Inventory.listingsForBrowse({ subCity, q, category });
-  const favoriteProducts = await favoriteIdSet("product");
 
   const lc = (s) => String(s || "").toLowerCase();
   switch (sort) {
@@ -611,7 +599,6 @@ async function drawProducts() {
           ${range}
         </div>
         <div class="pricebox">
-          ${favoriteButtonHtml("product", r.product.id, favoriteProducts.has(String(r.product.id)))}
           ${oldPrice}
           <div class="now">${etb(r.price)} / ${unitLabel(r.product.unit)}</div>
           ${buyAction}
@@ -636,7 +623,6 @@ async function drawProducts() {
     qtyEl.value = String(next);
   }));
   list.querySelectorAll("[data-shop]").forEach(b => b.addEventListener("click", () => openShopModal(b.dataset.shop)));
-  wireFavoriteButtons(list);
 }
 
 async function drawShops() {
@@ -644,7 +630,6 @@ async function drawShops() {
   const grid = document.getElementById("shopsList");
   if (!grid) return;
   const shops = await customerVisibleShops(subCity);
-  const favoriteShops = await favoriteIdSet("shop");
   if (shops.length === 0) {
     grid.innerHTML = `<div class="empty">${t("home.no_shops", { city: subCityLabel(subCity) })}</div>`;
     return;
@@ -657,12 +642,10 @@ async function drawShops() {
         <div>${stars(s.rating || 0)}</div>
         <div class="shopmeta">${t("auth.subcity")}: ${subCityLabel(s.subCity)}</div>
       </div>
-      ${favoriteButtonHtml("shop", s.id, favoriteShops.has(String(s.id)))}
       <button class="viewbtn" data-shop="${s.id}">${t("profile")}</button>
     </div>
   `).join("");
   grid.querySelectorAll("[data-shop]").forEach(b => b.addEventListener("click", () => openShopModal(b.dataset.shop)));
-  wireFavoriteButtons(grid);
 }
 
 // ------------------ SHOPS LIST PAGE ------------------
@@ -683,7 +666,6 @@ export async function renderShops() {
   const shops = await customerVisibleShops(subCity);
   const el = document.getElementById("shopsAll");
   if (shops.length === 0) { el.innerHTML = `<div class="empty">${t("shops.no_approved", { city: subCityLabel(subCity) })}</div>`; return; }
-  const favoriteShops = await favoriteIdSet("shop");
   el.innerHTML = shops.map((s, i) => `
     <div class="shopcard">
       <div class="avatar">${avatarSvg(i)}</div>
@@ -692,12 +674,10 @@ export async function renderShops() {
         <div>${stars(s.rating || 0)}</div>
         <div class="shopmeta">${t("auth.subcity")}: ${subCityLabel(s.subCity)}</div>
       </div>
-      ${favoriteButtonHtml("shop", s.id, favoriteShops.has(String(s.id)))}
       <button class="viewbtn" data-shop="${s.id}">${t("profile")}</button>
     </div>
   `).join("");
   el.querySelectorAll("[data-shop]").forEach(b => b.addEventListener("click", () => openShopModal(b.dataset.shop)));
-  wireFavoriteButtons(el);
 }
 
 // ------------------ SHOP MODAL ------------------

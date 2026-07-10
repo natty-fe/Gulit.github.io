@@ -41,10 +41,6 @@ begin
     truncate table public.location_change_requests restart identity cascade;
   end if;
 
-  if to_regclass('public.favorites') is not null then
-    truncate table public.favorites restart identity cascade;
-  end if;
-
   if to_regclass('public.shops') is not null then
     truncate table public.shops restart identity cascade;
   end if;

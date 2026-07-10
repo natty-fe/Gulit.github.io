@@ -1,6 +1,4 @@
-import { FavoriteModel } from "../models/favoriteModel.js";
 import { InventoryModel } from "../models/inventoryModel.js";
-import { writeAuditLog } from "../services/auditService.js";
 import { httpError } from "../utils/httpError.js";
 
 function toTrend(row) {
@@ -25,31 +23,6 @@ function withPriceTrend(row) {
     ...row,
     priceTrend: toTrend(row),
   };
-}
-
-export async function listFavorites(req, res) {
-  const rows = await FavoriteModel.listForUser(req.user.id, req.query.type);
-  res.json(rows);
-}
-
-export async function toggleFavorite(req, res) {
-  const { targetType, targetId } = req.body;
-  const existing = await FavoriteModel.findForUser(req.user.id, targetType, targetId);
-
-  if (existing) {
-    await FavoriteModel.removeForUser(req.user.id, targetType, targetId);
-    await writeAuditLog(req.user.id, "FAVORITE_REMOVED", "favorite", existing.id, { targetType, targetId });
-    res.json({ favorited: false });
-    return;
-  }
-
-  const favorite = await FavoriteModel.create({
-    user_id: req.user.id,
-    target_type: targetType,
-    target_id: String(targetId),
-  });
-  await writeAuditLog(req.user.id, "FAVORITE_ADDED", "favorite", favorite.id, { targetType, targetId });
-  res.status(201).json({ favorited: true, favorite });
 }
 
 export async function listInventoryTrends(req, res) {

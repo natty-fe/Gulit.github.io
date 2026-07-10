@@ -745,7 +745,7 @@ input:focus, select:focus, textarea:focus{
 .shopsgrid{ padding: 0 14px 14px 14px; display: grid; gap: 10px; }
 .shopcard{
   display: grid;
-  grid-template-columns: 56px 1fr auto auto;
+  grid-template-columns: 56px 1fr auto;
   gap: 10px;
   padding: 12px;
   border-radius: 18px;
@@ -1399,10 +1399,6 @@ hr{ border: none; border-top: 1px solid var(--border); margin: 12px 0; }
     align-items: start;
   }
 
-  .shopcard .fav-btn{
-    grid-column: 1;
-  }
-
   .pitem > :last-child,
   .shopcard > :last-child{
     grid-column: 1 / -1;
@@ -1506,38 +1502,6 @@ hr{ border: none; border-top: 1px solid var(--border); margin: 12px 0; }
   .theme-grid{
     grid-template-columns: 1fr;
   }
-}
-
-.fav-btn{
-  display: inline-grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 20px;
-  line-height: 1;
-  transition: transform .15s ease, color .15s ease, border-color .15s ease, background .15s ease;
-}
-
-.fav-btn:hover{
-  transform: translateY(-1px);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.fav-btn.favorited{
-  color: #ef4444;
-  border-color: rgba(239, 68, 68, .35);
-  background: rgba(239, 68, 68, .1);
-}
-
-.fav-btn:disabled{
-  cursor: wait;
-  opacity: .65;
 }
 
 .price-trend{
