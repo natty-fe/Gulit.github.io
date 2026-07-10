@@ -971,14 +971,23 @@ async function openPayNowFlow(items) {
   // side), then ask the customer for a proof per shop.
   const shopGroups = new Map();
   for (const { inv, qty } of items) {
-    if (!shopGroups.has(inv.shop.id)) shopGroups.set(inv.shop.id, { shop: inv.shop, items: [], total: 0 });
-    const g = shopGroups.get(inv.shop.id);
+    const shopId = inv.shop?.id || inv.shopId;
+    if (!shopId) {
+      toast("This cart item is missing shop information. Please remove it and add it again.", "danger");
+      return;
+    }
+    if (!shopGroups.has(shopId)) shopGroups.set(shopId, { shop: inv.shop || null, shopId, items: [], total: 0 });
+    const g = shopGroups.get(shopId);
     g.items.push({ inv, qty });
     g.total += inv.price * qty;
   }
   const groups = [];
   for (const group of shopGroups.values()) {
-    const shop = await Shops.byId(group.shop.id);
+    const shop = await Shops.byId(group.shopId);
+    if (!shop || shop.status !== "approved") {
+      toast("This shop is no longer available. Please refresh your cart.", "danger");
+      return;
+    }
     const accounts = shop?.paymentAccounts || [];
     if (accounts.length === 0) {
       toast(t("checkout.no_accounts", { shop: shopName(shop || group.shop) }), "danger");
@@ -992,7 +1001,7 @@ async function openPayNowFlow(items) {
 
   const renderStep = async () => {
     const g = groups[cursor];
-    const shop = await Shops.byId(g.shop.id);
+    const shop = await Shops.byId(g.shopId);
     const accounts = shop?.paymentAccounts || [];
     if (accounts.length === 0) {
       toast(t("checkout.no_accounts", { shop: shopName(shop) }), "danger");
@@ -1064,7 +1073,7 @@ async function openPayNowFlow(items) {
       const reference = document.querySelector("#modalBody [name=reference]").value.trim();
       if (!proofImage) { toast(t("checkout.proof_required"), "danger"); return; }
       if (!reference) { toast(t("checkout.reference_required"), "danger"); return; }
-      proofs.set(g.shop.id, { accountId: pickedAccountId, image: proofImage, reference });
+      proofs.set(g.shopId, { accountId: pickedAccountId, image: proofImage, reference });
       cursor++;
       if (cursor < groups.length) {
         await renderStep();
