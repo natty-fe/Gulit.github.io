@@ -40,18 +40,17 @@ export async function renderAuth() {
   v.innerHTML = `
     <section class="page authwrap">
       <div class="authcard">
-        <div class="authhero">
-          <h2>${t("auth.welcome")}</h2>
-          <p>${t("auth.subtitle")}</p>
-        </div>
         <div class="authbody">
+          <div class="authmark">${authIllustrationHtml()}</div>
+          <div class="authcopy">
+            <h2 id="authTitle">${t("auth.tab_signin")}</h2>
+            <p id="authSubtitle">${t("auth.signin_subtitle")}</p>
+          </div>
           <div class="tabs">
             <div class="tab active" data-tab="login">${t("auth.tab_signin")}</div>
             <div class="tab" data-tab="signup">${t("auth.tab_signup")}</div>
           </div>
           <div id="authForm"></div>
-
-          <hr/>
         </div>
       </div>
     </section>
@@ -72,27 +71,78 @@ export async function renderAuth() {
   }
 }
 
+function authIllustrationHtml() {
+  return `
+    <svg viewBox="0 0 220 150" role="img" aria-label="GULIT account access">
+      <rect x="28" y="26" width="92" height="70" rx="12" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M42 48h52M42 64h42M42 80h58" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="146" cy="55" r="17" fill="currentColor" opacity=".12"/>
+      <path d="M146 44v22M135 55h22" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      <path d="M126 118c7-27 27-44 60-49" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-dasharray="4 6" opacity=".45"/>
+      <path d="M87 119c3-23 14-38 34-48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity=".22"/>
+      <circle cx="94" cy="119" r="10" fill="currentColor" opacity=".16"/>
+      <circle cx="128" cy="119" r="10" fill="currentColor" opacity=".12"/>
+      <path d="M128 82c13 0 24 11 24 24v15h-48v-15c0-13 11-24 24-24Z" fill="currentColor" opacity=".12"/>
+      <circle cx="128" cy="66" r="13" fill="currentColor" opacity=".18"/>
+    </svg>
+  `;
+}
+
+function socialAuthHtml() {
+  return `
+    <div class="auth-divider"><span>${t("auth.social_or")}</span></div>
+    <div class="socialrow">
+      <button type="button" class="socialbtn" data-social-auth="google" aria-label="${t("auth.social_google")}">
+        <span class="socialicon google">G</span>
+        <span>${t("auth.social_google")}</span>
+      </button>
+      <button type="button" class="socialbtn" data-social-auth="apple" aria-label="${t("auth.social_apple")}">
+        <span class="socialicon apple">A</span>
+        <span>${t("auth.social_apple")}</span>
+      </button>
+    </div>
+  `;
+}
+
+function bindSocialAuthButtons(scope = document) {
+  scope.querySelectorAll("[data-social-auth]").forEach((button) => {
+    if (button.dataset.socialBound === "true") return;
+    button.dataset.socialBound = "true";
+    button.addEventListener("click", () => {
+      toast(t("auth.social_setup_required"), "danger");
+    });
+  });
+}
+
 function drawAuthForm(mode) {
   const wrap = document.getElementById("authForm");
+  const title = document.getElementById("authTitle");
+  const subtitle = document.getElementById("authSubtitle");
   if (mode === "login") {
+    if (title) title.textContent = t("auth.tab_signin");
+    if (subtitle) subtitle.textContent = t("auth.signin_subtitle");
     wrap.dataset.submitButton = "#loginBtn";
     wrap.innerHTML = `
       ${formField({ label: t("auth.identifier"), name: "identifier", required: true })}
       ${formField({ label: t("auth.password"), name: "password", type: "password", required: true })}
-      <div class="btnrow">
-        <button class="primary" id="loginBtn">${t("auth.signin_btn")}</button>
-      </div>
       <div class="forgot-row">
         <button class="forgot-link" id="forgotPasswordBtn" type="button">${t("auth.forgot_password")}</button>
       </div>
+      <div class="btnrow">
+        <button class="primary" id="loginBtn">${t("auth.signin_btn")}</button>
+      </div>
+      ${socialAuthHtml()}
     `;
     document.getElementById("loginBtn").addEventListener("click", onLogin);
     document.getElementById("forgotPasswordBtn").addEventListener("click", openForgotPassword);
+    bindSocialAuthButtons(wrap);
     // Force the identifier (email) to lowercase as the user types — emails
     // are case-insensitive and our auth store keeps them lowercase.
     const idInput = document.querySelector("#authForm [name=identifier]");
     idInput?.addEventListener("input", () => { idInput.value = idInput.value.toLowerCase(); });
   } else {
+    if (title) title.textContent = t("auth.register_title");
+    if (subtitle) subtitle.textContent = t("auth.register_subtitle");
     wrap.dataset.submitButton = "#signupBtn";
     wrap.innerHTML = `
       ${formField({ label: t("auth.fullname"), name: "name", required: true, placeholder: t("auth.fullname_ph") })}
@@ -123,7 +173,9 @@ function drawAuthForm(mode) {
       <div class="btnrow">
         <button class="primary" id="signupBtn">${t("auth.signup_btn")}</button>
       </div>
+      ${socialAuthHtml()}
     `;
+    bindSocialAuthButtons(wrap);
     const roleSel = document.querySelector("#authForm [name=role]");
     const staffFields = document.getElementById("staffFields");
     const workIdInput = document.querySelector("#authForm [name=workId]");
@@ -249,12 +301,18 @@ async function onLogin() {
 
 function openForgotPassword(initialToken = "") {
   openModal(t("auth.reset_title"), `
-    ${formField({ label: t("auth.identifier"), name: "resetIdentifier", required: true })}
-    <div class="btnrow mt12">
-      <button class="primary" id="requestResetBtn">${t("auth.reset_request_btn")}</button>
-      <button class="ghost" id="resetCancelBtn">${t("cancel")}</button>
+    <div class="reset-flow">
+      <div class="reset-copy">
+        <div class="reset-icon">#</div>
+        <p>${t("auth.reset_intro")}</p>
+      </div>
+      ${formField({ label: t("auth.identifier"), name: "resetIdentifier", required: true })}
+      <div class="btnrow mt12">
+        <button class="primary" id="requestResetBtn">${t("auth.reset_request_btn")}</button>
+        <button class="ghost" id="resetCancelBtn">${t("cancel")}</button>
+      </div>
+      <div id="resetStep" class="mt12"></div>
     </div>
-    <div id="resetStep" class="mt12"></div>
   `);
 
   const idInput = document.querySelector("#modalBody [name=resetIdentifier]");
@@ -277,6 +335,7 @@ function openForgotPassword(initialToken = "") {
         <button class="primary" id="completeResetBtn">${t("auth.reset_complete_btn")}</button>
       </div>
     `;
+    prepareResetCodeInput();
     document.getElementById("completeResetBtn")?.addEventListener("click", async () => {
       const token = document.querySelector("#modalBody [name=resetToken]").value.trim();
       const password = document.querySelector("#modalBody [name=resetPassword]").value;
@@ -324,6 +383,7 @@ function openForgotPassword(initialToken = "") {
         ${emailFailed ? "" : `<div class="muted reset-message">${t("auth.reset_email_hint")}</div>`}
         ${resetForm}
       `;
+      prepareResetCodeInput();
       document.getElementById("completeResetBtn")?.addEventListener("click", async () => {
         const token = document.querySelector("#modalBody [name=resetToken]").value.trim();
         const password = document.querySelector("#modalBody [name=resetPassword]").value;
@@ -346,6 +406,18 @@ function openForgotPassword(initialToken = "") {
       requestBtn.textContent = originalText;
     }
   };
+}
+
+function prepareResetCodeInput() {
+  const codeInput = document.querySelector("#modalBody [name=resetToken]");
+  if (!codeInput) return;
+  codeInput.inputMode = "numeric";
+  codeInput.autocomplete = "one-time-code";
+  codeInput.maxLength = 6;
+  codeInput.classList.add("reset-code-input");
+  codeInput.addEventListener("input", () => {
+    codeInput.value = codeInput.value.replace(/\D/g, "").slice(0, 6);
+  });
 }
 
 async function onSignup() {
