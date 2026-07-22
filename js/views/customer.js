@@ -134,7 +134,7 @@ function drawAuthForm(mode) {
       ${socialAuthHtml()}
     `;
     document.getElementById("loginBtn").addEventListener("click", onLogin);
-    document.getElementById("forgotPasswordBtn").addEventListener("click", openForgotPassword);
+    document.getElementById("forgotPasswordBtn").addEventListener("click", () => openForgotPassword());
     bindSocialAuthButtons(wrap);
     // Force the identifier (email) to lowercase as the user types — emails
     // are case-insensitive and our auth store keeps them lowercase.
@@ -299,113 +299,136 @@ async function onLogin() {
   }
 }
 
-function openForgotPassword(initialToken = "") {
-  openModal(t("auth.reset_title"), `
-    <div class="reset-flow">
-      <div class="reset-copy">
-        <div class="reset-icon">#</div>
-        <p>${t("auth.reset_intro")}</p>
-      </div>
-      ${formField({ label: t("auth.identifier"), name: "resetIdentifier", required: true })}
-      <div class="btnrow mt12">
-        <button class="primary" id="requestResetBtn">${t("auth.reset_request_btn")}</button>
-        <button class="ghost" id="resetCancelBtn">${t("cancel")}</button>
-      </div>
-      <div id="resetStep" class="mt12"></div>
+function openForgotPassword(initialCode = "") {
+  const startingCode = typeof initialCode === "string" ? initialCode.replace(/\D/g, "").slice(0, 6) : "";
+  const resetState = { identifier: "", code: startingCode };
+  openModal(t("auth.reset_title"), `<div class="reset-flow" id="resetFlow"></div>`);
+  bindEnterSubmit(document.getElementById("modalBody"), () => document.querySelector("#modalBody [data-reset-primary]"));
+
+  const stepShell = ({ step, icon, title, copy, body, message = "", error = false }) => `
+    <div class="reset-copy">
+      <div class="reset-icon">${icon}</div>
+      <h4>${title}</h4>
+      <p>${copy}</p>
     </div>
-  `);
+    <div class="reset-progress" aria-label="Password reset progress">
+      ${[1, 2, 3].map((n) => `<span class="${n <= step ? "active" : ""}"></span>`).join("")}
+    </div>
+    ${message ? `<div class="${error ? "reset-error" : "muted reset-message"}">${message}</div>` : ""}
+    ${body}
+  `;
 
-  const idInput = document.querySelector("#modalBody [name=resetIdentifier]");
-  const requestBtn = document.getElementById("requestResetBtn");
-  const resetStep = document.getElementById("resetStep");
-  bindEnterSubmit(document.getElementById("modalBody"), () => (
-    document.getElementById("completeResetBtn") || document.getElementById("requestResetBtn")
-  ));
-  idInput?.addEventListener("input", () => { idInput.value = idInput.value.toLowerCase(); });
-  document.getElementById("resetCancelBtn").onclick = () => closeModal();
+  const renderRequestStep = (message = "", error = false) => {
+    document.getElementById("resetFlow").innerHTML = stepShell({
+      step: 1,
+      icon: "@",
+      title: t("auth.reset_step_request_title"),
+      copy: t("auth.reset_step_request_copy"),
+      message,
+      error,
+      body: `
+        ${formField({ label: t("auth.identifier"), name: "resetIdentifier", value: resetState.identifier, required: true })}
+        <div class="btnrow mt12">
+          <button class="primary" id="requestResetBtn" data-reset-primary>${t("auth.reset_request_btn")}</button>
+          <button class="ghost" id="resetCancelBtn">${t("cancel")}</button>
+        </div>
+      `,
+    });
+    const idInput = document.querySelector("#modalBody [name=resetIdentifier]");
+    idInput?.addEventListener("input", () => { idInput.value = idInput.value.toLowerCase(); });
+    document.getElementById("resetCancelBtn").onclick = () => closeModal();
+    document.getElementById("requestResetBtn").onclick = async () => {
+      const identifier = idInput.value.trim().toLowerCase();
+      if (!identifier) { toast(t("auth.enter_creds"), "danger"); return; }
+      resetState.identifier = identifier;
+      const requestBtn = document.getElementById("requestResetBtn");
+      const originalText = requestBtn.textContent;
+      requestBtn.disabled = true;
+      requestBtn.textContent = t("auth.reset_sending");
+      try {
+        const result = await Auth.requestPasswordReset({ identifier });
+        const emailFailed = result.emailSent === false;
+        resetState.code = String(result.resetCode || result.resetToken || resetState.code || "").replace(/\D/g, "").slice(0, 6);
+        if (emailFailed && !resetState.code) {
+          renderRequestStep(result.message || t("auth.reset_email_failed"), true);
+          toast(result.message || t("auth.reset_email_failed"), "danger");
+          return;
+        }
+        renderCodeStep(result.message || t("auth.reset_sent"));
+        toast(t("auth.reset_sent"), "success");
+      } catch (e) {
+        renderRequestStep(e.message, true);
+        toast(e.message, "danger");
+      } finally {
+        if (requestBtn.isConnected) {
+          requestBtn.disabled = false;
+          requestBtn.textContent = originalText;
+        }
+      }
+    };
+  };
 
-  const showResetForm = (tokenValue = "", message = t("auth.reset_email_hint"), isError = false) => {
-    resetStep.innerHTML = `
-      <div class="${isError ? "reset-error" : "muted reset-message"}">${message}</div>
-      ${formField({ label: t("auth.reset_token"), name: "resetToken", value: tokenValue, required: true })}
-      ${formField({ label: t("auth.new_password"), name: "resetPassword", type: "password", placeholder: t("auth.password_ph"), required: true })}
-      <div class="muted password-hint">${t("auth.password_hint")}</div>
-      ${formField({ label: t("auth.password_confirm"), name: "resetPasswordConfirm", type: "password", required: true })}
-      <div class="btnrow mt12">
-        <button class="primary" id="completeResetBtn">${t("auth.reset_complete_btn")}</button>
-      </div>
-    `;
+  const renderCodeStep = (message = t("auth.reset_email_hint")) => {
+    document.getElementById("resetFlow").innerHTML = stepShell({
+      step: 2,
+      icon: "#",
+      title: t("auth.reset_step_code_title"),
+      copy: t("auth.reset_step_code_copy"),
+      message,
+      body: `
+        ${formField({ label: t("auth.reset_token"), name: "resetToken", value: resetState.code, required: true })}
+        <div class="btnrow mt12">
+          <button class="primary" id="continueResetBtn" data-reset-primary>${t("continue")}</button>
+          <button class="ghost" id="resetBackBtn">${t("back")}</button>
+        </div>
+      `,
+    });
     prepareResetCodeInput();
-    document.getElementById("completeResetBtn")?.addEventListener("click", async () => {
-      const token = document.querySelector("#modalBody [name=resetToken]").value.trim();
+    document.getElementById("resetBackBtn").onclick = () => renderRequestStep();
+    document.getElementById("continueResetBtn").onclick = () => {
+      const code = document.querySelector("#modalBody [name=resetToken]").value.trim();
+      if (!/^\d{6}$/.test(code)) { toast(t("auth.reset_code_required"), "danger"); return; }
+      resetState.code = code;
+      renderPasswordStep();
+    };
+  };
+
+  const renderPasswordStep = (message = "") => {
+    document.getElementById("resetFlow").innerHTML = stepShell({
+      step: 3,
+      icon: "*",
+      title: t("auth.reset_step_password_title"),
+      copy: t("auth.reset_step_password_copy"),
+      message,
+      error: Boolean(message),
+      body: `
+        ${formField({ label: t("auth.new_password"), name: "resetPassword", type: "password", placeholder: t("auth.password_ph"), required: true })}
+        <div class="muted password-hint">${t("auth.password_hint")}</div>
+        ${formField({ label: t("auth.password_confirm"), name: "resetPasswordConfirm", type: "password", required: true })}
+        <div class="btnrow mt12">
+          <button class="primary" id="completeResetBtn" data-reset-primary>${t("auth.reset_complete_btn")}</button>
+          <button class="ghost" id="codeBackBtn">${t("back")}</button>
+        </div>
+      `,
+    });
+    document.getElementById("codeBackBtn").onclick = () => renderCodeStep();
+    document.getElementById("completeResetBtn").onclick = async () => {
       const password = document.querySelector("#modalBody [name=resetPassword]").value;
       const confirm = document.querySelector("#modalBody [name=resetPasswordConfirm]").value;
       if (password !== confirm) { toast(t("auth.password_mismatch"), "danger"); return; }
       try {
-        await Auth.resetPassword({ token, password });
+        await Auth.resetPassword({ token: resetState.code, password });
         closeModal();
         toast(t("auth.reset_done"), "success");
       } catch (e) {
+        renderPasswordStep(e.message);
         toast(e.message, "danger");
       }
-    });
+    };
   };
 
-  if (initialToken) {
-    showResetForm(initialToken, t("auth.reset_email_hint"));
-  }
-
-  requestBtn.onclick = async () => {
-    const identifier = idInput.value.trim().toLowerCase();
-    if (!identifier) { toast(t("auth.enter_creds"), "danger"); return; }
-    const originalText = requestBtn.textContent;
-    requestBtn.disabled = true;
-    requestBtn.textContent = t("auth.reset_sending");
-    resetStep.innerHTML = `<div class="muted reset-message">${t("auth.reset_sending")}</div>`;
-    try {
-      const result = await Auth.requestPasswordReset({ identifier });
-      const emailFailed = result.emailSent === false;
-      const resetCode = result.resetCode || result.resetToken || "";
-      const tokenField = resetCode
-        ? formField({ label: t("auth.reset_token"), name: "resetToken", value: resetCode, required: true })
-        : formField({ label: t("auth.reset_token"), name: "resetToken", required: true });
-      const resetForm = !emailFailed || resetCode ? `
-          ${tokenField}
-          ${formField({ label: t("auth.new_password"), name: "resetPassword", type: "password", placeholder: t("auth.password_ph"), required: true })}
-          <div class="muted password-hint">${t("auth.password_hint")}</div>
-          ${formField({ label: t("auth.password_confirm"), name: "resetPasswordConfirm", type: "password", required: true })}
-          <div class="btnrow mt12">
-            <button class="primary" id="completeResetBtn">${t("auth.reset_complete_btn")}</button>
-          </div>
-        ` : "";
-      resetStep.innerHTML = `
-        <div class="${emailFailed ? "reset-error" : "muted reset-message"}">${result.message || (emailFailed ? t("auth.reset_email_failed") : t("auth.reset_sent"))}</div>
-        ${emailFailed ? "" : `<div class="muted reset-message">${t("auth.reset_email_hint")}</div>`}
-        ${resetForm}
-      `;
-      prepareResetCodeInput();
-      document.getElementById("completeResetBtn")?.addEventListener("click", async () => {
-        const token = document.querySelector("#modalBody [name=resetToken]").value.trim();
-        const password = document.querySelector("#modalBody [name=resetPassword]").value;
-        const confirm = document.querySelector("#modalBody [name=resetPasswordConfirm]").value;
-        if (password !== confirm) { toast(t("auth.password_mismatch"), "danger"); return; }
-        try {
-          await Auth.resetPassword({ token, password });
-          closeModal();
-          toast(t("auth.reset_done"), "success");
-        } catch (e) {
-          toast(e.message, "danger");
-        }
-      });
-      toast(emailFailed ? (result.message || t("auth.reset_email_failed")) : t("auth.reset_sent"), emailFailed ? "danger" : "success");
-    } catch (e) {
-      resetStep.innerHTML = `<div class="reset-error">${e.message}</div>`;
-      toast(e.message, "danger");
-    } finally {
-      requestBtn.disabled = false;
-      requestBtn.textContent = originalText;
-    }
-  };
+  if (resetState.code) renderCodeStep(t("auth.reset_email_hint"));
+  else renderRequestStep();
 }
 
 function prepareResetCodeInput() {
