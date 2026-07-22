@@ -306,10 +306,11 @@ function openForgotPassword(initialToken = "") {
     try {
       const result = await Auth.requestPasswordReset({ identifier });
       const emailFailed = result.emailSent === false;
-      const tokenField = result.resetToken
-        ? formField({ label: t("auth.reset_token"), name: "resetToken", value: result.resetToken, required: true })
+      const resetCode = result.resetCode || result.resetToken || "";
+      const tokenField = resetCode
+        ? formField({ label: t("auth.reset_token"), name: "resetToken", value: resetCode, required: true })
         : formField({ label: t("auth.reset_token"), name: "resetToken", required: true });
-      const resetForm = !emailFailed || result.resetToken ? `
+      const resetForm = !emailFailed || resetCode ? `
           ${tokenField}
           ${formField({ label: t("auth.new_password"), name: "resetPassword", type: "password", placeholder: t("auth.password_ph"), required: true })}
           <div class="muted password-hint">${t("auth.password_hint")}</div>

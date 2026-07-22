@@ -43,7 +43,7 @@ router.post(
 router.post(
   "/reset-password",
   [
-    body("token").trim().notEmpty().withMessage("Reset token is required."),
+    body("token").trim().notEmpty().withMessage("Reset code is required."),
     body("password").isStrongPassword({ minLength: 8, minSymbols: 0 }).withMessage("Password must be at least 8 characters and include uppercase, lowercase, and a number."),
   ],
   validateRequest,

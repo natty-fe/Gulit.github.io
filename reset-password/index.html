@@ -10,7 +10,7 @@
   <script>
     (function () {
       var params = new URLSearchParams(window.location.search);
-      var token = params.get("token") || "";
+      var token = params.get("code") || params.get("token") || "";
       if (token) {
         sessionStorage.setItem("gulit:passwordResetToken", token);
       }

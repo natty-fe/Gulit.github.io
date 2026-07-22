@@ -236,16 +236,16 @@ export const Auth = {
     }
     const user = DB.find("users", (u) => u.email === identifier || u.phone === identifier);
     if (!user) return { message: "If an account exists, reset instructions will be provided." };
-    const resetToken = newToken();
+    const resetCode = String(Math.floor(Math.random() * 1000000)).padStart(6, "0");
     DB.update("users", user.id, {
-      resetToken,
-      resetTokenExpiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+      resetToken: resetCode,
+      resetTokenExpiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
     });
-    return { message: "Use the reset token to set a new password.", resetToken };
+    return { message: "Use the 6-digit reset code to set a new password.", resetCode, resetToken: resetCode };
   },
 
   async resetPassword({ token, password }) {
-    if (!token || !password) throw new Error("Reset token and new password are required.");
+    if (!token || !password) throw new Error("Reset code and new password are required.");
     if (isBackendApiEnabled()) {
       return apiRequest("/auth/reset-password", {
         method: "POST",
@@ -254,7 +254,7 @@ export const Auth = {
     }
     const now = new Date().toISOString();
     const user = DB.find("users", (u) => u.resetToken === token && u.resetTokenExpiresAt > now);
-    if (!user) throw new Error("Invalid or expired reset token.");
+    if (!user) throw new Error("Invalid or expired reset code.");
     DB.update("users", user.id, {
       passwordHash: await hashPassword(password),
       resetToken: null,

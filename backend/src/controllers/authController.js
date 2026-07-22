@@ -13,6 +13,10 @@ function hashResetToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
 }
 
+function createResetCode() {
+  return String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+}
+
 function publicUser(user) {
   const { password_hash, passwordHash, ...safe } = user;
   return {
@@ -83,15 +87,15 @@ export async function forgotPassword(req, res) {
     return res.json({ message: genericMessage });
   }
 
-  const resetToken = crypto.randomBytes(32).toString("hex");
+  const resetCode = createResetCode();
   await UserModel.update(user.id, {
-    password_reset_token_hash: hashResetToken(resetToken),
+    password_reset_token_hash: hashResetToken(resetCode),
     password_reset_expires_at: new Date(Date.now() + RESET_TOKEN_MINUTES * 60 * 1000).toISOString(),
   });
   await writeAuditLog(user.id, "PASSWORD_RESET_REQUESTED", "user", user.id);
   let emailResult = { sent: false, reason: "Email service was not attempted." };
   try {
-    emailResult = await sendPasswordResetEmail(user, resetToken);
+    emailResult = await sendPasswordResetEmail(user, resetCode);
     console.info("Password reset email result:", {
       sent: Boolean(emailResult.sent),
       provider: emailResult.provider || "none",
@@ -107,10 +111,10 @@ export async function forgotPassword(req, res) {
   res.json({
     message: emailSent
       ? "Password reset email sent."
-      : `Reset token was created, but email was not sent: ${emailResult.reason || "Email service failed."}`,
+      : `Reset code was created, but email was not sent: ${emailResult.reason || "Email service failed."}`,
     emailSent,
     emailProvider: emailResult.provider || null,
-    ...(process.env.NODE_ENV !== "production" ? { resetToken, expiresInMinutes: RESET_TOKEN_MINUTES } : {}),
+    ...(process.env.NODE_ENV !== "production" ? { resetCode, resetToken: resetCode, expiresInMinutes: RESET_TOKEN_MINUTES } : {}),
   });
 }
 
@@ -118,7 +122,7 @@ export async function resetPassword(req, res) {
   const { token, password } = req.body;
   const user = await UserModel.findByResetTokenHash(hashResetToken(token));
   if (!user || !user.password_reset_expires_at || new Date(user.password_reset_expires_at).getTime() < Date.now()) {
-    throw httpError(400, "Invalid or expired reset token.");
+    throw httpError(400, "Invalid or expired reset code.");
   }
 
   await UserModel.update(user.id, {

@@ -194,10 +194,10 @@ export async function sendWelcomeEmail(user) {
   });
 }
 
-export async function sendPasswordResetEmail(user, resetToken) {
+export async function sendPasswordResetEmail(user, resetCode) {
   if (!user?.email) return { sent: false, reason: "User has no email." };
   const fullName = fullNameOf(user);
-  const resetUrl = `${env.frontendUrl.replace(/\/$/, "")}/reset-password?token=${encodeURIComponent(resetToken)}`;
+  const resetUrl = `${env.frontendUrl.replace(/\/$/, "")}/reset-password?code=${encodeURIComponent(resetCode)}`;
   const supportEmail = "nathanfeyisa6@gmail.com";
 
   return sendMail({
@@ -212,7 +212,7 @@ export async function sendPasswordResetEmail(user, resetToken) {
       "",
       `Reset Password \u2192 ${resetUrl}`,
       "",
-      `use this token = ${resetToken}`,
+      `use this code = ${resetCode}`,
       "",
       "Didn't request this? You can safely ignore this email, your password won't change.",
       "",
@@ -223,7 +223,7 @@ export async function sendPasswordResetEmail(user, resetToken) {
       <p>Hi ${escapeHtml(fullName)},</p>
       <p>We got a request to reset your GULIT password. Click below to choose a new one, this link expires in 10 minutes.</p>
       <p><strong><a href="${resetUrl}">Reset Password &rarr;</a></strong></p>
-      <p>use this token = <a href="${resetUrl}"><strong>${escapeHtml(resetToken)}</strong></a></p>
+      <p>use this code = <a href="${resetUrl}"><strong>${escapeHtml(resetCode)}</strong></a></p>
       <p>Didn't request this? You can safely ignore this email, your password won't change.</p>
       <p>Need help? We're here: <a href="mailto:${supportEmail}">${supportEmail}</a></p>
     `,
