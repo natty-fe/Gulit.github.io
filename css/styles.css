@@ -852,9 +852,19 @@ input:focus, select:focus, textarea:focus{
   line-height: 1.45;
   margin-bottom: 8px;
 }
+.reset-modal{
+  width: min(420px, calc(100vw - 28px));
+  border-radius: 24px;
+}
+.reset-modal .mhd{
+  padding: 12px 16px;
+}
+.reset-modal .mbd{
+  padding: 22px 22px 20px;
+}
 .reset-flow{
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 .reset-copy{
   display: grid;
@@ -870,7 +880,7 @@ input:focus, select:focus, textarea:focus{
   font-weight: 900;
 }
 .reset-copy p{
-  max-width: 380px;
+  max-width: 300px;
   margin: 0;
   color: var(--muted);
   font-size: 13px;
@@ -891,8 +901,10 @@ input:focus, select:focus, textarea:focus{
 .reset-progress{
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  margin: 4px 0 10px;
+  gap: 10px;
+  width: min(260px, 100%);
+  justify-self: center;
+  margin: 6px 0 12px;
 }
 .reset-progress span{
   height: 3px;
@@ -1549,6 +1561,11 @@ hr{ border: none; border-top: 1px solid var(--border); margin: 12px 0; }
     max-height: calc(100dvh - 20px);
     border-radius: 16px;
     margin: auto 0;
+  }
+
+  .reset-modal{
+    width: min(100%, 420px);
+    border-radius: 22px;
   }
 
   .modal .mhd{

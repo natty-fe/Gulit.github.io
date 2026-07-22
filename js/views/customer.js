@@ -303,6 +303,7 @@ function openForgotPassword(initialCode = "") {
   const startingCode = typeof initialCode === "string" ? initialCode.replace(/\D/g, "").slice(0, 6) : "";
   const resetState = { identifier: "", code: startingCode };
   openModal(t("auth.reset_title"), `<div class="reset-flow" id="resetFlow"></div>`);
+  document.querySelector("#overlay .modal")?.classList.add("reset-modal");
   bindEnterSubmit(document.getElementById("modalBody"), () => document.querySelector("#modalBody [data-reset-primary]"));
 
   const stepShell = ({ step, icon, title, copy, body, message = "", error = false }) => `
